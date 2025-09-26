@@ -8,13 +8,11 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q, Count, Avg, Sum, Max, Min
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 from .models import Case, Exercise, Exam, ExamRecord, UserProgress, UserAnswer, ExamResult
 import json
 import csv
 from datetime import datetime, timedelta
-from django.utils import timezone
 from datetime import timezone as dt_timezone
 import io
 import xlsxwriter
@@ -573,30 +571,6 @@ def teacher_exercise_delete(request, exercise_id):
 
 @login_required
 @user_passes_test(is_teacher, login_url='login')
-def teacher_student_progress(request):
-    """教师查看学生进度"""
-    students = User.objects.filter(groups__name='Students')
-    progress_data = []
-    
-    for student in students:
-        progress, _ = UserProgress.objects.get_or_create(user=student)
-        recent_exam = ExamRecord.objects.filter(
-            user=student, is_completed=True
-        ).order_by('-completed_at').first()
-        
-        progress_data.append({
-            'student': student,
-            'progress': progress,
-            'recent_exam': recent_exam,
-        })
-    
-    context = {
-        'progress_data': progress_data,
-    }
-    
-    return render(request, 'teacher/student_progress.html', context)
-
-
 # 数据导入功能
 @login_required
 @user_passes_test(is_teacher, login_url='login')

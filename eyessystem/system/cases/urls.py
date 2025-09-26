@@ -37,9 +37,6 @@ urlpatterns = [
     path('teacher/exercises/<int:exercise_id>/edit/', views.teacher_exercise_edit, name='teacher_exercise_edit'),
     path('teacher/exercises/<int:exercise_id>/delete/', views.teacher_exercise_delete, name='teacher_exercise_delete'),
     
-    # 兼容性重定向 - 旧的学生进度URL
-    path('teacher/students/progress/old/', views.teacher_student_progress, name='teacher_student_progress'),
-    
     # 教师端考试系统
     path('teacher/exams/', views.teacher_exam_list, name='teacher_exam_list'),
     path('teacher/exams/create/', views.teacher_exam_create, name='teacher_exam_create'),

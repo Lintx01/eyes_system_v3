@@ -174,6 +174,7 @@ class ExamRecord(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     time_spent = models.IntegerField('用时（分钟）', default=0, help_text='考试用时，单位：分钟')
     is_completed = models.BooleanField('是否完成', default=False)
+    is_passed = models.BooleanField('是否通过', default=False, help_text='是否达到及格分数线')
     
     class Meta:
         verbose_name = '考试记录'
@@ -186,6 +187,9 @@ class ExamRecord(models.Model):
             self.score = (self.correct_answers / self.total_questions) * 100
         else:
             self.score = 0
+        
+        # 自动判断是否通过（假设60分及格）
+        self.is_passed = self.score >= 60
         return self.score
     
     def calculate_time_spent(self):

@@ -22,7 +22,6 @@ class CustomAdminSite(AdminSite):
 custom_admin_site = CustomAdminSite(name='custom_admin')
 
 
-@admin.register(Case)
 class CaseAdmin(admin.ModelAdmin):
     """病例管理"""
     list_display = ['title', 'difficulty', 'case_type', 'is_active', 'created_at']
@@ -43,7 +42,6 @@ class CaseAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
     """练习题目管理"""
     list_display = ['question_preview', 'case', 'question_type', 'difficulty', 'is_active', 'created_at']
@@ -69,7 +67,6 @@ class ExerciseAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
     """考试管理"""
     list_display = ['title', 'status', 'start_time', 'duration', 'get_questions_count', 'created_by']
@@ -99,7 +96,6 @@ class ExamAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(ExamRecord)
 class ExamRecordAdmin(admin.ModelAdmin):
     """考试记录管理"""
     list_display = ['user', 'exam', 'exam_type', 'score', 'total_questions', 'correct_answers', 
@@ -125,7 +121,6 @@ class ExamRecordAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(UserProgress)
 class UserProgressAdmin(admin.ModelAdmin):
     """用户进度管理"""
     list_display = ['user', 'progress_percentage', 'completed_cases_count', 
@@ -143,7 +138,6 @@ class UserProgressAdmin(admin.ModelAdmin):
     completed_exercises_count.short_description = '完成练习数'
 
 
-@admin.register(UserAnswer)
 class UserAnswerAdmin(admin.ModelAdmin):
     """用户答题记录管理"""
     list_display = ['user', 'exercise_preview', 'user_answer', 'is_correct', 'answer_time']
@@ -156,7 +150,6 @@ class UserAnswerAdmin(admin.ModelAdmin):
     exercise_preview.short_description = '题目预览'
 
 
-@admin.register(ExamResult)
 class ExamResultAdmin(admin.ModelAdmin):
     """模拟考试结果管理"""
     list_display = ['user', 'score', 'total_questions', 'correct_answers', 
