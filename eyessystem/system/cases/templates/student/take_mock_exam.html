@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <h3>模拟考试答题</h3>
+            <div class="alert alert-info">
+                <i class="fas fa-clock"></i> 剩余时间: <span id="timer">{{ time_left }}</span> 秒
+            </div>
+            
+            <form method="post" id="mockExamForm">
+                {% csrf_token %}
+                {% for exercise in exercises %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <strong>题目 {{ forloop.counter }}：</strong> {{ exercise.question }}
+                        </div>
+                        <div class="card-body">
+                            {% for option in exercise.get_options_list %}
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" 
+                                           type="radio" 
+                                           name="answer_{{ exercise.id }}" 
+                                           value="{{ forloop.counter0 }}" 
+                                           id="q{{ exercise.id }}_{{ forloop.counter0 }}">
+                                    <label class="form-check-label" for="q{{ exercise.id }}_{{ forloop.counter0 }}">
+                                        {{ option }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                <div class="text-center mb-4">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-paper-plane"></i> 提交考试
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>考试信息</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>总题数：</strong>{{ total_questions }}</p>
+                    <p><strong>剩余时间：</strong><span id="timer-display">{{ time_left }}</span> 秒</p>
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: 0%" id="progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 倒计时功能
+(function() {
+    var timeLeft = parseInt('{{ time_left }}');
+    var timerElement = document.getElementById('timer');
+    var timerDisplay = document.getElementById('timer-display');
+    var progressBar = document.getElementById('progress-bar');
+    var totalTime = timeLeft;
+
+    function updateTimer() {
+        if (timeLeft <= 0) {
+            document.getElementById('mockExamForm').submit();
+            return;
+        }
+        
+        var minutes = Math.floor(timeLeft / 60);
+        var seconds = timeLeft % 60;
+        var timeString = minutes + ':' + (seconds < 10 ? '0' + seconds : seconds);
+        
+        if (timerElement) timerElement.textContent = timeString;
+        if (timerDisplay) timerDisplay.textContent = timeString;
+        
+        // 更新进度条
+        var progress = ((totalTime - timeLeft) / totalTime) * 100;
+        if (progressBar) progressBar.style.width = progress + '%';
+        
+        timeLeft--;
+    }
+
+    // 每秒更新一次
+    setInterval(updateTimer, 1000);
+})();
+</script>
+{% endblock %}

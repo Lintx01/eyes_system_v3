@@ -14,6 +14,8 @@ from .models import Case, Exercise, Exam, ExamRecord, UserProgress, UserAnswer, 
 import json
 import csv
 from datetime import datetime, timedelta
+from django.utils import timezone
+from datetime import timezone as dt_timezone
 import io
 import xlsxwriter
 import random
@@ -1526,7 +1528,25 @@ def take_mock_exam(request):
         return redirect('student_mock_exam_list')
     
     if request.method == 'POST':
-        # 保存单题答案
+        # 检查是否是完整表单提交（有多个答案）
+        answer_keys = [key for key in request.POST.keys() if key.startswith('answer_')]
+        
+        if len(answer_keys) > 1:
+            # 完整表单提交，收集所有答案
+            if 'mock_exam_answers' not in request.session:
+                request.session['mock_exam_answers'] = {}
+                
+            for key in answer_keys:
+                exercise_id = key.replace('answer_', '')
+                answer = request.POST.get(key)
+                if answer:
+                    request.session['mock_exam_answers'][exercise_id] = answer
+            
+            request.session.modified = True
+            # 跳转到提交页面
+            return redirect('submit_mock_exam')
+        
+        # 单题保存（AJAX请求）
         question_id = request.POST.get('question_id')
         answer = request.POST.get('answer')
         
@@ -1541,7 +1561,7 @@ def take_mock_exam(request):
     question_ids = request.session['mock_exam_questions']
     exercises = Exercise.objects.filter(id__in=question_ids).prefetch_related('case')
     
-    start_time = datetime.fromtimestamp(request.session['mock_exam_start_time'], tz=datetime.timezone.utc)
+    start_time = datetime.fromtimestamp(request.session['mock_exam_start_time'], tz=dt_timezone.utc)
     time_limit = request.session['mock_exam_time_limit']
     end_time = start_time + timedelta(minutes=time_limit)
     
@@ -1571,22 +1591,15 @@ def submit_mock_exam(request):
         messages.error(request, '没有进行中的模拟考试')
         return redirect('student_mock_exam_list')
     
-    if request.method == 'POST':
-        # 批量提交答案
-        for key, value in request.POST.items():
-            if key.startswith('question_'):
-                question_id = key.replace('question_', '')
-                if 'mock_exam_answers' not in request.session:
-                    request.session['mock_exam_answers'] = {}
-                request.session['mock_exam_answers'][question_id] = value
-        request.session.modified = True
+    # 从take_mock_exam页面跳转来的，答案已经保存在session中
+    # 不需要再处理POST数据
     
     # 计算成绩
     question_ids = request.session['mock_exam_questions']
     exercises = Exercise.objects.filter(id__in=question_ids)
     answers = request.session.get('mock_exam_answers', {})
     
-    start_time = datetime.fromtimestamp(request.session['mock_exam_start_time'], tz=datetime.timezone.utc)
+    start_time = datetime.fromtimestamp(request.session['mock_exam_start_time'], tz=dt_timezone.utc)
     time_spent = int((timezone.now() - start_time).total_seconds() / 60)  # 转换为分钟
     
     total_questions = len(question_ids)
@@ -1630,6 +1643,9 @@ def submit_mock_exam(request):
     # 清除session数据
     for key in ['mock_exam_questions', 'mock_exam_start_time', 'mock_exam_time_limit', 'mock_exam_answers']:
         request.session.pop(key, None)
+    
+    # 添加成功消息
+    messages.success(request, f'模拟考试提交成功！得分：{score:.1f}分')
     
     return redirect('mock_exam_result', result_id=exam_result.id)
 
