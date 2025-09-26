@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}学生练习 - {{ exercise.case.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.exercise-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.case-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    border-left: 4px solid #b71c1c;
+}
+
+.question-section {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.question-text {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    color: #333;
+}
+
+.options-container {
+    margin-bottom: 30px;
+}
+
+.option-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding: 15px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.option-item:hover {
+    border-color: #b71c1c;
+    background: #fef9f9;
+}
+
+.option-item.selected {
+    border-color: #b71c1c;
+    background: #fff5f5;
+}
+
+.option-radio {
+    margin-right: 12px;
+    margin-top: 2px;
+}
+
+.option-text {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.submit-section {
+    text-align: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.difficulty-badge {
+    display: inline-block;
+    background: #17a2b8;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+}
+
+.type-badge {
+    display: inline-block;
+    background: #b71c1c;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+    margin-left: 10px;
+}
+
+.answer-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 20px;
+}
+
+.answer-input:focus {
+    outline: none;
+    border-color: #b71c1c;
+    box-shadow: 0 0 10px rgba(183, 28, 28, 0.1);
+}
+
+.navigation-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="exercise-container">
+    <!-- 病例信息 -->
+    <div class="case-info">
+        <h3 style="color: #b71c1c; margin-bottom: 10px;">
+            <i style="margin-right: 8px;">📋</i>病例：{{ exercise.case.title }}
+        </h3>
+        <p style="margin-bottom: 10px; color: #666;">{{ exercise.case.description|truncatewords:20 }}</p>
+        <div>
+            <span class="difficulty-badge">
+                难度: {% for i in "12345"|make_list %}{% if forloop.counter <= exercise.difficulty %}★{% else %}☆{% endif %}{% endfor %}
+            </span>
+            <span class="type-badge">{{ exercise.get_question_type_display }}</span>
+        </div>
+    </div>
+
+    <!-- 显示消息 -->
+    {% if message %}
+        <div class="message error">
+            {{ message }}
+        </div>
+    {% endif %}
+
+    <!-- 题目内容 -->
+    <div class="question-section">
+        <h2 style="color: #b71c1c; margin-bottom: 25px;">
+            <i style="margin-right: 8px;">❓</i>练习题目
+        </h2>
+        
+        <div class="question-text">
+            {{ exercise.question|linebreaks }}
+        </div>
+
+        <!-- 答题表单 -->
+        <form method="post" id="exerciseForm">
+            {% csrf_token %}
+            
+            {% if exercise.question_type == 'single' or exercise.question_type == 'multiple' %}
+                <!-- 选择题选项 -->
+                <div class="options-container">
+                    {% for option in options %}
+                        <div class="option-item" onclick="selectOption(this, '{{ forloop.counter0 }}')">
+                            {% if exercise.question_type == 'single' %}
+                                <input type="radio" name="answer" value="{{ forloop.counter0 }}" class="option-radio" id="option_{{ forloop.counter0 }}">
+                            {% else %}
+                                <input type="checkbox" name="answer" value="{{ forloop.counter0 }}" class="option-radio" id="option_{{ forloop.counter0 }}">
+                            {% endif %}
+                            <label for="option_{{ forloop.counter0 }}" class="option-text">
+                                {{ option }}
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% elif exercise.question_type == 'judge' %}
+                <!-- 判断题选项 -->
+                <div class="options-container">
+                    <div class="option-item" onclick="selectOption(this, 'T')">
+                        <input type="radio" name="answer" value="T" class="option-radio" id="option_T">
+                        <label for="option_T" class="option-text">
+                            <strong>✓</strong> 正确
+                        </label>
+                    </div>
+                    <div class="option-item" onclick="selectOption(this, 'F')">
+                        <input type="radio" name="answer" value="F" class="option-radio" id="option_F">
+                        <label for="option_F" class="option-text">
+                            <strong>✗</strong> 错误
+                        </label>
+                    </div>
+                </div>
+            {% else %}
+                <!-- 文字输入题 -->
+                <div class="form-group">
+                    <label for="answer_input">请输入您的答案：</label>
+                    <input type="text" name="answer" id="answer_input" class="answer-input" placeholder="请输入答案..." required>
+                </div>
+            {% endif %}
+
+            <div class="submit-section">
+                <button type="submit" class="btn" style="padding: 15px 40px; font-size: 1.1rem;">
+                    <i style="margin-right: 8px;">📝</i>提交答案
+                </button>
+                
+                <div class="navigation-buttons">
+                    <a href="{% url 'student_case_detail' exercise.case.id %}" class="btn secondary">
+                        <i style="margin-right: 5px;">⬅️</i>返回病例
+                    </a>
+                    
+                    <div style="color: #666; font-size: 0.9rem;">
+                        <i style="margin-right: 5px;">💡</i>
+                        提示：仔细阅读题目，结合病例信息作答
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// 选项选择交互
+function selectOption(optionElement, value) {
+    // 移除其他选项的选中状态（单选题）
+    {% if exercise.question_type == 'single' or exercise.question_type == 'judge' %}
+        document.querySelectorAll('.option-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+    {% endif %}
+    
+    // 添加当前选项的选中状态
+    optionElement.classList.toggle('selected');
+    
+    // 设置对应的radio/checkbox选中状态
+    const input = optionElement.querySelector('input');
+    {% if exercise.question_type == 'single' or exercise.question_type == 'judge' %}
+        input.checked = true;
+    {% else %}
+        input.checked = !input.checked;
+        if (!input.checked) {
+            optionElement.classList.remove('selected');
+        }
+    {% endif %}
+}
+
+// 表单提交前验证
+document.getElementById('exerciseForm').addEventListener('submit', function(e) {
+    {% if exercise.question_type == 'single' or exercise.question_type == 'multiple' or exercise.question_type == 'judge' %}
+        const selectedOptions = document.querySelectorAll('input[name="answer"]:checked');
+        if (selectedOptions.length === 0) {
+            e.preventDefault();
+            alert('请选择答案后再提交！');
+            return false;
+        }
+    {% else %}
+        const answerInput = document.getElementById('answer_input');
+        if (!answerInput.value.trim()) {
+            e.preventDefault();
+            alert('请输入答案后再提交！');
+            answerInput.focus();
+            return false;
+        }
+    {% endif %}
+    
+    // 确认提交
+    if (!confirm('确定提交答案吗？提交后将无法修改。')) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+// 页面加载时的提示
+document.addEventListener('DOMContentLoaded', function() {
+    // 添加键盘快捷键支持
+    document.addEventListener('keydown', function(e) {
+        // Enter键提交（非输入框时）
+        if (e.key === 'Enter' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            document.getElementById('exerciseForm').submit();
+        }
+        
+        // 数字键选择选项（1-9）
+        {% if exercise.question_type == 'single' %}
+            const num = parseInt(e.key);
+            if (num >= 1 && num <= {{ options|length }}) {
+                const option = document.getElementById('option_' + (num - 1));
+                if (option) {
+                    option.click();
+                }
+            }
+        {% endif %}
+    });
+});
+</script>
+{% endblock %}

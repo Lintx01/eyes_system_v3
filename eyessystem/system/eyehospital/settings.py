@@ -55,7 +55,7 @@ ROOT_URLCONF = "eyehospital.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / 'templates'],  # 添加全局模板目录
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -104,9 +104,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "zh-hans"  # 中文简体
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Shanghai"  # 中国时区
 
 USE_I18N = True
 
@@ -120,6 +120,15 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
+
+# Media files (用户上传的文件)
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# 登录相关配置
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

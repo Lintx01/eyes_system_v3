@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+
+{% block title %}练习题目 - 眼科临床训练系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>练习题目</h2>
+            
+            <!-- 进度统计 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">练习进度</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-primary">{{ total_exercises }}</h4>
+                            <p class="mb-0">总题目数</p>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-success">{{ completed_count }}</h4>
+                            <p class="mb-0">已完成</p>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-warning">{{ total_exercises|add:"-"|add:completed_count }}</h4>
+                            <p class="mb-0">未完成</p>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-info">
+                                {% if total_exercises > 0 %}
+                                    {{ completed_count|floatformat:0 }}
+                                    /
+                                    {{ total_exercises }}
+                                    ({% widthratio completed_count total_exercises 100 %}%)
+                                {% else %}
+                                    0%
+                                {% endif %}
+                            </h4>
+                            <p class="mb-0">完成率</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 进度条 -->
+                    <div class="progress mt-3">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {% if total_exercises > 0 %}{% widthratio completed_count total_exercises 100 %}%{% else %}0%{% endif %}" 
+                             aria-valuenow="{% widthratio completed_count total_exercises 100 %}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 练习题目列表 -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">题目列表</h5>
+                </div>
+                <div class="card-body">
+                    {% if page_obj %}
+                        <div class="row">
+                            {% for exercise in page_obj %}
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card h-100 {% if exercise.id in completed_exercises %}border-success{% endif %}">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title text-primary">{{ exercise.case.title }}</h6>
+                                            {% if exercise.id in completed_exercises %}
+                                                <span class="badge badge-success">
+                                                    <i class="fas fa-check"></i> 已完成
+                                                </span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">
+                                                    <i class="fas fa-clock"></i> 未完成
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <p class="card-text text-muted small">
+                                            {{ exercise.question_text|truncatechars:100 }}
+                                        </p>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-tag"></i> 
+                                                    {% if exercise.question_type == 'single' %}单选题
+                                                    {% elif exercise.question_type == 'multiple' %}多选题
+                                                    {% elif exercise.question_type == 'true_false' %}判断题
+                                                    {% else %}{{ exercise.get_question_type_display }}
+                                                    {% endif %}
+                                                </small>
+                                                
+                                                {% if exercise.difficulty %}
+                                                <br>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-star"></i> 
+                                                    {{ exercise.get_difficulty_display|default:"普通" }}
+                                                </small>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <a href="{% url 'student_exercise' exercise.id %}" 
+                                               class="btn btn-sm {% if exercise.id in completed_exercises %}btn-outline-primary{% else %}btn-primary{% endif %}">
+                                                {% if exercise.id in completed_exercises %}
+                                                    <i class="fas fa-eye"></i> 查看
+                                                {% else %}
+                                                    <i class="fas fa-play"></i> 开始
+                                                {% endif %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if exercise.case.image %}
+                                    <div class="card-footer p-2">
+                                        <img src="{{ exercise.case.image.url }}" 
+                                             class="img-fluid rounded" 
+                                             alt="{{ exercise.case.title }}"
+                                             style="max-height: 80px; width: 100%; object-fit: cover;">
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- 分页 -->
+                        {% if page_obj.has_other_pages %}
+                        <nav aria-label="Page navigation" class="mt-4">
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">首页</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">上一页</a>
+                                </li>
+                                {% endif %}
+                                
+                                {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                                {% endif %}
+                                {% endfor %}
+                                
+                                {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">下一页</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">末页</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                        {% endif %}
+                        
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">暂无练习题目</h5>
+                            <p class="text-muted">请联系老师添加练习内容</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- 快速导航 -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <div class="text-center">
+                        <a href="{% url 'student_dashboard' %}" class="btn btn-outline-primary mr-3">
+                            <i class="fas fa-home"></i> 返回首页
+                        </a>
+                        <a href="{% url 'student_case_list' %}" class="btn btn-outline-info mr-3">
+                            <i class="fas fa-book"></i> 学习病例
+                        </a>
+                        <a href="{% url 'student_mock_exam_list' %}" class="btn btn-outline-success">
+                            <i class="fas fa-graduation-cap"></i> 模拟考试
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5 {
+    color: white;
+}
+.progress {
+    height: 20px;
+}
+.card.border-success {
+    border-width: 2px !important;
+}
+.card-body {
+    position: relative;
+}
+.badge {
+    font-size: 0.75em;
+}
+</style>
+{% endblock %}

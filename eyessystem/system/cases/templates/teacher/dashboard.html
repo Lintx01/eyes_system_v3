@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}教师仪表板 - 眼科临床训练系统{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>教师仪表板</h2>
+        <p>眼科教学系统管理概览</p>
+    </div>
+    <div class="card-body">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_cases }}</div>
+                <div class="stat-label">病例总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ active_cases }}</div>
+                <div class="stat-label">启用病例</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ total_exercises }}</div>
+                <div class="stat-label">练习题目</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ total_students }}</div>
+                <div class="stat-label">学生人数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ avg_progress }}%</div>
+                <div class="stat-label">平均进度</div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{% url 'teacher_case_create' %}" class="btn" style="margin-right: 15px;">创建新病例</a>
+            <a href="{% url 'teacher_case_list' %}" class="btn secondary" style="margin-right: 15px;">管理病例</a>
+            <a href="{% url 'teacher_student_progress_list' %}" class="btn secondary" style="margin-right: 15px;">查看学生进度</a>
+            <a href="{% url 'teacher_exam_list' %}" class="btn secondary">考试管理</a>
+        </div>
+    </div>
+</div>
+
+{% if recent_exams %}
+<div class="card">
+    <div class="card-header">
+        <h3>最近的学生活动</h3>
+    </div>
+    <div class="card-body">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>学生</th>
+                    <th>考试类型</th>
+                    <th>得分</th>
+                    <th>题目数</th>
+                    <th>用时</th>
+                    <th>考试时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for exam in recent_exams %}
+                <tr>
+                    <td>{{ exam.user.get_full_name|default:exam.user.username }}</td>
+                    <td>{{ exam.get_exam_type_display }}</td>
+                    <td><strong>{{ exam.score|floatformat:1 }}分</strong></td>
+                    <td>{{ exam.total_questions }}</td>
+                    <td>{{ exam.time_spent }}分钟</td>
+                    <td>{{ exam.exam_time|date:"m-d H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

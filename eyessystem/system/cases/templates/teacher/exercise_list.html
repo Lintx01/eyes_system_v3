@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}练习题目管理 - {{ case.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2>练习题目管理</h2>
+                    <p class="text-muted mb-0">病例：{{ case.title }}</p>
+                </div>
+                <div>
+                    <a href="{% url 'teacher_exercise_create' case.id %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> 创建练习题目
+                    </a>
+                    <a href="{% url 'teacher_case_list' %}" class="btn btn-secondary ml-2">
+                        <i class="fas fa-arrow-left"></i> 返回病例列表
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 病例信息卡片 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">病例信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6 class="text-primary">{{ case.title }}</h6>
+                            <p class="mb-2">{{ case.description|truncatechars:200 }}</p>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <small class="text-muted">
+                                        <i class="fas fa-tag"></i> 
+                                        {{ case.get_difficulty_display }} | {{ case.get_case_type_display }}
+                                    </small>
+                                </div>
+                                <div class="col-md-6">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar"></i> 
+                                        {{ case.created_at|date:"Y-m-d H:i" }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            {% if case.image %}
+                            <img src="{{ case.image.url }}" class="img-fluid rounded" 
+                                 alt="{{ case.title }}" style="max-height: 120px;">
+                            {% else %}
+                            <div class="text-center text-muted p-3">
+                                <i class="fas fa-image fa-2x"></i>
+                                <br><small>暂无图片</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 练习题目列表 -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">练习题目列表</h5>
+                    <span class="badge badge-primary">共 {{ exercises.count }} 道题目</span>
+                </div>
+                <div class="card-body">
+                    {% if exercises %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th width="5%">#</th>
+                                        <th width="40%">题目内容</th>
+                                        <th width="10%">题目类型</th>
+                                        <th width="10%">难度等级</th>
+                                        <th width="10%">状态</th>
+                                        <th width="15%">创建时间</th>
+                                        <th width="10%">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for exercise in exercises %}
+                                    <tr>
+                                        <td>{{ forloop.counter }}</td>
+                                        <td>
+                                            <div class="question-preview">
+                                                <p class="mb-1">{{ exercise.question|truncatechars:80 }}</p>
+                                                <small class="text-muted">
+                                                    正确答案：<span class="text-success">{{ exercise.correct_answer }}</span>
+                                                </small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if exercise.question_type == 'single' %}badge-primary
+                                                {% elif exercise.question_type == 'multiple' %}badge-info
+                                                {% else %}badge-warning
+                                                {% endif %}">
+                                                {{ exercise.get_question_type_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="difficulty-stars">
+                                                {% for i in "12345" %}
+                                                    <i class="fas fa-star {% if exercise.difficulty >= i %}text-warning{% else %}text-muted{% endif %}"></i>
+                                                {% endfor %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if exercise.is_active %}
+                                                <span class="badge badge-success">启用</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">禁用</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                {{ exercise.created_at|date:"m-d H:i" }}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="{% url 'teacher_exercise_edit' exercise.id %}" 
+                                                   class="btn btn-sm btn-outline-primary" title="编辑">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                        onclick="showDeleteModal({{ exercise.id }}, '{{ exercise.question|truncatechars:30|escapejs }}')" 
+                                                        title="删除">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-clipboard-question fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">还没有练习题目</h5>
+                            <p class="text-muted">为这个病例创建第一道练习题吧！</p>
+                            <a href="{% url 'teacher_exercise_create' case.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> 创建练习题目
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认删除</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要删除这道练习题吗？</p>
+                <p class="text-muted" id="questionPreview"></p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    删除后无法恢复，相关的答题记录也将被删除！
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5 {
+    color: white;
+}
+.question-preview p {
+    line-height: 1.4;
+}
+.difficulty-stars {
+    font-size: 0.8em;
+}
+.btn-group .btn {
+    border-radius: 0;
+}
+.btn-group .btn:first-child {
+    border-top-left-radius: 0.25rem;
+    border-bottom-left-radius: 0.25rem;
+}
+.btn-group .btn:last-child {
+    border-top-right-radius: 0.25rem;
+    border-bottom-right-radius: 0.25rem;
+}
+</style>
+
+<script>
+let exerciseToDelete = null;
+
+function showDeleteModal(exerciseId, questionPreview) {
+    exerciseToDelete = exerciseId;
+    document.getElementById('questionPreview').textContent = questionPreview + '...';
+    $('#deleteModal').modal('show');
+}
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+    if (exerciseToDelete) {
+        fetch(`/teacher/exercises/${exerciseToDelete}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('删除失败：' + (data.error || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除失败，请稍后重试');
+        });
+    }
+});
+
+// 清理模态框状态
+$('#deleteModal').on('hidden.bs.modal', function() {
+    exerciseToDelete = null;
+});
+</script>
+{% endblock %}

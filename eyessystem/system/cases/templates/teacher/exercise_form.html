@@ -1,0 +1,388 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - {{ case.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2>{{ title }}</h2>
+                    <p class="text-muted mb-0">病例：{{ case.title }}</p>
+                </div>
+                <a href="{% url 'teacher_exercise_list' case.id %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回题目列表
+                </a>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">题目信息</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="exerciseForm">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <!-- 题目内容 -->
+                                <div class="form-group">
+                                    <label for="question" class="required">题目内容 *</label>
+                                    <textarea class="form-control" id="question" name="question" rows="4" 
+                                              required placeholder="请输入题目内容">{% if exercise %}{{ exercise.question }}{% elif form_data %}{{ form_data.question }}{% endif %}</textarea>
+                                    <small class="form-text text-muted">请输入完整的题目问题</small>
+                                </div>
+                                
+                                <!-- 题目类型 -->
+                                <div class="form-group">
+                                    <label for="question_type" class="required">题目类型 *</label>
+                                    <select class="form-control" id="question_type" name="question_type" required onchange="changeQuestionType()">
+                                        <option value="">请选择题目类型</option>
+                                        <option value="single" {% if exercise.question_type == 'single' or form_data.question_type == 'single' %}selected{% endif %}>单选题</option>
+                                        <option value="multiple" {% if exercise.question_type == 'multiple' or form_data.question_type == 'multiple' %}selected{% endif %}>多选题</option>
+                                        <option value="judge" {% if exercise.question_type == 'judge' or form_data.question_type == 'judge' %}selected{% endif %}>判断题</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- 选项设置 -->
+                                <div class="form-group" id="optionsContainer">
+                                    <label>题目选项</label>
+                                    <div id="optionsList">
+                                        <!-- 选项将通过JavaScript动态生成 -->
+                                    </div>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="addOptionBtn" onclick="addOption()">
+                                        <i class="fas fa-plus"></i> 添加选项
+                                    </button>
+                                </div>
+                                
+                                <!-- 正确答案 -->
+                                <div class="form-group">
+                                    <label for="correct_answer" class="required">正确答案 *</label>
+                                    <input type="text" class="form-control" id="correct_answer" name="correct_answer" 
+                                           value="{% if exercise %}{{ exercise.correct_answer }}{% elif form_data %}{{ form_data.correct_answer }}{% endif %}" 
+                                           required placeholder="请输入正确答案">
+                                    <small class="form-text text-muted" id="answerHelp">
+                                        单选题填 A/B/C/D，多选题填 AB/AC 等，判断题填 T/F
+                                    </small>
+                                </div>
+                                
+                                <!-- 答案解析 -->
+                                <div class="form-group">
+                                    <label for="explanation">答案解析</label>
+                                    <textarea class="form-control" id="explanation" name="explanation" rows="3" 
+                                              placeholder="请输入答案解析">{% if exercise %}{{ exercise.explanation }}{% elif form_data %}{{ form_data.explanation }}{% endif %}</textarea>
+                                    <small class="form-text text-muted">详细解释答案原因，帮助学生理解</small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <!-- 题目配置 -->
+                                <div class="form-group">
+                                    <label for="difficulty">难度等级</label>
+                                    <select class="form-control" id="difficulty" name="difficulty">
+                                        <option value="1" {% if exercise.difficulty == 1 or form_data.difficulty == '1' %}selected{% endif %}>⭐ 很简单</option>
+                                        <option value="2" {% if exercise.difficulty == 2 or form_data.difficulty == '2' %}selected{% endif %}>⭐⭐ 简单</option>
+                                        <option value="3" {% if not exercise and not form_data or exercise.difficulty == 3 or form_data.difficulty == '3' %}selected{% endif %}>⭐⭐⭐ 中等</option>
+                                        <option value="4" {% if exercise.difficulty == 4 or form_data.difficulty == '4' %}selected{% endif %}>⭐⭐⭐⭐ 困难</option>
+                                        <option value="5" {% if exercise.difficulty == 5 or form_data.difficulty == '5' %}selected{% endif %}>⭐⭐⭐⭐⭐ 很困难</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
+                                               {% if not exercise or exercise.is_active %}checked{% endif %}>
+                                        <label class="form-check-label" for="is_active">
+                                            启用题目
+                                        </label>
+                                    </div>
+                                    <small class="form-text text-muted">是否在练习中使用此题目</small>
+                                </div>
+                                
+                                <!-- 病例信息预览 -->
+                                <div class="card mt-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">关联病例</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <h6 class="text-primary">{{ case.title }}</h6>
+                                        <p class="small text-muted">{{ case.description|truncatechars:100 }}</p>
+                                        {% if case.image %}
+                                        <img src="{{ case.image.url }}" class="img-fluid rounded" 
+                                             alt="{{ case.title }}" style="max-height: 100px;">
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 提交按钮 -->
+                        <div class="form-group mt-4">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-save"></i> {{ action }}题目
+                                    </button>
+                                    <a href="{% url 'teacher_exercise_list' case.id %}" class="btn btn-outline-secondary btn-lg ml-3">
+                                        <i class="fas fa-times"></i> 取消
+                                    </a>
+                                </div>
+                                
+                                {% if exercise %}
+                                <div>
+                                    <button type="button" class="btn btn-outline-danger" onclick="showDeleteModal()">
+                                        <i class="fas fa-trash"></i> 删除题目
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if exercise %}
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认删除</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要删除这道练习题吗？</p>
+                <p class="text-muted">{{ exercise.question|truncatechars:100 }}</p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    删除后无法恢复，相关的答题记录也将被删除！
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="deleteExercise()">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5, .card-header h6 {
+    color: white;
+}
+.required::after {
+    content: " *";
+    color: red;
+}
+.form-group label {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+.option-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.option-item .form-control {
+    margin-right: 10px;
+}
+.option-label {
+    font-weight: bold;
+    margin-right: 10px;
+    min-width: 30px;
+}
+</style>
+
+<script>
+let optionCount = 0;
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    const questionType = document.getElementById('question_type').value;
+    if (questionType) {
+        changeQuestionType();
+    }
+    
+    // 如果是编辑模式，加载现有选项
+    {% if exercise %}
+        loadExistingOptions();
+    {% endif %}
+});
+
+function changeQuestionType() {
+    const questionType = document.getElementById('question_type').value;
+    const optionsContainer = document.getElementById('optionsContainer');
+    const addOptionBtn = document.getElementById('addOptionBtn');
+    const answerHelp = document.getElementById('answerHelp');
+    const correctAnswer = document.getElementById('correct_answer');
+    
+    // 清空现有选项
+    document.getElementById('optionsList').innerHTML = '';
+    optionCount = 0;
+    
+    if (questionType === 'single' || questionType === 'multiple') {
+        optionsContainer.style.display = 'block';
+        addOptionBtn.style.display = 'inline-block';
+        
+        // 默认添加4个选项
+        for (let i = 0; i < 4; i++) {
+            addOption();
+        }
+        
+        if (questionType === 'single') {
+            answerHelp.textContent = '请输入正确答案的字母，如：A';
+            correctAnswer.placeholder = '如：A';
+        } else {
+            answerHelp.textContent = '请输入正确答案的字母组合，如：AB';
+            correctAnswer.placeholder = '如：AB';
+        }
+    } else if (questionType === 'judge') {
+        optionsContainer.style.display = 'none';
+        addOptionBtn.style.display = 'none';
+        answerHelp.textContent = '判断题请输入 T（正确）或 F（错误）';
+        correctAnswer.placeholder = 'T 或 F';
+    } else {
+        optionsContainer.style.display = 'none';
+        addOptionBtn.style.display = 'none';
+    }
+}
+
+function addOption() {
+    optionCount++;
+    const optionsList = document.getElementById('optionsList');
+    const optionLetter = String.fromCharCode(64 + optionCount); // A, B, C, D...
+    
+    const optionDiv = document.createElement('div');
+    optionDiv.className = 'option-item';
+    optionDiv.innerHTML = `
+        <span class="option-label">${optionLetter}:</span>
+        <input type="text" class="form-control" name="option_${optionCount}" 
+               placeholder="请输入选项${optionLetter}的内容" required>
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeOption(this)">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    optionsList.appendChild(optionDiv);
+}
+
+function removeOption(button) {
+    button.parentElement.remove();
+    // 重新编号选项
+    reorderOptions();
+}
+
+function reorderOptions() {
+    const optionItems = document.querySelectorAll('.option-item');
+    optionCount = 0;
+    
+    optionItems.forEach((item, index) => {
+        optionCount++;
+        const label = item.querySelector('.option-label');
+        const input = item.querySelector('input');
+        const optionLetter = String.fromCharCode(64 + optionCount);
+        
+        label.textContent = `${optionLetter}:`;
+        input.name = `option_${optionCount}`;
+        input.placeholder = `请输入选项${optionLetter}的内容`;
+    });
+}
+
+{% if exercise %}
+function loadExistingOptions() {
+    const questionType = '{{ exercise.question_type }}';
+    if (questionType === 'single' || questionType === 'multiple') {
+        const options = {{ exercise.get_options_list|safe }};
+        const optionsList = document.getElementById('optionsList');
+        optionsList.innerHTML = '';
+        optionCount = 0;
+        
+        options.forEach((option, index) => {
+            optionCount++;
+            const optionLetter = String.fromCharCode(64 + optionCount);
+            
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'option-item';
+            optionDiv.innerHTML = `
+                <span class="option-label">${optionLetter}:</span>
+                <input type="text" class="form-control" name="option_${optionCount}" 
+                       value="${option}" placeholder="请输入选项${optionLetter}的内容" required>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeOption(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            optionsList.appendChild(optionDiv);
+        });
+    }
+}
+
+function showDeleteModal() {
+    $('#deleteModal').modal('show');
+}
+
+function deleteExercise() {
+    fetch('{% url "teacher_exercise_delete" exercise.id %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{% url "teacher_exercise_list" case.id %}';
+        } else {
+            alert('删除失败：' + (data.error || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('删除失败，请稍后重试');
+    });
+}
+{% endif %}
+
+// 表单验证
+document.getElementById('exerciseForm').addEventListener('submit', function(e) {
+    const questionType = document.getElementById('question_type').value;
+    const question = document.getElementById('question').value.trim();
+    const correctAnswer = document.getElementById('correct_answer').value.trim();
+    
+    if (!question || !questionType || !correctAnswer) {
+        e.preventDefault();
+        alert('请填写所有必填字段！');
+        return;
+    }
+    
+    if (questionType === 'single' || questionType === 'multiple') {
+        const options = document.querySelectorAll('#optionsList input[name^="option_"]');
+        let validOptions = 0;
+        
+        options.forEach(option => {
+            if (option.value.trim()) {
+                validOptions++;
+            }
+        });
+        
+        if (validOptions < 2) {
+            e.preventDefault();
+            alert('选择题至少需要2个选项！');
+            return;
+        }
+    }
+});
+</script>
+{% endblock %}

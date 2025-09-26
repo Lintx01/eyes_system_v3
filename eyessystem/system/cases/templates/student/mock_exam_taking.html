@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+
+{% block title %}模拟考试 - 答题中{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- 考试状态栏 -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">模拟考试进行中</h5>
+                            <small class="text-muted">第 <span id="current-question">{{ current_question_index }}</span> 题 / 共 {{ total_questions }} 题</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: {{ progress_percentage }}%" 
+                                     aria-valuenow="{{ progress_percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ progress_percentage|floatformat:0 }}%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4 id="timer" class="text-danger mb-0">{{ remaining_time|date:"i:s" }}</h4>
+                            <small class="text-muted">剩余时间</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 题目区域 -->
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" action="{% url 'take_mock_exam' %}" id="exam-form">
+                        {% csrf_token %}
+                        
+                        <div class="question-container">
+                            <h6 class="text-primary mb-3">题目 {{ current_question_index }}</h6>
+                            <div class="question-content mb-4">
+                                <p class="h5 mb-3">{{ current_exercise.question_text }}</p>
+                                
+                                <!-- 显示案例图片 -->
+                                {% if current_exercise.case.image %}
+                                <div class="case-image mb-3">
+                                    <img src="{{ current_exercise.case.image.url }}" 
+                                         class="img-fluid rounded shadow" 
+                                         alt="{{ current_exercise.case.title }}"
+                                         style="max-height: 300px;">
+                                </div>
+                                {% endif %}
+                                
+                                <!-- 显示题目描述 -->
+                                {% if current_exercise.description %}
+                                <div class="question-description mb-3">
+                                    <p>{{ current_exercise.description }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- 选项区域 -->
+                            <div class="options">
+                                {% for option in options %}
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" 
+                                           name="answer" value="{{ option }}" id="option{{ forloop.counter }}"
+                                           {% if option in user_answers %}checked{% endif %}>
+                                    <label class="form-check-label h6" for="option{{ forloop.counter }}">
+                                        {{ option }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="d-flex justify-content-between mt-4">
+                            {% if has_previous %}
+                                <button type="submit" name="action" value="previous" class="btn btn-outline-secondary">
+                                    <i class="fas fa-chevron-left"></i> 上一题
+                                </button>
+                            {% else %}
+                                <div></div>
+                            {% endif %}
+                            
+                            <div>
+                                {% if has_next %}
+                                    <button type="submit" name="action" value="next" class="btn btn-primary">
+                                        下一题 <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                {% else %}
+                                    <button type="button" class="btn btn-success" onclick="confirmSubmit()">
+                                        <i class="fas fa-check"></i> 提交考试
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- 提交考试的隐藏表单 -->
+                        <input type="hidden" name="action" value="submit" id="submit-action" disabled>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- 答题卡 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">答题卡</h6>
+                </div>
+                <div class="card-body">
+                    <div class="question-nav">
+                        {% for i in question_numbers %}
+                        <button type="button" class="btn btn-sm question-btn
+                            {% if i == current_question_index %}btn-primary
+                            {% elif i in answered_questions %}btn-success
+                            {% else %}btn-outline-secondary
+                            {% endif %}" 
+                            onclick="goToQuestion({{ i }})">
+                            {{ i }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <span class="badge badge-success">{{ answered_questions|length }}</span> 已答题
+                            <span class="badge badge-secondary ml-2">{{ unanswered_count }}</span> 未答题
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 确认提交模态框 -->
+<div class="modal fade" id="submitConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认提交</h5>
+            </div>
+            <div class="modal-body">
+                <p>您确定要提交考试吗？</p>
+                <p class="text-muted">
+                    <i class="fas fa-info-circle"></i> 
+                    已答题：<span class="badge badge-success">{{ answered_questions|length }}</span>
+                    未答题：<span class="badge badge-secondary">{{ unanswered_count }}</span>
+                </p>
+                <p class="text-warning">提交后将无法修改答案！</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">继续答题</button>
+                <button type="button" class="btn btn-success" onclick="submitExam()">确认提交</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.question-nav .question-btn {
+    margin: 2px;
+    width: 40px;
+    height: 40px;
+}
+.progress {
+    height: 20px;
+}
+.form-check-label {
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+.form-check-label:hover {
+    background-color: #f8f9fa;
+}
+.form-check-input:checked + .form-check-label {
+    background-color: #e3f2fd;
+}
+.case-image img {
+    max-width: 100%;
+    height: auto;
+}
+
+.blink {
+    animation: blink 1s linear infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+</style>
+
+<script>
+// 倒计时功能
+let timeRemaining = {{ remaining_seconds }};
+let timerInterval;
+
+function updateTimer() {
+    let minutes = Math.floor(timeRemaining / 60);
+    let seconds = timeRemaining % 60;
+    document.getElementById('timer').textContent = 
+        String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+    
+    if (timeRemaining <= 300) { // 5分钟警告
+        document.getElementById('timer').className = 'text-danger mb-0 blink';
+    }
+    
+    if (timeRemaining <= 0) {
+        clearInterval(timerInterval);
+        alert('考试时间已到，系统将自动提交！');
+        submitExam();
+        return;
+    }
+    
+    timeRemaining--;
+}
+
+function startTimer() {
+    timerInterval = setInterval(updateTimer, 1000);
+}
+
+// 跳转到指定题目
+function goToQuestion(questionNumber) {
+    const form = document.getElementById('exam-form');
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'goto_question';
+    input.value = questionNumber;
+    form.appendChild(input);
+    form.submit();
+}
+
+// 确认提交
+function confirmSubmit() {
+    $('#submitConfirmModal').modal('show');
+}
+
+// 提交考试
+function submitExam() {
+    const form = document.getElementById('exam-form');
+    document.getElementById('submit-action').disabled = false;
+    document.getElementById('submit-action').name = 'action';
+    form.action = "{% url 'submit_mock_exam' %}";
+    form.submit();
+}
+
+// 页面加载完成后启动定时器
+document.addEventListener('DOMContentLoaded', function() {
+    startTimer();
+    
+    // 防止意外离开页面
+    window.addEventListener('beforeunload', function(e) {
+        e.preventDefault();
+        e.returnValue = '考试进行中，确定要离开页面吗？';
+    });
+});
+
+
+</script>
+{% endblock %}

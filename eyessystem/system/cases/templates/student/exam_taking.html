@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ exam.title }} - 答题中{% endblock %}
+
+{% block extra_css %}
+<style>
+.timer-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #b71c1c;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.question-container {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.question-number {
+    background: #b71c1c;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    display: inline-block;
+}
+
+.options {
+    margin: 15px 0;
+}
+
+.option {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.option:hover {
+    background: #f8f9fa;
+}
+
+.option input[type="radio"] {
+    margin-right: 10px;
+}
+
+.submit-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 倒计时器 -->
+<div class="timer-container" id="timer">
+    剩余时间: <span id="time-display">--:--</span>
+</div>
+
+<!-- 提交按钮 -->
+<div class="submit-container">
+    <button type="button" class="btn" onclick="submitExam()">提交考试</button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>{{ exam.title }}</h2>
+        <p>考试时长：{{ exam.duration }} 分钟 | 题目数量：{{ exercises.count }} 道 | 总分：{{ exam.total_score }} 分</p>
+    </div>
+    <div class="card-body">
+        <form id="exam-form" method="post" action="{% url 'student_exam_submit' exam.id %}">
+            {% csrf_token %}
+            
+            {% for exercise in exercises %}
+            <div class="question-container">
+                <div class="question-number">第 {{ forloop.counter }} 题</div>
+                <div class="question-text">
+                    <strong>{{ exercise.question }}</strong>
+                </div>
+                
+                {% if exercise.question_type == 'single' %}
+                    <div class="options">
+                        {% for option in exercise.get_options_list %}
+                        <label class="option">
+                            <input type="radio" name="exercise_{{ exercise.id }}" value="{{ forloop.counter0|add:65|chr }}" required>
+                            <strong>{{ forloop.counter0|add:65|chr }}.</strong> {{ option }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                {% elif exercise.question_type == 'judge' %}
+                    <div class="options">
+                        <label class="option">
+                            <input type="radio" name="exercise_{{ exercise.id }}" value="T" required>
+                            <strong>正确</strong>
+                        </label>
+                        <label class="option">
+                            <input type="radio" name="exercise_{{ exercise.id }}" value="F" required>
+                            <strong>错误</strong>
+                        </label>
+                    </div>
+                {% elif exercise.question_type == 'multiple' %}
+                    <div class="options">
+                        {% for option in exercise.get_options_list %}
+                        <label class="option">
+                            <input type="checkbox" name="exercise_{{ exercise.id }}" value="{{ forloop.counter0|add:65|chr }}">
+                            <strong>{{ forloop.counter0|add:65|chr }}.</strong> {{ option }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            
+            <div style="height: 100px;"></div> <!-- 底部留白 -->
+        </form>
+    </div>
+</div>
+
+<script>
+// 考试结束时间
+const endTime = new Date('{{ end_time|date:"c" }}').getTime();
+
+// 更新倒计时
+function updateTimer() {
+    const now = new Date().getTime();
+    const timeLeft = endTime - now;
+    
+    if (timeLeft > 0) {
+        const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+        
+        const display = 
+            (hours > 0 ? hours.toString().padStart(2, '0') + ':' : '') +
+            minutes.toString().padStart(2, '0') + ':' +
+            seconds.toString().padStart(2, '0');
+            
+        document.getElementById('time-display').textContent = display;
+        
+        // 时间不足10分钟时变红
+        if (timeLeft < 10 * 60 * 1000) {
+            document.getElementById('timer').style.background = '#dc3545';
+        }
+        
+        // 时间不足1分钟时闪烁
+        if (timeLeft < 60 * 1000) {
+            document.getElementById('timer').style.animation = 'blink 1s infinite';
+        }
+    } else {
+        // 时间到，自动提交
+        document.getElementById('time-display').textContent = '00:00';
+        alert('考试时间到，系统将自动提交！');
+        submitExam();
+    }
+}
+
+// 提交考试
+function submitExam() {
+    if (confirm('确定要提交考试吗？提交后将无法修改答案。')) {
+        // 处理多选题答案
+        const form = document.getElementById('exam-form');
+        const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+        const multipleAnswers = {};
+        
+        checkboxes.forEach(function(checkbox) {
+            const name = checkbox.name;
+            if (checkbox.checked) {
+                if (!multipleAnswers[name]) {
+                    multipleAnswers[name] = [];
+                }
+                multipleAnswers[name].push(checkbox.value);
+            }
+        });
+        
+        // 将多选答案合并
+        Object.keys(multipleAnswers).forEach(function(name) {
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = name;
+            hiddenInput.value = multipleAnswers[name].join('');
+            form.appendChild(hiddenInput);
+            
+            // 禁用原始复选框
+            const originalCheckboxes = form.querySelectorAll(`input[name="${name}"]`);
+            originalCheckboxes.forEach(cb => cb.disabled = true);
+        });
+        
+        form.submit();
+    }
+}
+
+// 启动倒计时
+setInterval(updateTimer, 1000);
+updateTimer();
+
+// 防止意外关闭页面
+window.addEventListener('beforeunload', function(e) {
+    e.preventDefault();
+    e.returnValue = '考试正在进行中，确定要离开吗？';
+});
+
+// 防止右键菜单
+document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+});
+
+// 防止复制粘贴
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v' || e.key === 'a')) {
+        e.preventDefault();
+    }
+});
+</script>
+
+<style>
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+</style>
+{% endblock %}

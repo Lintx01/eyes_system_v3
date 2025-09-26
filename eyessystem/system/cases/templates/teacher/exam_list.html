@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}考试管理{% endblock %}
+
+{% block extra_css %}
+<style>
+.exam-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: box-shadow 0.3s;
+}
+
+.exam-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.exam-status {
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    color: white;
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.status-upcoming { background: #007bff; }
+.status-active { background: #28a745; }
+.status-ended { background: #6c757d; }
+
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 15px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #b71c1c;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.quick-actions {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>考试管理</h2>
+            <a href="{% url 'teacher_exam_create' %}" class="btn">创建新考试</a>
+        </div>
+
+        <!-- 快捷操作 -->
+        <div class="quick-actions">
+            <h5>快捷操作</h5>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <div class="stat-number">{{ total_exams }}</div>
+                        <div>总考试数</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <div class="stat-number">{{ active_exams }}</div>
+                        <div>进行中</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <div class="stat-number">{{ upcoming_exams }}</div>
+                        <div>即将开始</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-item">
+                        <div class="stat-number">{{ ended_exams }}</div>
+                        <div>已结束</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索和筛选 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" class="form-inline">
+                    <input type="text" name="search" class="form-control mr-2" placeholder="搜索考试标题" value="{{ request.GET.search }}">
+                    <select name="status" class="form-control mr-2">
+                        <option value="">所有状态</option>
+                        <option value="upcoming" {% if request.GET.status == 'upcoming' %}selected{% endif %}>即将开始</option>
+                        <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>进行中</option>
+                        <option value="ended" {% if request.GET.status == 'ended' %}selected{% endif %}>已结束</option>
+                    </select>
+                    <button type="submit" class="btn btn-outline-primary mr-2">筛选</button>
+                    <a href="{% url 'teacher_exam_list' %}" class="btn btn-outline-secondary">重置</a>
+                </form>
+            </div>
+        </div>
+
+        <!-- 考试列表 -->
+        {% for exam in exams %}
+        <div class="exam-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <h4>
+                        {{ exam.title }}
+                        <span class="exam-status status-{{ exam.status }}">
+                            {% if exam.status == 'upcoming' %}即将开始
+                            {% elif exam.status == 'active' %}进行中
+                            {% else %}已结束{% endif %}
+                        </span>
+                    </h4>
+                    <p class="text-muted">{{ exam.description|truncatechars:100 }}</p>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small><strong>开始时间：</strong>{{ exam.start_time|date:"Y-m-d H:i" }}</small><br>
+                            <small><strong>结束时间：</strong>{{ exam.end_time|date:"Y-m-d H:i" }}</small><br>
+                            <small><strong>考试时长：</strong>{{ exam.duration }} 分钟</small>
+                        </div>
+                        <div class="col-md-6">
+                            <small><strong>题目数量：</strong>{{ exam.exercises.count }} 题</small><br>
+                            <small><strong>总分：</strong>{{ exam.total_score }} 分</small><br>
+                            <small><strong>参与人数：</strong>{{ exam.participants.count }} 人</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if exam.status == 'ended' %}
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-number">{{ exam.completed_count }}</div>
+                    <div>已完成</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ exam.average_score|floatformat:1 }}</div>
+                    <div>平均分</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ exam.pass_rate|floatformat:1 }}%</div>
+                    <div>及格率</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ exam.max_score|floatformat:0 }}</div>
+                    <div>最高分</div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="action-buttons">
+                <a href="{% url 'teacher_exam_detail' exam.id %}" class="btn btn-outline-primary btn-sm">查看详情</a>
+                
+                {% if exam.status == 'upcoming' %}
+                    <a href="{% url 'teacher_exam_edit' exam.id %}" class="btn btn-outline-secondary btn-sm">编辑</a>
+                {% endif %}
+                
+                {% if exam.status != 'upcoming' %}
+                    <a href="{% url 'teacher_exam_records' exam.id %}" class="btn btn-outline-success btn-sm">
+                        查看成绩 ({{ exam.completed_count }})
+                    </a>
+                {% endif %}
+                
+                {% if exam.status == 'ended' %}
+                    <a href="{% url 'export_exam_records' exam.id %}" class="btn btn-outline-info btn-sm">导出成绩</a>
+                {% endif %}
+                
+                {% if exam.status == 'upcoming' %}
+                    <button onclick="deleteExam({{ exam.id }})" class="btn btn-outline-danger btn-sm">删除</button>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-5">
+            <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+            <h5>暂无考试</h5>
+            <p class="text-muted">点击"创建新考试"来创建您的第一个考试。</p>
+            <a href="{% url 'teacher_exam_create' %}" class="btn">创建新考试</a>
+        </div>
+        {% endfor %}
+
+        <!-- 分页 -->
+        {% if exams.has_other_pages %}
+        <nav aria-label="考试分页">
+            <ul class="pagination justify-content-center">
+                {% if exams.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ exams.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">上一页</a>
+                    </li>
+                {% endif %}
+                
+                {% for num in exams.paginator.page_range %}
+                    {% if num == exams.number %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if exams.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ exams.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">下一页</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function deleteExam(examId) {
+    if (confirm('确定要删除这个考试吗？此操作无法撤销。')) {
+        fetch(`/teacher/exam/${examId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('删除失败：' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除失败，请重试。');
+        });
+    }
+}
+</script>
+{% endblock %}

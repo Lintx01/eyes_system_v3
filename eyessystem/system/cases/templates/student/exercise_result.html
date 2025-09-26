@@ -1,0 +1,313 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}练习结果 - {{ exercise.case.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.result-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.result-header {
+    text-align: center;
+    padding: 30px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.result-correct {
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    border: 2px solid #28a745;
+    color: #155724;
+}
+
+.result-incorrect {
+    background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+    border: 2px solid #dc3545;
+    color: #721c24;
+}
+
+.result-icon {
+    font-size: 4rem;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.result-title {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.result-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.8;
+}
+
+.answer-comparison {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.answer-section {
+    margin-bottom: 25px;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #ddd;
+}
+
+.user-answer {
+    border-left-color: #dc3545;
+    background: #fff5f5;
+}
+
+.correct-answer {
+    border-left-color: #28a745;
+    background: #f8fff8;
+}
+
+.answer-label {
+    font-weight: bold;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+}
+
+.answer-text {
+    font-size: 1.1rem;
+    line-height: 1.4;
+}
+
+.explanation-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 30px;
+    border-left: 4px solid #17a2b8;
+}
+
+.explanation-title {
+    color: #17a2b8;
+    font-size: 1.3rem;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.explanation-text {
+    line-height: 1.6;
+    font-size: 1.05rem;
+    color: #333;
+}
+
+.question-review {
+    background: white;
+    border-radius: 8px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.navigation-section {
+    text-align: center;
+    padding: 20px;
+}
+
+.button-group {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+    .button-group {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="result-container">
+    <!-- 结果显示 -->
+    <div class="result-header {% if is_correct %}result-correct{% else %}result-incorrect{% endif %}">
+        <span class="result-icon">
+            {% if is_correct %}✅{% else %}❌{% endif %}
+        </span>
+        <div class="result-title">
+            {% if is_correct %}回答正确！{% else %}回答错误{% endif %}
+        </div>
+        <div class="result-subtitle">
+            {% if is_correct %}
+                恭喜您答对了这道题目，继续加油！
+            {% else %}
+                没关系，从错误中学习，下次会更好！
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 题目回顾 -->
+    <div class="question-review">
+        <h3 style="color: #b71c1c; margin-bottom: 20px;">
+            <i style="margin-right: 8px;">📝</i>题目回顾
+        </h3>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <strong>病例：</strong>{{ exercise.case.title }}<br>
+            <strong>题型：</strong>{{ exercise.get_question_type_display }}
+        </div>
+        <div style="font-size: 1.1rem; line-height: 1.6;">
+            {{ exercise.question|linebreaks }}
+        </div>
+    </div>
+
+    <!-- 答案对比 -->
+    <div class="answer-comparison">
+        <h3 style="color: #b71c1c; margin-bottom: 25px;">
+            <i style="margin-right: 8px;">🔍</i>答案对比
+        </h3>
+
+        <div class="answer-section user-answer">
+            <div class="answer-label">
+                <i style="margin-right: 5px;">👤</i>您的答案：
+            </div>
+            <div class="answer-text">
+                {% if exercise.question_type == 'single' or exercise.question_type == 'multiple' %}
+                    {% with options=exercise.get_options_list %}
+                        {% for option in options %}
+                            {% if forloop.counter0|add:0 == user_answer|add:0 %}
+                                {{ option }}
+                            {% endif %}
+                        {% endfor %}
+                    {% endwith %}
+                {% elif exercise.question_type == 'judge' %}
+                    {% if user_answer == 'T' %}
+                        <strong>✓</strong> 正确
+                    {% else %}
+                        <strong>✗</strong> 错误
+                    {% endif %}
+                {% else %}
+                    {{ user_answer }}
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="answer-section correct-answer">
+            <div class="answer-label">
+                <i style="margin-right: 5px;">✅</i>正确答案：
+            </div>
+            <div class="answer-text">
+                {% if exercise.question_type == 'single' or exercise.question_type == 'multiple' %}
+                    {% with options=exercise.get_options_list %}
+                        {% for option in options %}
+                            {% if forloop.counter0 == 0 and correct_answer == 'A' %}
+                                {{ option }}
+                            {% elif forloop.counter0 == 1 and correct_answer == 'B' %}
+                                {{ option }}
+                            {% elif forloop.counter0 == 2 and correct_answer == 'C' %}
+                                {{ option }}
+                            {% elif forloop.counter0 == 3 and correct_answer == 'D' %}
+                                {{ option }}
+                            {% elif forloop.counter0 == 4 and correct_answer == 'E' %}
+                                {{ option }}
+                            {% elif forloop.counter0 == 5 and correct_answer == 'F' %}
+                                {{ option }}
+                            {% endif %}
+                        {% endfor %}
+                    {% endwith %}
+                {% elif exercise.question_type == 'judge' %}
+                    {% if correct_answer == 'T' %}
+                        <strong>✓</strong> 正确
+                    {% else %}
+                        <strong>✗</strong> 错误
+                    {% endif %}
+                {% else %}
+                    {{ correct_answer }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 答案解析 -->
+    {% if explanation %}
+    <div class="explanation-section">
+        <div class="explanation-title">
+            <i style="margin-right: 8px;">💡</i>答案解析
+        </div>
+        <div class="explanation-text">
+            {{ explanation|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 导航按钮 -->
+    <div class="navigation-section">
+        <div class="button-group">
+            <a href="{% url 'student_case_detail' exercise.case.id %}" class="btn secondary">
+                <i style="margin-right: 5px;">⬅️</i>返回病例
+            </a>
+            
+            <a href="{% url 'student_case_list' %}" class="btn">
+                <i style="margin-right: 5px;">📚</i>继续学习
+            </a>
+            
+            <a href="{% url 'student_dashboard' %}" class="btn secondary">
+                <i style="margin-right: 5px;">🏠</i>回到首页
+            </a>
+        </div>
+        
+        <div style="margin-top: 20px; color: #666; font-size: 0.9rem;">
+            <i style="margin-right: 5px;">🎯</i>
+            {% if is_correct %}
+                您已成功完成这道练习题，学习进度已更新！
+            {% else %}
+                建议重新阅读相关病例内容，巩固知识点。
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// 页面加载完成后的效果
+document.addEventListener('DOMContentLoaded', function() {
+    // 结果动画效果
+    const resultHeader = document.querySelector('.result-header');
+    if (resultHeader) {
+        resultHeader.style.opacity = '0';
+        resultHeader.style.transform = 'translateY(-20px)';
+        
+        setTimeout(() => {
+            resultHeader.style.transition = 'all 0.6s ease-out';
+            resultHeader.style.opacity = '1';
+            resultHeader.style.transform = 'translateY(0)';
+        }, 100);
+    }
+    
+    // 自动滚动到结果区域
+    setTimeout(() => {
+        resultHeader.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+    }, 300);
+});
+
+// 键盘快捷键
+document.addEventListener('keydown', function(e) {
+    switch(e.key) {
+        case 'Escape':
+            // ESC键返回病例
+            window.location.href = "{% url 'student_case_detail' exercise.case.id %}";
+            break;
+        case 'Enter':
+            // Enter键继续学习
+            window.location.href = "{% url 'student_case_list' %}";
+            break;
+    }
+});
+</script>
+{% endblock %}

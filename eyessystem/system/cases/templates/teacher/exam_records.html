@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ exam.title }} - 成绩记录{% endblock %}
+
+{% block extra_css %}
+<style>
+.grade-table {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.grade-row {
+    transition: background-color 0.3s;
+}
+
+.grade-row:hover {
+    background-color: #f8f9fa;
+}
+
+.score-cell {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.score-excellent { color: #28a745; }
+.score-good { color: #17a2b8; }
+.score-average { color: #ffc107; }
+.score-poor { color: #dc3545; }
+
+.status-completed { 
+    color: #28a745; 
+    background: #d4edda;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+.status-in-progress { 
+    color: #856404; 
+    background: #fff3cd;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+.status-not-started { 
+    color: #721c24; 
+    background: #f8d7da;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+.stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #b71c1c;
+}
+
+.filter-bar {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>{{ exam.title }} - 成绩记录</h2>
+            <div>
+                <a href="{% url 'export_exam_records' exam.id %}" class="btn btn-outline-success">
+                    <i class="fas fa-download"></i> 导出Excel
+                </a>
+                <a href="{% url 'teacher_exam_list' %}" class="btn btn-outline-primary ml-2">返回列表</a>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_participants }}</div>
+                <div>参与人数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ completed_count }}</div>
+                <div>已完成</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ average_score|floatformat:1 }}</div>
+                <div>平均分</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ pass_rate|floatformat:1 }}%</div>
+                <div>及格率</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ highest_score|floatformat:0 }}</div>
+                <div>最高分</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ lowest_score|floatformat:0 }}</div>
+                <div>最低分</div>
+            </div>
+        </div>
+
+        <!-- 考试信息 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>考试描述：</strong>{{ exam.description|default:"无" }}</p>
+                        <p><strong>开始时间：</strong>{{ exam.start_time|date:"Y-m-d H:i:s" }}</p>
+                        <p><strong>结束时间：</strong>{{ exam.end_time|date:"Y-m-d H:i:s" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>考试时长：</strong>{{ exam.duration }} 分钟</p>
+                        <p><strong>题目数量：</strong>{{ exam.exercises.count }} 题</p>
+                        <p><strong>总分：</strong>{{ exam.total_score }} 分</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 筛选和搜索 -->
+        <div class="filter-bar">
+            <form method="get" class="form-inline">
+                <input type="text" name="search" class="form-control mr-2" placeholder="搜索学生姓名" 
+                       value="{{ request.GET.search }}">
+                <select name="status" class="form-control mr-2">
+                    <option value="">所有状态</option>
+                    <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>已完成</option>
+                    <option value="in_progress" {% if request.GET.status == 'in_progress' %}selected{% endif %}>进行中</option>
+                    <option value="not_started" {% if request.GET.status == 'not_started' %}selected{% endif %}>未开始</option>
+                </select>
+                <select name="score_range" class="form-control mr-2">
+                    <option value="">所有分数</option>
+                    <option value="90-100" {% if request.GET.score_range == '90-100' %}selected{% endif %}>90-100分</option>
+                    <option value="80-89" {% if request.GET.score_range == '80-89' %}selected{% endif %}>80-89分</option>
+                    <option value="60-79" {% if request.GET.score_range == '60-79' %}selected{% endif %}>60-79分</option>
+                    <option value="0-59" {% if request.GET.score_range == '0-59' %}selected{% endif %}>0-59分</option>
+                </select>
+                <button type="submit" class="btn btn-outline-primary mr-2">筛选</button>
+                <a href="{% url 'teacher_exam_records' exam.id %}" class="btn btn-outline-secondary">重置</a>
+            </form>
+        </div>
+
+        <!-- 成绩表格 -->
+        <div class="grade-table">
+            <table class="table table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>序号</th>
+                        <th>学生姓名</th>
+                        <th>学号</th>
+                        <th>状态</th>
+                        <th>得分</th>
+                        <th>正确率</th>
+                        <th>用时</th>
+                        <th>开始时间</th>
+                        <th>完成时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr class="grade-row">
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ record.student.get_full_name|default:record.student.username }}</td>
+                        <td>{{ record.student.username }}</td>
+                        <td>
+                            {% if record.completed_at %}
+                                <span class="status-completed">已完成</span>
+                            {% elif record.started_at %}
+                                <span class="status-in-progress">进行中</span>
+                            {% else %}
+                                <span class="status-not-started">未开始</span>
+                            {% endif %}
+                        </td>
+                        <td class="score-cell 
+                                  {% if record.score >= 90 %}score-excellent
+                                  {% elif record.score >= 80 %}score-good
+                                  {% elif record.score >= 60 %}score-average
+                                  {% else %}score-poor{% endif %}">
+                            {% if record.score is not None %}
+                                {{ record.score|floatformat:0 }}分
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.accuracy is not None %}
+                                {{ record.accuracy|floatformat:1 }}%
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.time_spent %}
+                                {{ record.time_spent }}分钟
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.started_at %}
+                                {{ record.started_at|date:"m-d H:i" }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.completed_at %}
+                                {{ record.completed_at|date:"m-d H:i" }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.completed_at %}
+                                <a href="{% url 'teacher_exam_record_detail' exam.id record.id %}" 
+                                   class="btn btn-outline-primary btn-sm">查看详情</a>
+                            {% else %}
+                                <small class="text-muted">暂无</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4">
+                            <i class="fas fa-clipboard-list fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">暂无成绩记录</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        {% if records.has_other_pages %}
+        <nav aria-label="成绩分页" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if records.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ records.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.score_range %}&score_range={{ request.GET.score_range }}{% endif %}">上一页</a>
+                    </li>
+                {% endif %}
+                
+                {% for num in records.paginator.page_range %}
+                    {% if num == records.number %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.score_range %}&score_range={{ request.GET.score_range }}{% endif %}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if records.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ records.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.score_range %}&score_range={{ request.GET.score_range }}{% endif %}">下一页</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

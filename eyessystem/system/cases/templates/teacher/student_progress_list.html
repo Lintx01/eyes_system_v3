@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block title %}学生学习进度查看{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>学生学习进度管理</h2>
+            
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">学生学习概况</h5>
+                    <a href="{% url 'export_student_progress' %}" class="btn btn-success">
+                        <i class="fas fa-download"></i> 导出Excel报表
+                    </a>
+                </div>
+                
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>学生姓名</th>
+                                    <th>用户名</th>
+                                    <th>总学习时间</th>
+                                    <th>案例学习数</th>
+                                    <th>练习完成数</th>
+                                    <th>考试参与数</th>
+                                    <th>模拟考试数</th>
+                                    <th>平均成绩</th>
+                                    <th>最后登录时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td>
+                                        {% if student.first_name or student.last_name %}
+                                            {{ student.first_name }}{{ student.last_name }}
+                                        {% else %}
+                                            <span class="text-muted">未设置姓名</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ student.username }}</td>
+                                    <td>
+                                        <span class="badge badge-info">
+                                            {{ student.total_study_time|floatformat:1 }} 小时
+                                        </span>
+                                    </td>
+                                    <td>{{ student.case_study_count }}</td>
+                                    <td>{{ student.exercise_count }}</td>
+                                    <td>{{ student.exam_count }}</td>
+                                    <td>{{ student.mock_exam_count }}</td>
+                                    <td>
+                                        {% if student.avg_score %}
+                                            <span class="badge 
+                                                {% if student.avg_score >= 85 %}badge-success
+                                                {% elif student.avg_score >= 70 %}badge-warning
+                                                {% else %}badge-danger
+                                                {% endif %}">
+                                                {{ student.avg_score|floatformat:1 }}分
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">暂无成绩</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if student.last_login %}
+                                            {{ student.last_login|date:"Y-m-d H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">从未登录</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'teacher_student_detail' student.id %}" 
+                                           class="btn btn-sm btn-primary">查看详情</a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted">
+                                        暂无学生数据
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 统计图表区域 -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>学习活跃度分布</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h4 class="text-success">{{ stats.active_students }}</h4>
+                                    <small>活跃学生</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-warning">{{ stats.moderate_students }}</h4>
+                                    <small>一般学生</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-danger">{{ stats.inactive_students }}</h4>
+                                    <small>不活跃学生</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>成绩分布情况</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h4 class="text-success">{{ stats.excellent_students }}</h4>
+                                    <small>优秀(≥85分)</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-warning">{{ stats.good_students }}</h4>
+                                    <small>良好(70-84分)</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-danger">{{ stats.poor_students }}</h4>
+                                    <small>待提高(<70分)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.badge {
+    font-size: 0.9em;
+}
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5, .card-header h6 {
+    color: white;
+}
+</style>
+{% endblock %}

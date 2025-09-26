@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}模拟考试{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>模拟考试</h2>
+            
+            <!-- 开始新的模拟考试 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">开始新的模拟考试</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        模拟考试将从题库中随机抽取题目，帮助您检验学习成果。每次考试题目都不相同，可以多次参加。
+                    </p>
+                    
+                    <form method="post" action="{% url 'start_mock_exam' %}">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="question_count">题目数量：</label>
+                                    <select name="question_count" id="question_count" class="form-control">
+                                        <option value="10">10题 (约15分钟)</option>
+                                        <option value="20" selected>20题 (约30分钟)</option>
+                                        <option value="30">30题 (约45分钟)</option>
+                                        <option value="50">50题 (约75分钟)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="time_limit">考试时长：</label>
+                                    <select name="time_limit" id="time_limit" class="form-control">
+                                        <option value="15">15分钟</option>
+                                        <option value="30" selected>30分钟</option>
+                                        <option value="45">45分钟</option>
+                                        <option value="60">60分钟</option>
+                                        <option value="90">90分钟</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>&nbsp;</label>
+                                    <div>
+                                        <button type="submit" class="btn btn-primary btn-lg">
+                                            <i class="fas fa-play"></i> 开始考试
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- 考试历史记录 -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">考试历史记录</h5>
+                </div>
+                <div class="card-body">
+                    {% if exam_results %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>考试时间</th>
+                                        <th>题目数量</th>
+                                        <th>正确答案</th>
+                                        <th>得分</th>
+                                        <th>正确率</th>
+                                        <th>用时</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for result in exam_results %}
+                                    <tr>
+                                        <td>{{ result.created_at|date:"Y-m-d H:i" }}</td>
+                                        <td>{{ result.total_questions }}</td>
+                                        <td>{{ result.correct_answers }}</td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if result.score >= 85 %}badge-success
+                                                {% elif result.score >= 70 %}badge-warning
+                                                {% else %}badge-danger
+                                                {% endif %}">
+                                                {{ result.score|floatformat:1 }}分
+                                            </span>
+                                        </td>
+                                        <td>{{ result.accuracy }}%</td>
+                                        <td>{{ result.time_spent }}分钟</td>
+                                        <td>
+                                            <a href="{% url 'mock_exam_result' result.id %}" 
+                                               class="btn btn-sm btn-outline-primary">查看详情</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- 成绩统计 -->
+                        <div class="row mt-4">
+                            <div class="col-md-3 text-center">
+                                <h4 class="text-primary">{{ exam_stats.total_exams }}</h4>
+                                <p class="mb-0">总考试次数</p>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h4 class="text-success">{{ exam_stats.avg_score|floatformat:1 }}</h4>
+                                <p class="mb-0">平均分</p>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h4 class="text-info">{{ exam_stats.best_score|floatformat:1 }}</h4>
+                                <p class="mb-0">最高分</p>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h4 class="text-warning">{{ exam_stats.avg_accuracy|floatformat:1 }}%</h4>
+                                <p class="mb-0">平均正确率</p>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-clipboard-list fa-3x mb-3"></i>
+                            <h5>还没有考试记录</h5>
+                            <p>开始您的第一次模拟考试吧！</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5 {
+    color: white;
+}
+.badge {
+    font-size: 0.9em;
+}
+</style>
+{% endblock %}

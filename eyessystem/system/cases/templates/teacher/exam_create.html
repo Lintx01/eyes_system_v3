@@ -1,0 +1,360 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}创建考试{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-section {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.exercise-item {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.exercise-info {
+    flex-grow: 1;
+}
+
+.exercise-type {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    color: white;
+    margin-right: 10px;
+}
+
+.type-single { background: #007bff; }
+.type-multiple { background: #28a745; }
+.type-judge { background: #ffc107; color: #333; }
+
+.selected-exercises {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.participants-section {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.participant-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+}
+
+.participant-item:last-child {
+    border-bottom: none;
+}
+
+#exercise-search {
+    margin-bottom: 15px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <form method="post" id="exam-form">
+            {% csrf_token %}
+            
+            <!-- 基本信息 -->
+            <div class="form-section">
+                <h5>基本信息</h5>
+                <div class="form-group">
+                    <label for="title">考试标题 *</label>
+                    <input type="text" class="form-control" id="title" name="title" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">考试描述</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="start_time">开始时间 *</label>
+                            <input type="datetime-local" class="form-control" id="start_time" name="start_time" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="duration">考试时长 (分钟) *</label>
+                            <input type="number" class="form-control" id="duration" name="duration" min="1" max="300" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="pass_score">及格分数</label>
+                            <input type="number" class="form-control" id="pass_score" name="pass_score" min="0" value="60">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="max_attempts">最大尝试次数</label>
+                            <input type="number" class="form-control" id="max_attempts" name="max_attempts" min="1" value="1">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="allow_review" name="allow_review" checked>
+                    <label class="form-check-label" for="allow_review">
+                        允许考试后查看答案
+                    </label>
+                </div>
+            </div>
+            
+            <!-- 题目选择 -->
+            <div class="form-section">
+                <h5>选择题目</h5>
+                
+                <input type="text" class="form-control" id="exercise-search" placeholder="搜索题目...">
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>可用题目</h6>
+                        <div id="available-exercises" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+                            {% for exercise in exercises %}
+                            <div class="exercise-item" data-id="{{ exercise.id }}" data-title="{{ exercise.question|lower }}">
+                                <div class="exercise-info">
+                                    <span class="exercise-type type-{{ exercise.question_type }}">
+                                        {% if exercise.question_type == 'single' %}单选
+                                        {% elif exercise.question_type == 'multiple' %}多选
+                                        {% elif exercise.question_type == 'judge' %}判断{% endif %}
+                                    </span>
+                                    <strong>{{ exercise.question|truncatechars:60 }}</strong>
+                                    <small class="text-muted d-block">所属病例：{{ exercise.case.title }}</small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectExercise({{ exercise.id }})">选择</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>已选题目 (<span id="selected-count">0</span>)</h6>
+                        <div class="selected-exercises" id="selected-exercises">
+                            <p class="text-muted text-center py-3">暂未选择题目</p>
+                        </div>
+                        <p class="text-muted"><small>总分：<span id="total-score">0</span> 分</small></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 参与学生 -->
+            <div class="form-section">
+                <h5>选择参与学生</h5>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="select-all-students">
+                    <label class="form-check-label" for="select-all-students">
+                        选择所有学生
+                    </label>
+                </div>
+                
+                <div class="participants-section">
+                    {% for student in students %}
+                    <div class="participant-item">
+                        <input class="form-check-input student-checkbox" type="checkbox" 
+                               id="student_{{ student.id }}" name="participants" value="{{ student.id }}">
+                        <label class="form-check-label ml-2" for="student_{{ student.id }}">
+                            {{ student.get_full_name|default:student.username }} ({{ student.username }})
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <button type="submit" class="btn btn-lg">创建考试</button>
+                <a href="{% url 'teacher_exam_list' %}" class="btn btn-outline-secondary btn-lg ml-2">取消</a>
+            </div>
+        </form>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>创建提示</h6>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>填写考试的基本信息，包括标题、描述和时间安排</li>
+                    <li>选择合适的题目，建议包含不同类型的题目</li>
+                    <li>选择参与考试的学生</li>
+                    <li>检查信息无误后点击创建</li>
+                </ol>
+                
+                <hr>
+                
+                <h6>注意事项</h6>
+                <ul>
+                    <li>考试开始后无法修改题目</li>
+                    <li>建议提前测试考试流程</li>
+                    <li>及格分数默认为60分</li>
+                    <li>学生只能在规定时间内参与考试</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedExercises = [];
+let exerciseScores = {};
+
+// 题目搜索
+document.getElementById('exercise-search').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const exercises = document.querySelectorAll('#available-exercises .exercise-item');
+    
+    exercises.forEach(function(exercise) {
+        const title = exercise.getAttribute('data-title');
+        if (title.includes(searchTerm)) {
+            exercise.style.display = 'flex';
+        } else {
+            exercise.style.display = 'none';
+        }
+    });
+});
+
+// 选择题目
+function selectExercise(exerciseId) {
+    if (selectedExercises.includes(exerciseId)) {
+        return;
+    }
+    
+    const exerciseItem = document.querySelector(`[data-id="${exerciseId}"]`);
+    const exerciseInfo = exerciseItem.querySelector('.exercise-info').innerHTML;
+    
+    selectedExercises.push(exerciseId);
+    exerciseScores[exerciseId] = 5; // 默认5分
+    
+    const selectedContainer = document.getElementById('selected-exercises');
+    if (selectedExercises.length === 1) {
+        selectedContainer.innerHTML = '';
+    }
+    
+    const selectedItem = document.createElement('div');
+    selectedItem.className = 'exercise-item';
+    selectedItem.innerHTML = `
+        <div class="exercise-info">${exerciseInfo}</div>
+        <div>
+            <input type="number" class="form-control form-control-sm" style="width: 60px; display: inline-block;" 
+                   value="5" min="1" max="100" onchange="updateScore(${exerciseId}, this.value)">
+            <small>分</small>
+            <button type="button" class="btn btn-sm btn-outline-danger ml-2" onclick="removeExercise(${exerciseId})">移除</button>
+        </div>
+        <input type="hidden" name="exercises" value="${exerciseId}">
+        <input type="hidden" name="exercise_scores" value="${exerciseId}:5">
+    `;
+    
+    selectedContainer.appendChild(selectedItem);
+    updateTotalScore();
+    updateSelectedCount();
+    
+    // 隐藏原题目
+    exerciseItem.style.display = 'none';
+}
+
+// 移除题目
+function removeExercise(exerciseId) {
+    selectedExercises = selectedExercises.filter(id => id !== exerciseId);
+    delete exerciseScores[exerciseId];
+    
+    // 移除已选题目
+    const selectedItems = document.querySelectorAll('#selected-exercises .exercise-item');
+    selectedItems.forEach(item => {
+        if (item.querySelector(`input[value="${exerciseId}"]`)) {
+            item.remove();
+        }
+    });
+    
+    // 显示原题目
+    const originalItem = document.querySelector(`#available-exercises [data-id="${exerciseId}"]`);
+    if (originalItem) {
+        originalItem.style.display = 'flex';
+    }
+    
+    updateTotalScore();
+    updateSelectedCount();
+    
+    if (selectedExercises.length === 0) {
+        document.getElementById('selected-exercises').innerHTML = 
+            '<p class="text-muted text-center py-3">暂未选择题目</p>';
+    }
+}
+
+// 更新分数
+function updateScore(exerciseId, score) {
+    exerciseScores[exerciseId] = parseInt(score);
+    
+    // 更新隐藏字段
+    const scoreInput = document.querySelector(`input[value="${exerciseId}:${Object.keys(exerciseScores).find(key => key == exerciseId)}"]`);
+    if (scoreInput) {
+        scoreInput.value = `${exerciseId}:${score}`;
+    }
+    
+    updateTotalScore();
+}
+
+// 更新总分
+function updateTotalScore() {
+    const total = Object.values(exerciseScores).reduce((sum, score) => sum + score, 0);
+    document.getElementById('total-score').textContent = total;
+}
+
+// 更新题目数量
+function updateSelectedCount() {
+    document.getElementById('selected-count').textContent = selectedExercises.length;
+}
+
+// 全选学生
+document.getElementById('select-all-students').addEventListener('change', function(e) {
+    const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = e.target.checked;
+    });
+});
+
+// 表单验证
+document.getElementById('exam-form').addEventListener('submit', function(e) {
+    if (selectedExercises.length === 0) {
+        e.preventDefault();
+        alert('请至少选择一道题目！');
+        return;
+    }
+    
+    const checkedStudents = document.querySelectorAll('.student-checkbox:checked');
+    if (checkedStudents.length === 0) {
+        e.preventDefault();
+        alert('请至少选择一名学生！');
+        return;
+    }
+});
+</script>
+{% endblock %}

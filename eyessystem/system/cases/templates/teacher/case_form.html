@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>{{ title }}</h2>
+                <a href="{% url 'teacher_case_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回病例列表
+                </a>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">病例信息</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <!-- 基本信息 -->
+                                <div class="form-group">
+                                    <label for="title" class="required">病例名称 *</label>
+                                    <input type="text" class="form-control" id="title" name="title" 
+                                           value="{% if case %}{{ case.title }}{% elif form_data %}{{ form_data.title }}{% endif %}" 
+                                           required maxlength="200"
+                                           placeholder="请输入病例名称">
+                                    <small class="form-text text-muted">请输入简洁明确的病例标题</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="description" class="required">病例描述 *</label>
+                                    <textarea class="form-control" id="description" name="description" rows="4" 
+                                              required placeholder="请输入详细的病例描述和背景信息">{% if case %}{{ case.description }}{% elif form_data %}{{ form_data.description }}{% endif %}</textarea>
+                                    <small class="form-text text-muted">详细描述病例的背景信息、病史等</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="symptoms" class="required">症状表现 *</label>
+                                    <textarea class="form-control" id="symptoms" name="symptoms" rows="3" 
+                                              required placeholder="请输入患者的主要症状和表现">{% if case %}{{ case.symptoms }}{% elif form_data %}{{ form_data.symptoms }}{% endif %}</textarea>
+                                    <small class="form-text text-muted">描述患者的主要症状和临床表现</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="diagnosis">诊断结果</label>
+                                    <textarea class="form-control" id="diagnosis" name="diagnosis" rows="3" 
+                                              placeholder="请输入各项检查的详细结果">{% if case %}{{ case.diagnosis }}{% elif form_data %}{{ form_data.diagnosis }}{% endif %}</textarea>
+                                    <small class="form-text text-muted">包括各项检查结果、诊断依据等</small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <!-- 病例配置 -->
+                                <div class="form-group">
+                                    <label for="difficulty">难度等级</label>
+                                    <select class="form-control" id="difficulty" name="difficulty">
+                                        <option value="easy" {% if case.difficulty == 'easy' or form_data.difficulty == 'easy' %}selected{% endif %}>简单</option>
+                                        <option value="medium" {% if not case and not form_data or case.difficulty == 'medium' or form_data.difficulty == 'medium' %}selected{% endif %}>中等</option>
+                                        <option value="hard" {% if case.difficulty == 'hard' or form_data.difficulty == 'hard' %}selected{% endif %}>困难</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="case_type">病例类型</label>
+                                    <select class="form-control" id="case_type" name="case_type">
+                                        <option value="clinical" {% if not case and not form_data or case.case_type == 'clinical' or form_data.case_type == 'clinical' %}selected{% endif %}>临床病例</option>
+                                        <option value="surgery" {% if case.case_type == 'surgery' or form_data.case_type == 'surgery' %}selected{% endif %}>手术病例</option>
+                                        <option value="emergency" {% if case.case_type == 'emergency' or form_data.case_type == 'emergency' %}selected{% endif %}>急诊病例</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="image">病例图像</label>
+                                    <input type="file" class="form-control-file" id="image" name="image" 
+                                           accept="image/*">
+                                    <small class="form-text text-muted">上传相关的检查图片或眼底照片</small>
+                                    
+                                    {% if case.image %}
+                                    <div class="mt-2">
+                                        <p class="text-muted small">当前图片：</p>
+                                        <img src="{{ case.image.url }}" class="img-thumbnail" 
+                                             style="max-width: 200px; max-height: 150px;" 
+                                             alt="{{ case.title }}">
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="form-group">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
+                                               {% if not case or case.is_active %}checked{% endif %}>
+                                        <label class="form-check-label" for="is_active">
+                                            启用病例
+                                        </label>
+                                    </div>
+                                    <small class="form-text text-muted">是否在教学中使用此病例</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 提交按钮 -->
+                        <div class="form-group mt-4">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-save"></i> {{ action }}病例
+                                    </button>
+                                    <a href="{% url 'teacher_case_list' %}" class="btn btn-outline-secondary btn-lg ml-3">
+                                        <i class="fas fa-times"></i> 取消
+                                    </a>
+                                </div>
+                                
+                                {% if case %}
+                                <div>
+                                    <button type="button" class="btn btn-outline-danger" onclick="showDeleteModal()">
+                                        <i class="fas fa-trash"></i> 删除病例
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if case %}
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认删除</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要删除病例 <strong>"{{ case.title }}"</strong> 吗？</p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    删除后无法恢复，相关的练习题目也将被删除！
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="deleteCase()">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5 {
+    color: white;
+}
+.required::after {
+    content: " *";
+    color: red;
+}
+.form-group label {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+.img-thumbnail {
+    border: 2px solid #dee2e6;
+}
+</style>
+
+<script>
+// 表单验证
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const requiredFields = form.querySelectorAll('[required]');
+    
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('请填写所有必填字段！');
+        }
+    });
+    
+    // 实时验证
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+    });
+});
+
+{% if case %}
+// 删除功能
+function showDeleteModal() {
+    $('#deleteModal').modal('show');
+}
+
+function deleteCase() {
+    fetch('{% url "teacher_case_delete" case.id %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{% url "teacher_case_list" %}';
+        } else {
+            alert('删除失败：' + (data.error || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('删除失败，请稍后重试');
+    });
+}
+{% endif %}
+
+// 图片预览
+document.getElementById('image').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // 如果已有预览图片，更新它；否则创建新的
+            let preview = document.getElementById('imagePreview');
+            if (!preview) {
+                preview = document.createElement('div');
+                preview.id = 'imagePreview';
+                preview.className = 'mt-2';
+                preview.innerHTML = '<p class="text-muted small">图片预览：</p>';
+                e.target.parentElement.appendChild(preview);
+            }
+            
+            preview.innerHTML = `
+                <p class="text-muted small">图片预览：</p>
+                <img src="${e.target.result}" class="img-thumbnail" 
+                     style="max-width: 200px; max-height: 150px;" alt="预览图片">
+            `;
+        };
+        reader.readAsDataURL(file);
+    }
+});
+</script>
+{% endblock %}

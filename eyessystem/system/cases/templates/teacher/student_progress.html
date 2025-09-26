@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}学生进度查看 - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>学生学习进度</h2>
+                <a href="{% url 'teacher_dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回仪表板
+                </a>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                注意：这是简化版的学生进度页面。如需查看详细进度和导出功能，请访问 
+                <a href="{% url 'teacher_student_progress_list' %}" class="alert-link">完整版学生进度管理</a>。
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">学生进度概览</h5>
+                </div>
+                <div class="card-body">
+                    {% if progress_data %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>学生姓名</th>
+                                        <th>用户名</th>
+                                        <th>学习进度</th>
+                                        <th>学习时间</th>
+                                        <th>完成病例</th>
+                                        <th>完成练习</th>
+                                        <th>最近考试</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for data in progress_data %}
+                                    <tr>
+                                        <td>
+                                            {% if data.student.first_name or data.student.last_name %}
+                                                {{ data.student.first_name }}{{ data.student.last_name }}
+                                            {% else %}
+                                                <span class="text-muted">未设置姓名</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ data.student.username }}</td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar" 
+                                                     role="progressbar" 
+                                                     style="width: {{ data.progress.progress_percentage }}%"
+                                                     aria-valuenow="{{ data.progress.progress_percentage }}" 
+                                                     aria-valuemin="0" aria-valuemax="100">
+                                                    {{ data.progress.progress_percentage|floatformat:1 }}%
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>{{ data.progress.total_study_time|floatformat:1 }} 小时</td>
+                                        <td>{{ data.progress.completed_cases.count }}</td>
+                                        <td>{{ data.progress.completed_exercises.count }}</td>
+                                        <td>
+                                            {% if data.recent_exam %}
+                                                <small class="text-muted">
+                                                    {{ data.recent_exam.exam.title|truncatechars:20 }}<br>
+                                                    得分：{{ data.recent_exam.score|floatformat:1 }}
+                                                </small>
+                                            {% else %}
+                                                <span class="text-muted">暂无考试</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'teacher_student_progress_list' %}" class="btn btn-sm btn-primary">
+                                                查看详情
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">暂无学生数据</h5>
+                            <p class="text-muted">当前没有学生用户或学生还未开始学习</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- 快速统计 -->
+            <div class="row mt-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h4 class="text-primary">{{ progress_data|length }}</h4>
+                            <p class="mb-0">注册学生数</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h4 class="text-success">
+                                {% for data in progress_data %}
+                                    {% if forloop.first %}{{ data.progress.completed_cases.count|add:"0" }}{% endif %}
+                                {% empty %}0{% endfor %}
+                            </h4>
+                            <p class="mb-0">活跃学生数</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h4 class="text-warning">
+                                {% for data in progress_data %}
+                                    {% if data.progress.progress_percentage > 0 %}{% if forloop.first %}{{ forloop.counter }}{% else %}{% endif %}{% endif %}
+                                {% empty %}0{% endfor %}
+                            </h4>
+                            <p class="mb-0">有学习进度</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h4 class="text-info">
+                                {% for data in progress_data %}
+                                    {% if data.recent_exam %}{% if forloop.first %}{{ forloop.counter }}{% else %}{% endif %}{% endif %}
+                                {% empty %}0{% endfor %}
+                            </h4>
+                            <p class="mb-0">参与考试</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 功能导航 -->
+            <div class="card mt-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-3">更多功能</h6>
+                    <a href="{% url 'teacher_student_progress_list' %}" class="btn btn-primary mr-3">
+                        <i class="fas fa-chart-bar"></i> 详细进度分析
+                    </a>
+                    <a href="{% url 'teacher_case_list' %}" class="btn btn-outline-info mr-3">
+                        <i class="fas fa-book"></i> 病例管理
+                    </a>
+                    <a href="{% url 'teacher_exam_list' %}" class="btn btn-outline-success">
+                        <i class="fas fa-clipboard-list"></i> 考试管理
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5 {
+    color: white;
+}
+.progress {
+    background-color: #f8f9fa;
+}
+.alert-info {
+    border-left: 4px solid #17a2b8;
+}
+</style>
+{% endblock %}

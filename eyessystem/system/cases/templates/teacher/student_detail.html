@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+
+{% block title %}学生详细进度 - {{ student.username }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>学生详细进度</h2>
+                <a href="{% url 'teacher_student_progress_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回列表
+                </a>
+            </div>
+            
+            <!-- 学生基本信息 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">基本信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="120">姓名：</th>
+                                    <td>
+                                        {% if student.first_name or student.last_name %}
+                                            {{ student.first_name }}{{ student.last_name }}
+                                        {% else %}
+                                            <span class="text-muted">未设置姓名</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>用户名：</th>
+                                    <td>{{ student.username }}</td>
+                                </tr>
+                                <tr>
+                                    <th>邮箱：</th>
+                                    <td>{{ student.email|default:"未设置" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="120">注册时间：</th>
+                                    <td>{{ student.date_joined|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>最后登录：</th>
+                                    <td>
+                                        {% if student.last_login %}
+                                            {{ student.last_login|date:"Y-m-d H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">从未登录</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>状态：</th>
+                                    <td>
+                                        {% if student.is_active %}
+                                            <span class="badge badge-success">正常</span>
+                                        {% else %}
+                                            <span class="badge badge-danger">已禁用</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 学习统计 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">学习统计</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-primary">{{ stats.case_study_count }}</h4>
+                            <p class="mb-0">案例学习数</p>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-info">{{ stats.exercise_count }}</h4>
+                            <p class="mb-0">练习完成数</p>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-success">{{ stats.exam_count }}</h4>
+                            <p class="mb-0">正式考试数</p>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4 class="text-warning">{{ stats.mock_exam_count }}</h4>
+                            <p class="mb-0">模拟考试数</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6 text-center">
+                            <h4 class="text-success">{{ stats.total_study_time|floatformat:1 }} 小时</h4>
+                            <p class="mb-0">总学习时间</p>
+                        </div>
+                        <div class="col-md-6 text-center">
+                            <h4 class="
+                                {% if stats.avg_score >= 85 %}text-success
+                                {% elif stats.avg_score >= 70 %}text-warning
+                                {% else %}text-danger
+                                {% endif %}">
+                                {% if stats.avg_score %}{{ stats.avg_score|floatformat:1 }}分{% else %}--{% endif %}
+                            </h4>
+                            <p class="mb-0">平均成绩</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 案例学习记录 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">案例学习记录</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>案例名称</th>
+                                    <th>学习时间</th>
+                                    <th>学习状态</th>
+                                    <th>最后学习时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for progress in case_progress %}
+                                <tr>
+                                    <td>{{ progress.case.title }}</td>
+                                    <td>{{ progress.study_time|floatformat:1 }} 小时</td>
+                                    <td>
+                                        <span class="badge badge-{{ progress.status|yesno:'success,warning' }}">
+                                            {% if progress.completed %}已完成{% else %}学习中{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>{{ progress.updated_at|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">暂无学习记录</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 考试记录 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">考试记录</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>考试名称</th>
+                                    <th>考试类型</th>
+                                    <th>得分</th>
+                                    <th>正确率</th>
+                                    <th>用时</th>
+                                    <th>考试时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in exam_records %}
+                                <tr>
+                                    <td>{{ record.exam.title }}</td>
+                                    <td>
+                                        <span class="badge badge-primary">正式考试</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if record.score >= 85 %}badge-success
+                                            {% elif record.score >= 70 %}badge-warning
+                                            {% else %}badge-danger
+                                            {% endif %}">
+                                            {{ record.score|floatformat:1 }}分
+                                        </span>
+                                    </td>
+                                    <td>{{ record.correct_rate|floatformat:1 }}%</td>
+                                    <td>{{ record.time_spent }} 分钟</td>
+                                    <td>{{ record.created_at|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% for result in mock_exam_results %}
+                                <tr>
+                                    <td>模拟考试</td>
+                                    <td>
+                                        <span class="badge badge-info">模拟考试</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if result.score >= 85 %}badge-success
+                                            {% elif result.score >= 70 %}badge-warning
+                                            {% else %}badge-danger
+                                            {% endif %}">
+                                            {{ result.score|floatformat:1 }}分
+                                        </span>
+                                    </td>
+                                    <td>{{ result.accuracy }}%</td>
+                                    <td>{{ result.time_spent }} 分钟</td>
+                                    <td>{{ result.created_at|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if not exam_records and not mock_exam_results %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">暂无考试记录</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+.card-header h5 {
+    color: white;
+}
+.table-borderless th {
+    border: none;
+    padding-left: 0;
+}
+.table-borderless td {
+    border: none;
+}
+</style>
+{% endblock %}
