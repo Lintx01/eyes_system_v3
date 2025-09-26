@@ -1,0 +1,29 @@
+# Python 缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django 数据库文件（如果用 sqlite）
+db.sqlite3
+
+# Django 日志文件
+*.log
+
+# 虚拟环境（如果建在项目目录里）
+venv/
+env/
+.menv/
+.med_train/
+
+# IDE 配置文件
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# pytest / coverage / mypy 等临时文件
+.coverage
+.pytest_cache/
+.mypy_cache/
