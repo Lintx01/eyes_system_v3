@@ -70,7 +70,7 @@
                     <td>
                         <a href="{% url 'teacher_case_edit' case.id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">编辑</a>
                         <a href="{% url 'teacher_exercise_list' case.id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">题目</a>
-                        <button class="btn danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="deleteCase({{ case.id }}, '{{ case.title }}')">删除</button>
+                        <button class="btn danger" style="padding: 6px 12px; font-size: 0.8rem;" data-case-id="{{ case.id }}" data-case-title="{{ case.title|escapejs }}" onclick="deleteCase(this)">删除</button>
                     </td>
                 </tr>
                 {% empty %}
@@ -113,26 +113,35 @@
 </div>
 
 <!-- 导入模态框 -->
-<div id="importModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-    <div style="background: white; margin: 10% auto; padding: 20px; width: 500px; border-radius: 8px;">
-        <h3 style="margin-bottom: 20px;">批量导入病例</h3>
+<div id="importModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);" onclick="closeModalOnBackdrop(event)">
+    <div style="background: white; margin: 10% auto; padding: 20px; width: 500px; max-width: 90%; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;">批量导入病例</h3>
+            <button type="button" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999;" onclick="closeImportModal()">&times;</button>
+        </div>
         <form method="post" action="{% url 'import_cases' %}" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="form-group">
                 <label>选择CSV文件</label>
                 <input type="file" name="csv_file" accept=".csv" class="form-control" required>
-                <small style="color: #666;">CSV格式：病例名称,病例描述,症状表现,检查结果,是否启用</small>
+                <small style="color: #666; display: block; margin-top: 8px;">
+                    <strong>CSV格式：</strong>病例名称,病例描述,症状表现,检查结果,是否启用<br>
+                    <strong>示例：</strong>"白内障案例","患者双眼视物模糊","视力下降、畏光","晶状体混浊","true"
+                </small>
             </div>
             <div style="text-align: right; margin-top: 20px;">
-                <button type="button" class="btn secondary" onclick="document.getElementById('importModal').style.display='none'">取消</button>
-                <button type="submit" class="btn">导入</button>
+                <button type="button" class="btn secondary" onclick="closeImportModal()">取消</button>
+                <button type="submit" class="btn" style="margin-left: 10px;">导入</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-function deleteCase(caseId, caseName) {
+function deleteCase(button) {
+    const caseId = button.dataset.caseId;
+    const caseName = button.dataset.caseTitle;
+    
     if (confirmDelete('确定要删除病例 "' + caseName + '" 吗？\n删除后相关的练习题目也会被删除。')) {
         fetch('/teacher/cases/' + caseId + '/delete/', {
             method: 'POST',
@@ -141,15 +150,54 @@ function deleteCase(caseId, caseName) {
                 'Content-Type': 'application/json',
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('网络请求失败');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                location.reload();
+                // 添加成功提示
+                const successMsg = document.createElement('div');
+                successMsg.className = 'message success';
+                successMsg.textContent = '病例删除成功！';
+                document.querySelector('.container').insertBefore(successMsg, document.querySelector('.card'));
+                
+                // 延迟刷新页面
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
             } else {
-                alert('删除失败，请重试');
+                alert('删除失败：' + (data.message || '请重试'));
             }
+        })
+        .catch(error => {
+            console.error('删除操作失败:', error);
+            alert('删除操作失败，请检查网络连接后重试');
         });
     }
 }
+
+function closeImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+}
+
+function closeModalOnBackdrop(event) {
+    // 点击背景关闭模态框
+    if (event.target === event.currentTarget) {
+        closeImportModal();
+    }
+}
+
+// 添加键盘支持
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const modal = document.getElementById('importModal');
+        if (modal.style.display !== 'none') {
+            closeImportModal();
+        }
+    }
+});
 </script>
 {% endblock %}

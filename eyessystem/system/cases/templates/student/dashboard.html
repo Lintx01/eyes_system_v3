@@ -10,26 +10,28 @@
     </div>
     <div class="card-body">
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card" role="status" aria-label="总体学习进度">
                 <div class="stat-number">{{ progress.progress_percentage|floatformat:1 }}%</div>
                 <div class="stat-label">总体进度</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number">{{ completed_cases }}</div>
+            <div class="stat-card" role="status" aria-label="已完成病例数量">
+                <div class="stat-number">{{ completed_cases|default:0 }}</div>
                 <div class="stat-label">已完成病例</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number">{{ completed_exercises }}</div>
+            <div class="stat-card" role="status" aria-label="已完成练习数量">
+                <div class="stat-number">{{ completed_exercises|default:0 }}</div>
                 <div class="stat-label">已完成练习</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number">{{ progress.total_study_time }}</div>
+            <div class="stat-card" role="status" aria-label="总学习时长">
+                <div class="stat-number">{{ progress.total_study_time|default:0 }}</div>
                 <div class="stat-label">学习时长（分钟）</div>
             </div>
         </div>
 
-        <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 20px 0;">
-            <div style="background: #b71c1c; height: 20px; border-radius: 10px; width: {{ progress.progress_percentage }}%; transition: width 0.3s;"></div>
+        <div class="progress-container" style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 20px 0;">
+            <div class="progress-bar" 
+                 style="background: #b71c1c; height: 20px; border-radius: 10px; transition: width 0.3s; width: 0%;" 
+                 data-progress="{{ progress.progress_percentage|floatformat:1 }}"></div>
             <div style="text-align: center; margin-top: 5px; color: #666;">学习进度：{{ completed_cases }}/{{ total_cases }} 个病例</div>
         </div>
 
@@ -60,16 +62,77 @@
             <tbody>
                 {% for exam in recent_exams %}
                 <tr>
-                    <td>{{ exam.get_exam_type_display }}</td>
-                    <td><strong>{{ exam.score|floatformat:1 }}分</strong></td>
-                    <td>{{ exam.total_questions }}</td>
-                    <td>{{ exam.correct_answers }}/{{ exam.total_questions }}</td>
-                    <td>{{ exam.exam_time|date:"Y-m-d H:i" }}</td>
+                    <td>{{ exam.get_exam_type_display|default:"未知类型" }}</td>
+                    <td><strong>{{ exam.score|floatformat:1|default:"0.0" }}分</strong></td>
+                    <td>{{ exam.total_questions|default:0 }}</td>
+                    <td>{{ exam.correct_answers|default:0 }}/{{ exam.total_questions|default:0 }}</td>
+                    <td>{{ exam.created_at|date:"Y-m-d H:i"|default:"未知时间" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% if recent_exams|length >= 5 %}
+        <div style="text-align: center; margin-top: 15px;">
+            <a href="{% url 'student_mock_exam_list' %}" class="btn secondary">查看更多考试记录</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-header">
+        <h3>开始你的学习之旅</h3>
+    </div>
+    <div class="card-body" style="text-align: center; padding: 40px 20px;">
+        <p style="color: #666; margin-bottom: 20px;">还没有考试记录，开始你的第一次模拟考试吧！</p>
+        <a href="{% url 'student_mock_exam_list' %}" class="btn">立即开始模拟考试</a>
     </div>
 </div>
 {% endif %}
+
+<script>
+// 动态设置进度条宽度
+document.addEventListener('DOMContentLoaded', function() {
+    const progressBar = document.querySelector('.progress-bar');
+    if (progressBar) {
+        const progress = progressBar.dataset.progress;
+        // 延迟设置宽度以创建动画效果
+        setTimeout(() => {
+            progressBar.style.width = progress + '%';
+        }, 300);
+        
+        // 添加颜色变化
+        const progressValue = parseFloat(progress);
+        if (progressValue >= 80) {
+            progressBar.style.background = '#28a745'; // 绿色
+        } else if (progressValue >= 60) {
+            progressBar.style.background = '#ffc107'; // 黄色
+        } else if (progressValue >= 40) {
+            progressBar.style.background = '#fd7e14'; // 橙色
+        }
+        // 默认红色 #b71c1c
+        
+        // 添加完成度提示
+        if (progressValue >= 100) {
+            const congratsMsg = document.createElement('div');
+            congratsMsg.style.cssText = 'background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin: 10px 0; text-align: center;';
+            congratsMsg.innerHTML = '🎉 恭喜你完成了所有病例的学习！';
+            progressBar.parentElement.after(congratsMsg);
+        }
+    }
+    
+    // 添加统计卡片的动画效果
+    const statCards = document.querySelectorAll('.stat-card');
+    statCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'all 0.5s ease';
+        
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 100 + index * 100);
+    });
+});
+</script>
 {% endblock %}

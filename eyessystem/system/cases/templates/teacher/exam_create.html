@@ -149,7 +149,7 @@
                                     <strong>{{ exercise.question|truncatechars:60 }}</strong>
                                     <small class="text-muted d-block">所属病例：{{ exercise.case.title }}</small>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectExercise({{ exercise.id }})">选择</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-exercise-id="{{ exercise.id }}" onclick="selectExercise(this)">选择</button>
                             </div>
                             {% endfor %}
                         </div>
@@ -243,7 +243,8 @@ document.getElementById('exercise-search').addEventListener('input', function(e)
 });
 
 // 选择题目
-function selectExercise(exerciseId) {
+function selectExercise(button) {
+    const exerciseId = parseInt(button.dataset.exerciseId);
     if (selectedExercises.includes(exerciseId)) {
         return;
     }

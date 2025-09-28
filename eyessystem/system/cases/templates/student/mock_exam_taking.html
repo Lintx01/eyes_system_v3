@@ -3,6 +3,9 @@
 {% block title %}模拟考试 - 答题中{% endblock %}
 
 {% block content %}
+<!-- 隐藏的数据容器 -->
+<div id="exam-data" data-time-remaining="{{ remaining_seconds|default:0 }}" style="display: none;"></div>
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
@@ -17,7 +20,7 @@
                         <div class="col-md-3 text-center">
                             <div class="progress">
                                 <div class="progress-bar" role="progressbar" 
-                                     style="width: {{ progress_percentage }}%" 
+                                     data-progress="{{ progress_percentage }}" style="width: 0%" 
                                      aria-valuenow="{{ progress_percentage }}" aria-valuemin="0" aria-valuemax="100">
                                     {{ progress_percentage|floatformat:0 }}%
                                 </div>
@@ -117,7 +120,7 @@
                             {% elif i in answered_questions %}btn-success
                             {% else %}btn-outline-secondary
                             {% endif %}" 
-                            onclick="goToQuestion({{ i }})">
+                            data-question="{{ i }}" onclick="goToQuestion(this)">
                             {{ i }}
                         </button>
                         {% endfor %}
@@ -196,7 +199,18 @@
 
 <script>
 // 倒计时功能
-let timeRemaining = {{ remaining_seconds }};
+let timeRemaining = parseInt(document.getElementById('exam-data')?.dataset.timeRemaining) || 0;
+
+// 动态设置进度条
+document.addEventListener('DOMContentLoaded', function() {
+    const progressBar = document.querySelector('[data-progress]');
+    if (progressBar) {
+        const progress = progressBar.dataset.progress;
+        setTimeout(() => {
+            progressBar.style.width = progress + '%';
+        }, 100);
+    }
+});
 let timerInterval;
 
 function updateTimer() {

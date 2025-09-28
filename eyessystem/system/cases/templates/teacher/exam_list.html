@@ -191,7 +191,7 @@
                 {% endif %}
                 
                 {% if exam.status == 'upcoming' %}
-                    <button onclick="deleteExam({{ exam.id }})" class="btn btn-outline-danger btn-sm">删除</button>
+                    <button data-exam-id="{{ exam.id }}" onclick="deleteExam(this)" class="btn btn-outline-danger btn-sm">删除</button>
                 {% endif %}
             </div>
         </div>
@@ -238,7 +238,8 @@
 </div>
 
 <script>
-function deleteExam(examId) {
+function deleteExam(button) {
+    const examId = button.dataset.examId;
     if (confirm('确定要删除这个考试吗？此操作无法撤销。')) {
         fetch(`/teacher/exam/${examId}/delete/`, {
             method: 'POST',
