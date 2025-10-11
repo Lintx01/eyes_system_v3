@@ -36,7 +36,10 @@
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{% url 'student_case_list' %}" class="btn" style="margin-right: 15px;">开始学习</a>
+            <a href="{% url 'clinical_case_list' %}" class="btn" style="margin-right: 15px; background: #007bff; color: white;">
+                <i class="fas fa-stethoscope"></i> 临床推理学习
+            </a>
+            <a href="{% url 'student_case_list' %}" class="btn secondary" style="margin-right: 15px;">传统病例学习</a>
             <a href="{% url 'student_mock_exam_list' %}" class="btn secondary" style="margin-right: 15px;">模拟考试</a>
             <a href="{% url 'student_exercise_list' %}" class="btn secondary">练习题目</a>
         </div>

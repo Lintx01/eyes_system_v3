@@ -1,0 +1,2192 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}临床推理 - {{ clinical_case.title }}{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid mt-4">
+  <!-- 临床推理系统标题 -->
+  <div class="row mb-4">
+    <div class="col-12 text-center">
+      <h2 class="text-primary">
+        <i class="fas fa-user-md"></i> 临床推理学习系统
+        <small class="text-muted d-block mt-2">基于真实案例的临床思维训练</small>
+      </h2>
+    </div>
+  </div>
+  
+  <!-- 临床指导提示区域 -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div id="clinical-guidance">
+        <!-- 动态临床指导内容 -->
+      </div>
+    </div>
+  </div>
+  
+  <!-- 步骤进度条 -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="progress-stepper">
+        <div class="stepper-items">
+          <div class="stepper-item active" data-step="history">
+            <div class="stepper-icon">1</div>
+            <div class="stepper-title">病史采集</div>
+          </div>
+          <div class="stepper-item" data-step="examination">
+            <div class="stepper-icon">2</div>
+            <div class="stepper-title">检查选择</div>
+          </div>
+          <div class="stepper-item" data-step="diagnosis">
+            <div class="stepper-icon">3</div>
+            <div class="stepper-title">诊断推理</div>
+          </div>
+          <div class="stepper-item" data-step="treatment">
+            <div class="stepper-icon">4</div>
+            <div class="stepper-title">治疗方案</div>
+          </div>
+          <div class="stepper-item" data-step="feedback">
+            <div class="stepper-icon">5</div>
+            <div class="stepper-title">学习反馈</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- 主要学习内容区域 -->
+    <div class="col-lg-8">
+      <div class="card mb-3 shadow-sm">
+        <div class="card-header bg-light">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0" id="case-title">{{ clinical_case.title }}</h5>
+            <div class="badge badge-info" id="current-stage-badge">病史采集阶段</div>
+          </div>
+          <p class="text-muted mb-0 mt-2" id="patient-info">
+            <i class="fas fa-user"></i> {{ clinical_case.patient_age }}岁 - {{ clinical_case.get_patient_gender_display }}
+          </p>
+        </div>
+        <div class="card-body">
+          <div id="stage-content">
+            <div class="text-center p-5">
+              <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+              <p class="mt-3">正在加载临床案例数据...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 导航控制面板 -->
+      <div class="card" id="navigation-card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <button class="btn btn-outline-secondary" id="btn-prev" disabled>
+              <i class="fas fa-arrow-left"></i> 上一步
+            </button>
+            <div class="text-center">
+              <small class="text-muted">临床推理进度</small>
+              <div class="progress mt-1" style="width: 200px;">
+                <div id="overall-progress" class="progress-bar bg-success" role="progressbar" style="width: 20%"></div>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="btn-next">
+              下一步 <i class="fas fa-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 侧边工具和反馈区域 -->
+    <div class="col-lg-4">
+      <!-- 临床记录面板 -->
+      <div class="card mb-3 border-primary">
+        <div class="card-header bg-primary text-white">
+          <h6 class="mb-0"><i class="fas fa-clipboard"></i> 临床记录</h6>
+        </div>
+        <div class="card-body">
+          <div class="nav nav-pills mb-3" id="clinical-tabs" role="tablist">
+            <a class="nav-item nav-link active" id="notes-tab" data-toggle="pill" href="#notes-panel" role="tab">笔记</a>
+            <a class="nav-item nav-link" id="timeline-tab" data-toggle="pill" href="#timeline-panel" role="tab">时间线</a>
+          </div>
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="notes-panel">
+              <textarea id="clinical-notes" class="form-control" rows="5" placeholder="记录临床思考过程、鉴别诊断要点..."></textarea>
+              <small class="text-muted mt-2 d-block">
+                <i class="fas fa-lightbulb"></i> 记录思维过程有助于临床能力提升
+              </small>
+            </div>
+            <div class="tab-pane fade" id="timeline-panel">
+              <div id="learning-timeline">
+                <small class="text-muted">学习进程将在此显示</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 实时反馈面板 -->
+      <div class="card mb-3">
+        <div class="card-header bg-success text-white">
+          <h6 class="mb-0"><i class="fas fa-comments"></i> 智能指导</h6>
+        </div>
+        <div class="card-body" id="feedback-panel">
+          <div class="text-center text-muted">
+            <i class="fas fa-robot fa-2x mb-2"></i>
+            <p class="mb-0">AI助教将为您提供实时指导</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 学习统计面板 -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="fas fa-chart-line"></i> 学习统计</h6>
+        </div>
+        <div class="card-body">
+          <div id="learning-stats">
+            <div class="row text-center">
+              <div class="col-6">
+                <div class="border-right">
+                  <div class="h4 mb-0" id="time-spent">00:00</div>
+                  <small class="text-muted">用时</small>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="h4 mb-0" id="current-score">--</div>
+                <small class="text-muted">当前得分</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ==================== 临床推理系统样式 ==================== */
+
+/* 进度指示器样式优化 */
+.progress-stepper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 15px;
+}
+
+.stepper-items {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 700px;
+}
+
+.stepper-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.stepper-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 60%;
+  width: 80%;
+  height: 3px;
+  background: linear-gradient(90deg, #dee2e6 0%, #ced4da 100%);
+  z-index: 1;
+  border-radius: 2px;
+}
+
+.stepper-item.active::after {
+  background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+}
+
+.stepper-item.completed::after {
+  background: linear-gradient(90deg, #28a745 0%, #1e7e34 100%);
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.stepper-icon {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e9ecef 0%, #ced4da 100%);
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 2;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+.stepper-item.active .stepper-icon {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 6px 12px rgba(0, 123, 255, 0.4);
+  animation: pulse 2s infinite;
+}
+
+.stepper-item.completed .stepper-icon {
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+  color: white;
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.stepper-item.thinking .stepper-icon {
+  animation: thinking 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 6px 12px rgba(0, 123, 255, 0.4); }
+  50% { box-shadow: 0 8px 16px rgba(0, 123, 255, 0.6); }
+  100% { box-shadow: 0 6px 12px rgba(0, 123, 255, 0.4); }
+}
+
+@keyframes thinking {
+  0%, 100% { transform: scale(1.1); }
+  50% { transform: scale(1.05); }
+}
+
+.stepper-title {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-top: 4px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.stepper-item.active .stepper-title {
+  color: #007bff;
+  font-weight: 600;
+  transform: translateY(-2px);
+}
+
+.stepper-item.completed .stepper-title {
+  color: #28a745;
+  font-weight: 600;
+}
+
+/* 临床指导区域样式 */
+.clinical-guidance {
+  border-left: 4px solid #007bff;
+  background: linear-gradient(135deg, #f8f9ff 0%, #e6f3ff 100%);
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.clinical-tips ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.clinical-tips li {
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 5px;
+}
+
+.clinical-tips li::before {
+  content: '💡';
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* 病史分析工具样式 */
+.clinical-analysis-tools {
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.symptom-tags .badge {
+  margin: 2px;
+  font-size: 0.85rem;
+  padding: 0.4em 0.8em;
+}
+
+.timeline-info {
+  background: white;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 3px solid #007bff;
+}
+
+/* 检查选项样式增强 */
+.examination-option {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.examination-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.examination-option.selected {
+  border-color: #007bff;
+  background-color: #f8f9ff;
+}
+
+.examination-option .form-check-input:checked + .form-check-label {
+  color: #007bff;
+  font-weight: 600;
+}
+
+/* 诊断选项样式 */
+.diagnosis-option {
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.diagnosis-option:hover {
+  border-color: #007bff;
+  background-color: #f8f9ff;
+}
+
+.diagnosis-option.selected {
+  border-color: #007bff;
+  background-color: #e6f3ff;
+}
+
+/* 治疗方案样式 */
+.treatment-option {
+  border-left: 4px solid #dee2e6;
+  transition: all 0.3s ease;
+}
+
+.treatment-option.optimal {
+  border-left-color: #28a745;
+}
+
+.treatment-option.acceptable {
+  border-left-color: #ffc107;
+}
+
+.treatment-option.contraindicated {
+  border-left-color: #dc3545;
+  background-color: #fff5f5;
+}
+
+/* 学习统计面板 */
+.learning-stats .h4 {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+/* 时间线样式 */
+.learning-timeline {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.timeline-item {
+  border-left: 2px solid #e9ecef;
+  padding-left: 15px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  background: #007bff;
+  border-radius: 50%;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .stepper-items {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .stepper-item {
+    margin-bottom: 20px;
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  
+  .stepper-item::after {
+    display: none;
+  }
+  
+  .stepper-icon {
+    margin-right: 15px;
+    margin-bottom: 0;
+  }
+}
+
+/* 反馈面板动画 */
+.feedback-animation {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 成功反馈样式 */
+.feedback-positive {
+  border-left: 4px solid #28a745;
+  background-color: #d4edda;
+}
+
+.feedback-corrective {
+  border-left: 4px solid #ffc107;
+  background-color: #fff3cd;
+}
+
+.feedback-guidance {
+  border-left: 4px solid #17a2b8;
+  background-color: #d1ecf1;
+}
+
+/* 动画效果样式 */
+.confetti-piece {
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.flash-success {
+  animation: flashSuccess 0.9s ease-in-out;
+}
+
+.flash-warning {
+  animation: flashWarning 0.9s ease-in-out;
+}
+
+@keyframes flashSuccess {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(40,167,69,0); }
+  30% { transform: scale(1.04); box-shadow: 0 10px 30px rgba(40,167,69,0.18); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(40,167,69,0); }
+}
+
+@keyframes flashWarning {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,193,7,0); }
+  30% { transform: scale(1.04); box-shadow: 0 10px 30px rgba(255,193,7,0.18); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,193,7,0); }
+}
+
+.step-highlight {
+  animation: stepPulse 0.8s ease-out;
+}
+
+@keyframes stepPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(0,123,255,0); }
+  50% { transform: scale(1.08); box-shadow: 0 10px 30px rgba(0,123,255,0.22); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,123,255,0); }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 临床推理教学系统 - 重新设计的交互逻辑
+// 作为医疗教育工程师，我设计了一个更贴近真实临床思维的学习系统
+
+(function() {
+  // ==================== 核心状态管理 ====================
+  var clinicalSession = {
+    caseId: '{{ clinical_case.case_id }}',
+    currentStage: 'history',
+    stages: ['history', 'examination', 'diagnosis', 'treatment', 'feedback'],
+    
+    // 临床数据收集
+    selectedExaminations: [],
+    examinationResults: [],
+    clinicalFindings: {},
+    
+    // 诊断推理
+    diagnosticHypotheses: [],
+    selectedDiagnosis: null,
+    differentialAnalysis: {},
+    
+    // 治疗决策
+    selectedTreatments: [],
+    treatmentRationale: '',
+    
+    // 学习评估
+    scores: {
+      examination: 0,
+      diagnosis: 0,
+      treatment: 0,
+      overall: 0,
+      clinicalThinking: 0
+    },
+    
+    // 时间跟踪
+    timeSpent: {},
+    startTime: new Date(),
+    
+    // 教学反馈
+    feedbackHistory: [],
+    clinicalMistakes: [],
+    learningInsights: []
+  };
+
+  // ==================== 医学教育核心功能 ====================
+  
+  function updateClinicalProgress() {
+    // 更新可视化进度指示器
+    $('.stepper-item').removeClass('active completed thinking');
+    var currentIndex = clinicalSession.stages.indexOf(clinicalSession.currentStage);
+    
+    for (var i = 0; i <= currentIndex; i++) {
+      var $step = $('.stepper-item[data-step="' + clinicalSession.stages[i] + '"]');
+      if (i === currentIndex) {
+        $step.addClass('active thinking');
+        // 添加思考动画效果
+        $step.find('.stepper-icon').html('<i class="fas fa-brain fa-pulse"></i>');
+      } else {
+        $step.addClass('completed');
+        $step.find('.stepper-icon').html('<i class="fas fa-check"></i>');
+      }
+    }
+    // 高亮当前步骤一次
+    highlightStep(clinicalSession.currentStage);
+    
+    // 更新阶段提示
+    updateStageGuidance();
+  }
+  
+  function updateStageGuidance() {
+    var guidance = {
+      'history': {
+        title: '📋 病史采集阶段',
+        instruction: '仔细阅读患者的主诉和病史信息，这是临床推理的基础。思考：患者的主要问题是什么？可能的病因有哪些？',
+        tips: ['注意症状的时间顺序', '关注既往史的相关性', '思考症状的严重程度']
+      },
+      'examination': {
+        title: '🔍 临床检查阶段', 
+        instruction: '基于病史分析，选择最有价值的检查项目。记住：合理的检查选择体现临床思维能力。',
+        tips: ['优先选择性价比高的检查', '避免过度检查', '考虑检查的诊断价值']
+      },
+      'diagnosis': {
+        title: '🎯 诊断推理阶段',
+        instruction: '综合病史和检查结果，进行鉴别诊断。思考各种可能性的概率，选择最可能的诊断。',
+        tips: ['列出鉴别诊断', '分析支持和反对证据', '考虑疾病的流行病学特点']
+      },
+      'treatment': {
+        title: '💊 治疗决策阶段',
+        instruction: '基于确定的诊断，制定合理的治疗方案。考虑治疗的有效性、安全性和成本效益。',
+        tips: ['个体化治疗方案', '考虑患者承受能力', '权衡获益和风险']
+      },
+      'feedback': {
+        title: '📚 学习总结阶段',
+        instruction: '回顾整个临床推理过程，总结学习要点和改进方向。',
+        tips: ['反思决策过程', '巩固关键知识点', '制定学习计划']
+      }
+    };
+    
+    var current = guidance[clinicalSession.currentStage];
+    if (current) {
+      var html = '<div class="clinical-guidance card mb-3">';
+      html += '<div class="card-body">';
+      html += '<h6 class="card-title text-primary">' + current.title + '</h6>';
+      html += '<p class="card-text">' + current.instruction + '</p>';
+      html += '<div class="clinical-tips">';
+      html += '<small class="text-muted"><strong>临床思维要点：</strong></small>';
+      html += '<ul class="small text-muted mb-0">';
+      current.tips.forEach(function(tip) {
+        html += '<li>' + tip + '</li>';
+      });
+      html += '</ul>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+      
+      $('#clinical-guidance').html(html);
+    }
+  }
+
+  
+  // ==================== 病史阶段：建立临床印象 ====================
+  
+  function initializeHistoryStage() {
+    clinicalSession.currentStage = 'history';
+    updateClinicalProgress();
+    
+    // 记录开始时间
+    clinicalSession.timeSpent.history = new Date();
+    
+    $('#btn-prev').prop('disabled', true);
+    $('#btn-next').text('开始检查选择 →').removeClass('btn-secondary').addClass('btn-primary');
+    
+    $.getJSON('/api/clinical/case/' + clinicalSession.caseId + '/', function(resp) {
+      if (resp.success) {
+        window.caseData = resp.data;
+        renderPatientHistory(resp.data);
+        
+        // 添加临床思考提示
+        showClinicalThinkingPrompt('history');
+      } else {
+        showErrorMessage('加载病史信息失败: ' + resp.message);
+      }
+    }).fail(function() {
+      showErrorMessage('网络错误，请检查连接后重试');
+    });
+  }
+  
+  function renderPatientHistory(data) {
+    var html = '<div class="patient-history">';
+    
+    // 患者基本信息卡片
+    html += '<div class="card mb-3 border-primary">';
+    html += '<div class="card-header bg-primary text-white">';
+    html += '<h6 class="mb-0"><i class="fas fa-user-injured"></i> 患者基本信息</h6>';
+    html += '</div>';
+    html += '<div class="card-body">';
+    html += '<div class="row">';
+    html += '<div class="col-md-6">';
+    html += '<p><strong>年龄：</strong>' + (data.patient_info.age || '未知') + '</p>';
+    html += '<p><strong>性别：</strong>' + (data.patient_info.gender || '未知') + '</p>';
+    html += '</div>';
+    html += '<div class="col-md-6">';
+    html += '<p><strong>病例编号：</strong>' + data.case_id + '</p>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // 主诉
+    html += '<div class="card mb-3">';
+    html += '<div class="card-header bg-warning text-dark">';
+    html += '<h6 class="mb-0"><i class="fas fa-exclamation-triangle"></i> 主诉 (Chief Complaint)</h6>';
+    html += '</div>';
+    html += '<div class="card-body">';
+    html += '<div class="alert alert-warning mb-0">';
+    html += '<p class="mb-0">' + (data.clinical_info.chief_complaint || '无记录') + '</p>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // 现病史
+    html += '<div class="card mb-3">';
+    html += '<div class="card-header bg-info text-white">';
+    html += '<h6 class="mb-0"><i class="fas fa-notes-medical"></i> 现病史 (History of Present Illness)</h6>';
+    html += '</div>';
+    html += '<div class="card-body">';
+    html += '<div class="present-illness-content">';
+    html += formatMedicalHistory(data.clinical_info.present_illness || '无记录');
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // 既往史和家族史（如果有）
+    if (data.clinical_info.past_history || data.clinical_info.family_history) {
+      html += '<div class="row">';
+      if (data.clinical_info.past_history) {
+        html += '<div class="col-md-6">';
+        html += '<div class="card mb-3">';
+        html += '<div class="card-header bg-secondary text-white">';
+        html += '<h6 class="mb-0"><i class="fas fa-history"></i> 既往史</h6>';
+        html += '</div>';
+        html += '<div class="card-body">';
+        html += '<p>' + data.clinical_info.past_history + '</p>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      }
+      
+      if (data.clinical_info.family_history) {
+        html += '<div class="col-md-6">';
+        html += '<div class="card mb-3">';
+        html += '<div class="card-header bg-secondary text-white">';
+        html += '<h6 class="mb-0"><i class="fas fa-users"></i> 家族史</h6>';
+        html += '</div>';
+        html += '<div class="card-body">';
+        html += '<p>' + data.clinical_info.family_history + '</p>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    
+    html += '</div>';
+    $('#stage-content').html(html);
+    
+    // 添加病史分析工具
+    addHistoryAnalysisTools();
+  }
+  
+  function formatMedicalHistory(text) {
+    // 格式化病史文本，突出关键信息
+    return text.replace(/(\d+[天月年])/g, '<span class="badge badge-secondary">$1</span>')
+               .replace(/(疼痛|不适|模糊|下降)/g, '<span class="text-danger"><strong>$1</strong></span>')
+               .replace(/(无|否认|未见)/g, '<span class="text-success">$1</span>');
+  }
+  
+  function addHistoryAnalysisTools() {
+    var toolsHtml = '<div class="clinical-analysis-tools mt-3">';
+    toolsHtml += '<div class="card">';
+    toolsHtml += '<div class="card-header">';
+    toolsHtml += '<h6 class="mb-0"><i class="fas fa-lightbulb"></i> 临床分析工具</h6>';
+    toolsHtml += '</div>';
+    toolsHtml += '<div class="card-body">';
+    toolsHtml += '<div class="row">';
+    
+    // 症状分析
+    toolsHtml += '<div class="col-md-4">';
+    toolsHtml += '<h6>关键症状</h6>';
+    toolsHtml += '<div id="key-symptoms" class="symptom-tags"></div>';
+    toolsHtml += '</div>';
+    
+    // 时间轴
+    toolsHtml += '<div class="col-md-4">';
+    toolsHtml += '<h6>病程时间</h6>';
+    toolsHtml += '<div id="disease-timeline" class="timeline-info"></div>';
+    toolsHtml += '</div>';
+    
+    // 初步印象
+    toolsHtml += '<div class="col-md-4">';
+    toolsHtml += '<h6>初步临床印象</h6>';
+    toolsHtml += '<textarea id="clinical-impression" class="form-control" placeholder="记录您的初步临床印象..." rows="3"></textarea>';
+    toolsHtml += '</div>';
+    
+    toolsHtml += '</div>';
+    toolsHtml += '</div>';
+    toolsHtml += '</div>';
+    toolsHtml += '</div>';
+    
+    $('#stage-content').append(toolsHtml);
+    
+    // 自动提取关键症状
+    extractKeySymptoms();
+  }
+  
+  function extractKeySymptoms() {
+    // 简单的症状提取逻辑
+    var symptoms = ['视力下降', '眼痛', '头痛', '恶心', '呕吐', '视野缺损', '眼压高', '充血'];
+    var content = $('#stage-content').text();
+    var foundSymptoms = [];
+    
+    symptoms.forEach(function(symptom) {
+      if (content.includes(symptom)) {
+        foundSymptoms.push(symptom);
+      }
+    });
+    
+    if (foundSymptoms.length > 0) {
+      var html = foundSymptoms.map(function(symptom) {
+        return '<span class="badge badge-warning mr-1 mb-1">' + symptom + '</span>';
+      }).join('');
+      $('#key-symptoms').html(html);
+    } else {
+      $('#key-symptoms').html('<small class="text-muted">未识别到明显症状</small>');
+    }
+  }
+
+  
+  // ==================== 检查阶段：循证医学指导 ====================
+  
+  function loadExaminationStage() {
+    clinicalSession.currentStage = 'examination';
+    updateClinicalProgress();
+    updateStageProgress();
+    
+    $('#btn-prev').prop('disabled', false);
+    $('#btn-next').text('提交检查选择 →').removeClass('btn-secondary').addClass('btn-warning');
+    $('#current-stage-badge').text('检查选择阶段').removeClass().addClass('badge badge-warning');
+    
+    $.getJSON('/api/clinical/case/' + clinicalSession.caseId + '/examinations/', function(resp) {
+      if (resp.success) {
+        renderExaminationOptions(resp.data.examination_options || []);
+        addExaminationGuidance();
+        showClinicalThinkingPrompt('examination');
+      } else {
+        showErrorMessage('加载检查选项失败: ' + resp.message);
+      }
+    }).fail(function() {
+      showErrorMessage('网络错误，请检查连接后重试');
+    });
+  }
+  
+  function renderExaminationOptions(options) {
+    var html = '<div class="examination-selection">';
+    
+    // 检查选择说明
+    html += '<div class="alert alert-info">';
+    html += '<h6><i class="fas fa-lightbulb"></i> 检查选择指导</h6>';
+    html += '<p class="mb-0">基于患者病史，选择最有价值的检查项目。考虑诊断价值、成本效益和患者安全。</p>';
+    html += '</div>';
+    
+    // 按类型分组显示检查选项
+    var groupedOptions = groupExaminationsByType(options);
+    
+    Object.keys(groupedOptions).forEach(function(type) {
+  var typeOptions = groupedOptions[type];
+      var typeDisplayName = getExaminationTypeDisplay(type);
+      var typeIcon = getExaminationTypeIcon(type);
+      
+      html += '<div class="examination-group mb-4">';
+      html += '<h6 class="text-primary mb-3">';
+      html += '<i class="' + typeIcon + '"></i> ' + typeDisplayName;
+      html += '<small class="text-muted ml-2">(' + typeOptions.length + '项)</small>';
+      html += '</h6>';
+      
+      html += '<div class="row">';
+      typeOptions.forEach(function(option) {
+        // encode images array as JSON string for data attribute
+        var imagesAttr = (option.images && option.images.length) ? JSON.stringify(option.images) : '[]';
+        var isRequiredAttr = option.is_required ? 1 : 0;
+        var allowMultipleAttr = option.is_multiple_choice ? 1 : 0;
+        html += '<div class="col-md-6 mb-3">';
+        html += '<div class="card examination-option h-100" data-exam-id="' + option.id + '" data-images=\'' + imagesAttr + '\' data-is-required="' + isRequiredAttr + '" data-allow-multiple="' + allowMultipleAttr + '">';
+        html += '<div class="card-body">';
+        
+        html += '<div class="form-check">';
+  // 若后端标注了多选允许或必选（后端 may not provide these—use defaults if absent）
+  var inputType = option.is_multiple_choice ? 'checkbox' : 'checkbox'; // frontend will validate single/multi via option.allow_multiple if provided
+  html += '<input class="form-check-input examination-checkbox" type="' + inputType + '" ';
+  html += 'value="' + option.id + '" id="exam_' + option.id + '" data-is-recommended="' + (option.is_recommended ? '1' : '0') + '" data-is-fundus="' + ((option.type && option.type.toLowerCase().indexOf('眼底') !== -1) ? '1' : '0') + '" data-is-required="' + isRequiredAttr + '" data-allow-multiple="' + allowMultipleAttr + '">';
+        html += '<label class="form-check-label w-100" for="exam_' + option.id + '">';
+        html += '<div class="d-flex justify-content-between align-items-start">';
+        html += '<strong>' + option.name + '</strong>';
+        
+        // 显示检查特性标签
+        html += '<div class="examination-badges">';
+        // 使用后端返回的字段展示标签
+        if (option.is_recommended) {
+          html += '<span class="badge badge-success">推荐</span>';
+        }
+        if (option.diagnostic_value && option.diagnostic_value.toLowerCase().indexOf('高') !== -1) {
+          html += '<span class="badge badge-success">高价值</span>';
+        }
+        html += '</div>';
+        
+        html += '</div>';
+        html += '<div class="text-muted small mt-2">' + (option.description || '') + '</div>';
+        
+        // 显示风险和成本信息
+  // 检查额外信息（后端可能没有风险/费用字段，作兼容处理）
+  html += '<div class="examination-info mt-2">';
+  html += '<div class="row small text-muted">';
+  html += '<div class="col-6">风险: ' + (option.risk_level || '未知') + '</div>';
+  html += '<div class="col-6">费用: ¥' + (option.cost || 0) + '</div>';
+  html += '</div>';
+  html += '</div>';
+        
+        html += '</label>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '</div>';
+    });
+    
+    html += '</div>';
+    
+    // 添加选择统计
+    html += '<div class="examination-summary mt-4">';
+    html += '<div class="card bg-light">';
+    html += '<div class="card-body">';
+    html += '<h6><i class="fas fa-calculator"></i> 选择统计</h6>';
+    html += '<div class="row text-center">';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="selected-count">0</div>';
+    html += '<small class="text-muted">已选检查</small>';
+    html += '</div>';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="total-cost">¥0</div>';
+    html += '<small class="text-muted">总费用</small>';
+    html += '</div>';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="high-value-count">0</div>';
+    html += '<small class="text-muted">高价值检查</small>';
+    html += '</div>';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="risk-assessment">低</div>';
+    html += '<small class="text-muted">综合风险</small>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    $('#stage-content').html(html);
+    
+    // 绑定检查选择事件
+    bindExaminationEvents();
+  }
+  
+  function groupExaminationsByType(options) {
+    var grouped = {};
+    options.forEach(function(option) {
+      var type = option.examination_type || 'basic';
+      if (!grouped[type]) {
+        grouped[type] = [];
+      }
+      grouped[type].push(option);
+    });
+    return grouped;
+  }
+  
+  function getExaminationTypeDisplay(type) {
+    var displays = {
+      'basic': '基础检查',
+      'imaging': '影像学检查', 
+      'laboratory': '实验室检查',
+      'special': '特殊检查'
+    };
+    return displays[type] || type;
+  }
+  
+  function getExaminationTypeIcon(type) {
+    var icons = {
+      'basic': 'fas fa-stethoscope',
+      'imaging': 'fas fa-x-ray',
+      'laboratory': 'fas fa-flask',
+      'special': 'fas fa-microscope'
+    };
+    return icons[type] || 'fas fa-medical-kit';
+  }
+  
+  function getRiskLevelDisplay(level) {
+    var displays = {
+      'low': '<span class="text-success">低</span>',
+      'medium': '<span class="text-warning">中</span>',
+      'high': '<span class="text-danger">高</span>'
+    };
+    return displays[level] || level;
+  }
+  
+  function bindExaminationEvents() {
+    $('.examination-checkbox').on('change', function() {
+      var $card = $(this).closest('.examination-option');
+      var examId = parseInt($(this).val());
+      var isChecked = $(this).is(':checked');
+      var isFundus = $(this).data('is-fundus') == 1;
+
+      // 单选/多选控制（如果后端传回 is_multiple_choice 可使用；否则使用页面约束：同一类型限制单选示例）
+      var allowMultiple = $(this).data('allow-multiple') === 1;
+
+      if (!allowMultiple && isChecked) {
+        // 取消同一类型下其他已选项（保持单选行为）
+        var name = $(this).attr('name');
+        $('.examination-checkbox[name="' + name + '"]').not(this).prop('checked', false).trigger('change');
+      }
+
+      if (isChecked) {
+        $card.addClass('selected');
+        if (clinicalSession.selectedExaminations.indexOf(examId) === -1) clinicalSession.selectedExaminations.push(examId);
+        addToLearningTimeline('选择检查', $card.find('strong').text());
+
+        // 若为眼底检查，显示明显提示
+        if (isFundus) {
+          showFundusReminder();
+        }
+      } else {
+        $card.removeClass('selected');
+        var index = clinicalSession.selectedExaminations.indexOf(examId);
+        if (index > -1) {
+          clinicalSession.selectedExaminations.splice(index, 1);
+        }
+      }
+
+      updateExaminationSummary();
+      provideLiveExaminationFeedback();
+
+      // 如果该选项包含图片，点击查看图片则记录
+      var images = $card.data('images');
+      if (images && images.length > 0) {
+        // render images preview when selected
+        renderExaminationImagesForCard($card, images);
+      }
+    });
+    
+    $('.examination-option').on('click', function(e) {
+      if (e.target.type !== 'checkbox') {
+        var checkbox = $(this).find('.examination-checkbox');
+        checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+      }
+    });
+  }
+
+  function showFundusReminder() {
+    var reminderHtml = '<div class="alert alert-danger text-center" id="fundus-reminder" style="font-size:1.6rem;font-weight:bold;">请移步旁边进行观察</div>';
+    if ($('#fundus-reminder').length === 0) {
+      $('#stage-content').prepend(reminderHtml);
+    }
+  }
+
+  function renderExaminationImagesForCard($card, images) {
+    // images 为数组路径
+    if (!images || images.length === 0) return;
+    var html = '<div class="examination-images mt-3">';
+    images.forEach(function(img) {
+      html += '<img src="' + img + '" class="img-fluid mb-2 exam-image" style="max-height:220px; cursor:zoom-in;" data-src="' + img + '">';
+    });
+    html += '</div>';
+
+    // 防止重复插入
+    $card.find('.examination-images').remove();
+    $card.find('.card-body').append(html);
+
+    // 点击图片记录为已查看
+    $card.find('.exam-image').on('click', function() {
+      var src = $(this).data('src');
+      if (clinicalSession.examination_images_viewed.indexOf(src) === -1) {
+        clinicalSession.examination_images_viewed.push(src);
+      }
+      showImageModal(src);
+    });
+  }
+
+  function showImageModal(src) {
+    var modalHtml = '';
+    modalHtml += '<div class="modal fade" id="examImageModal" tabindex="-1" role="dialog">';
+    modalHtml += '<div class="modal-dialog modal-lg" role="document">';
+    modalHtml += '<div class="modal-content">';
+    modalHtml += '<div class="modal-body text-center">';
+    modalHtml += '<img src="' + src + '" class="img-fluid">';
+    modalHtml += '</div>';
+    modalHtml += '<div class="modal-footer">';
+    modalHtml += '<button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>'; 
+    modalHtml += '</div></div></div></div>';
+
+    $('#examImageModal').remove();
+    $('body').append(modalHtml);
+    $('#examImageModal').modal('show');
+  }
+  
+  function updateExaminationSummary() {
+    var selectedCount = clinicalSession.selectedExaminations.length;
+    var totalCost = 0;
+    var highValueCount = 0;
+    var riskLevels = [];
+    
+    $('.examination-checkbox:checked').each(function() {
+      var $card = $(this).closest('.examination-option');
+      var cost = parseInt($card.find('.examination-info').text().match(/¥(\d+)/)?.[1] || 0);
+      totalCost += cost;
+      
+      if ($card.find('.badge-success').length > 0) {
+        highValueCount++;
+      }
+      
+      var riskText = $card.find('.examination-info').text();
+      if (riskText.includes('高')) riskLevels.push('high');
+      else if (riskText.includes('中')) riskLevels.push('medium');
+      else riskLevels.push('low');
+    });
+    
+    // 综合风险评估
+    var overallRisk = 'low';
+    if (riskLevels.includes('high')) overallRisk = 'high';
+    else if (riskLevels.includes('medium')) overallRisk = 'medium';
+    
+    $('#selected-count').text(selectedCount);
+    $('#total-cost').text('¥' + totalCost);
+    $('#high-value-count').text(highValueCount);
+    $('#risk-assessment').html(getRiskLevelDisplay(overallRisk));
+  }
+  
+  function provideLiveExaminationFeedback() {
+    var selectedCount = clinicalSession.selectedExaminations.length;
+    var feedback = '';
+    
+    if (selectedCount === 0) {
+      feedback = '<div class="alert alert-info">请开始选择检查项目</div>';
+    } else if (selectedCount < 3) {
+      feedback = '<div class="alert alert-warning">考虑是否需要更多检查来明确诊断</div>';
+    } else if (selectedCount > 8) {
+      feedback = '<div class="alert alert-danger">检查过多可能增加成本和患者负担</div>';
+    } else {
+      feedback = '<div class="alert alert-success">检查选择合理，请继续</div>';
+    }
+    
+    $('#feedback-panel').html(feedback);
+  }
+
+  function submitExaminations() {
+    // 验证必选检查是否被选中
+    var requiredMissing = [];
+    $('.examination-checkbox').each(function() {
+      var isRequired = $(this).data('is-required') === 1 || $(this).data('is-required') === true;
+      if (isRequired) {
+        var id = parseInt($(this).val());
+        if (clinicalSession.selectedExaminations.indexOf(id) === -1) {
+          requiredMissing.push(id);
+        }
+      }
+    });
+
+    if (requiredMissing.length > 0) {
+      showFeedbackMessage('存在必选检查未选择，请先完成必选检查', 'danger');
+      return;
+    }
+
+    // 显示提交中状态
+    $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 提交中...');
+    showFeedbackMessage('正在提交检查选择...', 'info');
+
+    // 准备提交数据
+    var submitData = {
+      case_id: clinicalSession.caseId,
+      selected_examinations: clinicalSession.selectedExaminations,
+      images_viewed: clinicalSession.examination_images_viewed
+    };
+
+    $.ajax({
+      url: '/api/clinical/submit-examinations/',
+      method: 'POST',
+      contentType: 'application/json',
+      headers: {
+        'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() || getCsrfToken()
+      },
+      data: JSON.stringify(submitData),
+      success: function(resp) {
+        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+
+        if (resp.success) {
+          // 记录检查阶段完成
+          addToLearningTimeline('完成检查选择', '选择了 ' + clinicalSession.selectedExaminations.length + ' 项检查');
+
+          // 更新分数
+          if (resp.data.examination_score !== undefined) {
+            clinicalSession.scores.examination = resp.data.examination_score;
+            $('#current-score').text(resp.data.examination_score.toFixed(1));
+          }
+
+          // 进入诊断阶段
+          renderDiagnosisStage(resp.data);
+          showFeedbackMessage('检查结果已获得，请开始诊断分析', 'success');
+          // 视觉反馈
+          flashCard($('#feedback-panel'), 'success');
+          launchConfetti(25);
+        } else {
+          showFeedbackMessage('提交失败: ' + resp.message, 'danger');
+        }
+      },
+      error: function(xhr, status, error) {
+        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+        console.error('Submit examination error:', error, xhr.responseText);
+
+        if (xhr.status === 404) {
+          showFeedbackMessage('API接口未找到，请检查后端配置', 'danger');
+        } else if (xhr.status === 403) {
+          showFeedbackMessage('权限不足，请重新登录', 'danger');
+        } else if (xhr.status === 500) {
+          showFeedbackMessage('服务器内部错误，请联系管理员', 'danger');
+        } else {
+          showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+        }
+      }
+    });
+  }
+
+  
+  // ==================== 诊断阶段：鉴别诊断推理 ====================
+  
+  function renderDiagnosisStage(data) {
+    clinicalSession.currentStage = 'diagnosis';
+    updateClinicalProgress();
+    updateStageProgress();
+    
+    $('#btn-next').text('提交诊断选择 →').removeClass('btn-warning').addClass('btn-info');
+    $('#current-stage-badge').text('诊断推理阶段').removeClass().addClass('badge badge-info');
+    
+    var html = '<div class="diagnosis-stage">';
+    
+    // 检查结果展示
+    html += '<div class="examination-results mb-4">';
+    html += '<h5 class="text-primary"><i class="fas fa-flask"></i> 检查结果</h5>';
+    
+    if (data.examination_results && data.examination_results.length > 0) {
+      html += '<div class="row">';
+      data.examination_results.forEach(function(result) {
+        html += '<div class="col-md-6 mb-3">';
+        html += '<div class="card border-left-primary">';
+        html += '<div class="card-body">';
+        html += '<h6>' + result.name + '</h6>';
+        html += '<div class="examination-result">';
+        html += '<strong>结果：</strong>' + (result.result || '未记录');
+        html += '</div>';
+        if (result.is_recommended) {
+          html += '<span class="badge badge-success">推荐检查</span>';
+        }
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="alert alert-warning">暂无检查结果数据</div>';
+    }
+    html += '</div>';
+    
+    // 诊断选项
+    html += '<div class="diagnosis-options">';
+    html += '<h5 class="text-info"><i class="fas fa-diagnoses"></i> 鉴别诊断</h5>';
+    html += '<div class="alert alert-info">';
+    html += '<h6><i class="fas fa-brain"></i> 诊断思维指导</h6>';
+    html += '<p class="mb-0">综合患者病史和检查结果，进行鉴别诊断。选择概率最高的诊断选项。</p>';
+    html += '</div>';
+    
+    if (data.diagnosis_options && data.diagnosis_options.length > 0) {
+      html += '<form id="diagnosis-form">';
+      data.diagnosis_options.forEach(function(option) {
+        html += '<div class="card diagnosis-option mb-3" data-diagnosis-id="' + option.id + '">';
+        html += '<div class="card-body">';
+        html += '<div class="form-check">';
+        html += '<input class="form-check-input diagnosis-radio" type="radio" name="diagnosis" ';
+        html += 'value="' + option.id + '" id="diag_' + option.id + '">';
+        html += '<label class="form-check-label w-100" for="diag_' + option.id + '">';
+        html += '<div class="d-flex justify-content-between align-items-center">';
+        html += '<div>';
+        html += '<h6 class="mb-1">' + option.name + '</h6>';
+        if (option.code) {
+          html += '<small class="text-muted">ICD编码: ' + option.code + '</small>';
+        }
+        html += '</div>';
+        if (option.probability_score !== undefined) {
+          html += '<div class="diagnosis-probability">';
+          html += '<span class="badge badge-outline-secondary">概率: ' + (option.probability_score * 100).toFixed(0) + '%</span>';
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '</label>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</form>';
+    } else {
+      html += '<div class="alert alert-warning">暂无诊断选项数据</div>';
+    }
+    
+    html += '</div>';
+    html += '</div>';
+    
+    $('#stage-content').html(html);
+    
+    // 绑定诊断选择事件
+    bindDiagnosisEvents();
+    showClinicalThinkingPrompt('diagnosis');
+  }
+  
+  function bindDiagnosisEvents() {
+    $('.diagnosis-radio').on('change', function() {
+      var diagnosisId = parseInt($(this).val());
+      var $card = $(this).closest('.diagnosis-option');
+      
+      // 移除其他选中状态
+      $('.diagnosis-option').removeClass('selected');
+      
+      // 设置当前选中
+      $card.addClass('selected');
+      clinicalSession.selectedDiagnosis = diagnosisId;
+      
+      // 记录选择
+      var diagnosisName = $(this).siblings('label').find('h6').text();
+      addToLearningTimeline('选择诊断', diagnosisName);
+      
+      // 提供即时反馈
+      showFeedbackMessage('已选择诊断：' + diagnosisName, 'info');
+    });
+    
+    $('.diagnosis-option').on('click', function(e) {
+      if (e.target.type !== 'radio') {
+        var radio = $(this).find('.diagnosis-radio');
+        radio.prop('checked', true).trigger('change');
+      }
+    });
+  }
+  
+  // ==================== 工具函数 ====================
+  
+  function getCsrfToken() {
+    // 尝试从cookie获取CSRF token
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      var cookies = document.cookie.split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var cookie = cookies[i].trim();
+        if (cookie.substring(0, 10) === 'csrftoken=') {
+          cookieValue = decodeURIComponent(cookie.substring(10));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  function submitDiagnosis() {
+    // 显示提交中状态
+    $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 提交中...');
+    showFeedbackMessage('正在提交诊断选择...', 'info');
+    
+    // 准备提交数据
+    var submitData = {
+      case_id: clinicalSession.caseId,
+      selected_diagnosis_id: clinicalSession.selectedDiagnosis,
+      reasoning: $('#clinical-notes').val() || ''
+    };
+    
+    $.ajax({
+      url: '/api/clinical/submit-diagnosis/',
+      method: 'POST',
+      contentType: 'application/json',
+      headers: {
+        'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() || getCsrfToken()
+      },
+      data: JSON.stringify(submitData),
+      success: function(resp) {
+        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+        
+        if (resp.success) {
+          // 记录诊断阶段完成
+          var selectedDiagName = $('.diagnosis-option.selected').find('h6').text();
+          addToLearningTimeline('提交诊断', selectedDiagName);
+          
+          // 更新分数
+          if (resp.data.diagnosis_score !== undefined) {
+            clinicalSession.scores.diagnosis = resp.data.diagnosis_score;
+            $('#current-score').text(resp.data.diagnosis_score.toFixed(1));
+          }
+          
+          // 显示诊断反馈
+          if (resp.data.diagnosis_feedback) {
+            showFeedbackMessage(resp.data.diagnosis_feedback, 'success');
+          }
+          
+          // 进入治疗阶段
+          renderTreatmentStage(resp.data);
+          // 视觉反馈
+          flashCard($('#feedback-panel'), 'success');
+          launchConfetti(20);
+        } else {
+          showFeedbackMessage('提交失败: ' + resp.message, 'danger');
+        }
+      },
+      error: function(xhr, status, error) {
+        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+        console.error('Submit diagnosis error:', error, xhr.responseText);
+        
+        if (xhr.status === 404) {
+          showFeedbackMessage('API接口未找到，请检查后端配置', 'danger');
+        } else if (xhr.status === 403) {
+          showFeedbackMessage('权限不足，请重新登录', 'danger');
+        } else if (xhr.status === 500) {
+          showFeedbackMessage('服务器内部错误，请联系管理员', 'danger');
+        } else {
+          showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+        }
+      }
+    });
+  }
+
+  
+  // ==================== 治疗阶段：治疗决策 ====================
+  
+  function renderTreatmentStage(data) {
+    clinicalSession.currentStage = 'treatment';
+    updateClinicalProgress();
+    updateStageProgress();
+    
+    $('#btn-next').text('提交治疗方案 →').removeClass('btn-info').addClass('btn-success');
+    $('#current-stage-badge').text('治疗决策阶段').removeClass().addClass('badge badge-success');
+    
+    var html = '<div class="treatment-stage">';
+    
+    // 诊断确认展示
+    if (data.selected_diagnosis) {
+      html += '<div class="diagnosis-confirmation mb-4">';
+      html += '<h5 class="text-success"><i class="fas fa-check-circle"></i> 确认诊断</h5>';
+      html += '<div class="card border-success">';
+      html += '<div class="card-body">';
+      html += '<h6>' + data.selected_diagnosis.name + '</h6>';
+      if (data.selected_diagnosis.code) {
+        html += '<small class="text-muted">ICD编码: ' + data.selected_diagnosis.code + '</small><br>';
+      }
+      if (data.selected_diagnosis.is_correct) {
+        html += '<span class="badge badge-success">诊断正确</span>';
+      } else {
+        html += '<span class="badge badge-warning">需要进一步确认</span>';
+      }
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    // 治疗方案选择
+    html += '<div class="treatment-options">';
+    html += '<h5 class="text-success"><i class="fas fa-prescription-bottle-alt"></i> 治疗方案选择</h5>';
+    html += '<div class="alert alert-success">';
+    html += '<h6><i class="fas fa-medkit"></i> 治疗决策指导</h6>';
+    html += '<p class="mb-0">基于确定的诊断，选择合适的治疗方案。考虑治疗的有效性、安全性、成本效益和患者个体情况。</p>';
+    html += '</div>';
+    
+    if (data.treatment_options && data.treatment_options.length > 0) {
+      html += '<form id="treatment-form">';
+      
+      // 按治疗类型分组
+      var groupedTreatments = groupTreatmentsByType(data.treatment_options);
+      
+      Object.keys(groupedTreatments).forEach(function(type) {
+        var typeOptions = groupedTreatments[type];
+        var typeDisplayName = getTreatmentTypeDisplay(type);
+        var typeIcon = getTreatmentTypeIcon(type);
+        
+        html += '<div class="treatment-group mb-4">';
+        html += '<h6 class="text-primary mb-3">';
+        html += '<i class="' + typeIcon + '"></i> ' + typeDisplayName;
+        html += '<small class="text-muted ml-2">(' + typeOptions.length + '项)</small>';
+        html += '</h6>';
+        
+        html += '<div class="row">';
+        typeOptions.forEach(function(option) {
+          html += '<div class="col-md-6 mb-3">';
+          html += '<div class="card treatment-option h-100';
+          
+          // 根据治疗适宜性添加样式类
+          if (option.is_optimal) {
+            html += ' optimal';
+          } else if (option.is_contraindicated) {
+            html += ' contraindicated';
+          } else if (option.is_acceptable) {
+            html += ' acceptable';
+          }
+          
+          html += '" data-treatment-id="' + option.id + '">';
+          html += '<div class="card-body">';
+          
+          html += '<div class="form-check">';
+          html += '<input class="form-check-input treatment-checkbox" type="checkbox" ';
+          html += 'value="' + option.id + '" id="treat_' + option.id + '">';
+          html += '<label class="form-check-label w-100" for="treat_' + option.id + '">';
+          html += '<div class="d-flex justify-content-between align-items-start">';
+          html += '<strong>' + option.name + '</strong>';
+          
+          // 显示治疗特性标签
+          html += '<div class="treatment-badges">';
+          if (option.is_optimal) {
+            html += '<span class="badge badge-success">最佳</span>';
+          }
+          if (option.is_contraindicated) {
+            html += '<span class="badge badge-danger">禁忌</span>';
+          }
+          if (option.efficacy_score === 'high') {
+            html += '<span class="badge badge-info">高效</span>';
+          }
+          html += '</div>';
+          
+          html += '</div>';
+          html += '<div class="text-muted small mt-2">' + (option.description || '') + '</div>';
+          
+          // 显示疗效和安全性信息
+          html += '<div class="treatment-info mt-2">';
+          html += '<div class="row small text-muted">';
+          html += '<div class="col-4">疗效: ' + (option.efficacy_score || '中') + '</div>';
+          html += '<div class="col-4">安全: ' + (option.safety_score || '中') + '</div>';
+          html += '<div class="col-4">成本: ' + (option.cost_score || '中') + '</div>';
+          html += '</div>';
+          html += '</div>';
+          
+          // 预期结果
+          if (option.expected_outcome) {
+            html += '<div class="expected-outcome mt-2">';
+            html += '<small class="text-info"><i class="fas fa-bullseye"></i> ' + option.expected_outcome + '</small>';
+          }
+          
+          html += '</label>';
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '</div>';
+      });
+      
+      html += '</form>';
+    } else {
+      html += '<div class="alert alert-warning">暂无治疗方案数据</div>';
+    }
+    
+    html += '</div>';
+    
+    // 添加治疗方案选择统计
+    html += '<div class="treatment-summary mt-4">';
+    html += '<div class="card bg-light">';
+    html += '<div class="card-body">';
+    html += '<h6><i class="fas fa-chart-pie"></i> 治疗方案分析</h6>';
+    html += '<div class="row text-center">';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="selected-treatments-count">0</div>';
+    html += '<small class="text-muted">已选方案</small>';
+    html += '</div>';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="optimal-treatments-count">0</div>';
+    html += '<small class="text-muted">最佳方案</small>';
+    html += '</div>';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="treatment-efficacy">--</div>';
+    html += '<small class="text-muted">综合疗效</small>';
+    html += '</div>';
+    html += '<div class="col-3">';
+    html += '<div class="h5 mb-0" id="treatment-safety">--</div>';
+    html += '<small class="text-muted">安全评级</small>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    $('#stage-content').html(html);
+    
+    // 绑定治疗选择事件
+    bindTreatmentEvents();
+    showClinicalThinkingPrompt('treatment');
+  }
+  
+  function groupTreatmentsByType(options) {
+    var grouped = {};
+    options.forEach(function(option) {
+      var type = option.type || 'medication';
+      if (!grouped[type]) {
+        grouped[type] = [];
+      }
+      grouped[type].push(option);
+    });
+    return grouped;
+  }
+  
+  function getTreatmentTypeDisplay(type) {
+    var displays = {
+      'medication': '药物治疗',
+      'surgery': '手术治疗',
+      'observation': '观察随访',
+      'referral': '转诊治疗',
+      'education': '健康教育'
+    };
+    return displays[type] || type;
+  }
+  
+  function getTreatmentTypeIcon(type) {
+    var icons = {
+      'medication': 'fas fa-pills',
+      'surgery': 'fas fa-scalpel-path',
+      'observation': 'fas fa-eye',
+      'referral': 'fas fa-hospital',
+      'education': 'fas fa-graduation-cap'
+    };
+    return icons[type] || 'fas fa-medical-kit';
+  }
+  
+  function bindTreatmentEvents() {
+    $('.treatment-checkbox').on('change', function() {
+      var $card = $(this).closest('.treatment-option');
+      var treatmentId = parseInt($(this).val());
+      
+      if ($(this).is(':checked')) {
+        $card.addClass('selected');
+        clinicalSession.selectedTreatments.push(treatmentId);
+        addToLearningTimeline('选择治疗', $(this).siblings('label').find('strong').text());
+      } else {
+        $card.removeClass('selected');
+        var index = clinicalSession.selectedTreatments.indexOf(treatmentId);
+        if (index > -1) {
+          clinicalSession.selectedTreatments.splice(index, 1);
+        }
+      }
+      
+      updateTreatmentSummary();
+      provideLiveTreatmentFeedback();
+    });
+    
+    $('.treatment-option').on('click', function(e) {
+      if (e.target.type !== 'checkbox') {
+        var checkbox = $(this).find('.treatment-checkbox');
+        checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+      }
+    });
+  }
+  
+  function updateTreatmentSummary() {
+    var selectedCount = clinicalSession.selectedTreatments.length;
+    var optimalCount = 0;
+    var efficacyScores = [];
+    var safetyScores = [];
+    
+    $('.treatment-checkbox:checked').each(function() {
+      var $card = $(this).closest('.treatment-option');
+      
+      if ($card.find('.badge-success').length > 0) {
+        optimalCount++;
+      }
+      
+      // 简单的评分逻辑
+      var efficacyText = $card.find('.treatment-info').text();
+      if (efficacyText.includes('疗效: 高')) efficacyScores.push(3);
+      else if (efficacyText.includes('疗效: 中')) efficacyScores.push(2);
+      else efficacyScores.push(1);
+      
+      if (efficacyText.includes('安全: 高')) safetyScores.push(3);
+      else if (efficacyText.includes('安全: 中')) safetyScores.push(2);
+      else safetyScores.push(1);
+    });
+    
+    // 计算平均疗效和安全性
+    var avgEfficacy = efficacyScores.length > 0 ? efficacyScores.reduce((a, b) => a + b, 0) / efficacyScores.length : 0;
+    var avgSafety = safetyScores.length > 0 ? safetyScores.reduce((a, b) => a + b, 0) / safetyScores.length : 0;
+    
+    var efficacyLevel = avgEfficacy >= 2.5 ? '高' : avgEfficacy >= 1.5 ? '中' : '低';
+    var safetyLevel = avgSafety >= 2.5 ? '高' : avgSafety >= 1.5 ? '中' : '低';
+    
+    $('#selected-treatments-count').text(selectedCount);
+    $('#optimal-treatments-count').text(optimalCount);
+    $('#treatment-efficacy').text(efficacyLevel);
+    $('#treatment-safety').text(safetyLevel);
+  }
+  
+  function provideLiveTreatmentFeedback() {
+    var selectedCount = clinicalSession.selectedTreatments.length;
+    var feedback = '';
+    
+    if (selectedCount === 0) {
+      feedback = '<div class="alert alert-info">请开始选择治疗方案</div>';
+    } else if (selectedCount === 1) {
+      feedback = '<div class="alert alert-warning">考虑是否需要联合治疗</div>';
+    } else if (selectedCount > 5) {
+      feedback = '<div class="alert alert-danger">治疗方案过多可能增加副作用风险</div>';
+    } else {
+      feedback = '<div class="alert alert-success">治疗方案选择合理</div>';
+    }
+    
+    $('#feedback-panel').html(feedback);
+  }
+
+  function submitTreatments() {
+    // 显示提交中状态
+    $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 提交中...');
+    showFeedbackMessage('正在提交治疗方案...', 'info');
+    
+    // 准备提交数据
+    var submitData = {
+      case_id: clinicalSession.caseId,
+      selected_treatments: clinicalSession.selectedTreatments,
+      reasoning: $('#clinical-notes').val() || ''
+    };
+    
+    $.ajax({
+      url: '/api/clinical/submit-treatments/',
+      method: 'POST',
+      contentType: 'application/json',
+      headers: {
+        'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() || getCsrfToken()
+      },
+      data: JSON.stringify(submitData),
+      success: function(resp) {
+        $('#btn-next').prop('disabled', false).html('完成学习 <i class="fas fa-check"></i>');
+        
+        if (resp.success) {
+          // 记录治疗阶段完成
+          addToLearningTimeline('完成治疗选择', '选择了 ' + clinicalSession.selectedTreatments.length + ' 种治疗方案');
+          
+          // 更新分数
+          if (resp.data.treatment_score !== undefined) {
+            clinicalSession.scores.treatment = resp.data.treatment_score;
+          }
+          
+          // 计算总分
+          if (resp.data.scores && resp.data.scores.overall_score !== undefined) {
+            clinicalSession.scores.overall = resp.data.scores.overall_score;
+            $('#current-score').text(resp.data.scores.overall_score.toFixed(1));
+          }
+          
+          // 进入反馈阶段
+          clinicalSession.currentStage = 'feedback';
+          updateClinicalProgress();
+          showFinalFeedback(resp.data);
+          // 视觉与动画反馈
+          flashCard($('#stage-content'), 'success');
+          launchConfetti(40);
+        } else {
+          showFeedbackMessage('提交失败: ' + resp.message, 'danger');
+        }
+      },
+      error: function(xhr, status, error) {
+        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+        console.error('Submit treatment error:', error, xhr.responseText);
+        
+        if (xhr.status === 404) {
+          showFeedbackMessage('API接口未找到，请检查后端配置', 'danger');
+        } else if (xhr.status === 403) {
+          showFeedbackMessage('权限不足，请重新登录', 'danger');
+        } else if (xhr.status === 500) {
+          showFeedbackMessage('服务器内部错误，请联系管理员', 'danger');
+        } else {
+          showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+        }
+      }
+    });
+  }
+
+  function showFinalFeedback(data) {
+    clinicalSession.currentStage = 'feedback';
+    updateClinicalProgress();
+    updateStageProgress();
+    
+    $('#current-stage-badge').text('学习完成').removeClass().addClass('badge badge-success');
+    
+    // 显示最终反馈
+    var feedbackHtml = '<div class="alert alert-success feedback-animation">';
+    feedbackHtml += '<h6><i class="fas fa-trophy"></i> 学习完成！</h6>';
+    feedbackHtml += (data.overall_feedback || '恭喜您完成了本次临床推理学习！');
+    feedbackHtml += '</div>';
+    $('#feedback-panel').html(feedbackHtml);
+    
+    // 构建最终学习总结页面
+    var html = '<div class="final-feedback text-center">';
+    
+    // 标题
+    html += '<div class="completion-header mb-4">';
+    html += '<h3 class="text-success"><i class="fas fa-graduation-cap"></i> 临床推理学习完成</h3>';
+    html += '<p class="text-muted">您已成功完成本案例的完整临床推理过程</p>';
+    html += '</div>';
+    
+    // 成绩展示
+    html += '<div class="row mb-4">';
+    
+    // 总体得分
+    html += '<div class="col-md-6 offset-md-3">';
+    html += '<div class="card border-success">';
+    html += '<div class="card-body text-center">';
+    html += '<h4 class="text-success">总体得分</h4>';
+    var overallScore = (data.scores && data.scores.overall_score) ? data.scores.overall_score : clinicalSession.scores.overall;
+    html += '<div class="display-3 text-primary font-weight-bold">' + (overallScore ? overallScore.toFixed(1) : '0.0') + '</div>';
+    html += '<p class="text-muted">满分 100 分</p>';
+    
+    // 评级
+    var grade = 'A';
+    var gradeColor = 'success';
+    if (overallScore < 60) {
+      grade = 'D'; gradeColor = 'danger';
+    } else if (overallScore < 70) {
+      grade = 'C'; gradeColor = 'warning';
+    } else if (overallScore < 85) {
+      grade = 'B'; gradeColor = 'info';
+    }
+    html += '<h5><span class="badge badge-' + gradeColor + ' p-2">' + grade + ' 级</span></h5>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // 分项得分
+    html += '<div class="row mb-4">';
+    html += '<div class="col-md-12">';
+    html += '<div class="card">';
+    html += '<div class="card-body">';
+    html += '<h5 class="card-title"><i class="fas fa-chart-bar"></i> 分项成绩</h5>';
+    html += '<div class="row text-center">';
+    
+    html += '<div class="col-4">';
+    html += '<div class="score-item">';
+    html += '<div class="h4 text-warning">' + (clinicalSession.scores.examination || 0).toFixed(1) + '</div>';
+    html += '<small class="text-muted">检查选择 (30%)</small>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '<div class="col-4">';
+    html += '<div class="score-item">';
+    html += '<div class="h4 text-info">' + (clinicalSession.scores.diagnosis || 0).toFixed(1) + '</div>';
+    html += '<small class="text-muted">诊断准确性 (50%)</small>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '<div class="col-4">';
+    html += '<div class="score-item">';
+    html += '<div class="h4 text-success">' + (clinicalSession.scores.treatment || 0).toFixed(1) + '</div>';
+    html += '<small class="text-muted">治疗方案 (20%)</small>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // 学习总结
+    if (data.overall_feedback || data.improvement_suggestions) {
+      html += '<div class="row mb-4">';
+      html += '<div class="col-md-12">';
+      html += '<div class="card">';
+      html += '<div class="card-body text-left">';
+      html += '<h5 class="card-title"><i class="fas fa-lightbulb"></i> 学习总结</h5>';
+      if (data.overall_feedback) {
+        html += '<p>' + data.overall_feedback + '</p>';
+      }
+      if (data.improvement_suggestions) {
+        html += '<h6 class="text-primary">改进建议：</h6>';
+        html += '<p>' + data.improvement_suggestions + '</p>';
+      }
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    // 操作按钮
+    html += '<div class="action-buttons mt-4">';
+    html += '<div class="btn-group" role="group">';
+    html += '<button class="btn btn-outline-primary" onclick="location.reload()">';
+    html += '<i class="fas fa-redo"></i> 重新学习';
+    html += '</button>';
+    html += '<a href="/student/clinical-cases/" class="btn btn-secondary">';
+    html += '<i class="fas fa-list"></i> 返回案例列表';
+    html += '</a>';
+    html += '<a href="/student/dashboard/" class="btn btn-success">';
+    html += '<i class="fas fa-home"></i> 返回首页';
+    html += '</a>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    $('#stage-content').html(html);
+    $('#btn-next').prop('disabled', true).text('学习已完成');
+    
+    // 清除保存的进度
+    localStorage.removeItem('clinical_progress_' + clinicalSession.caseId);
+    
+    // 记录完成时间
+    clinicalSession.timeSpent.total = new Date() - clinicalSession.startTime;
+    addToLearningTimeline('完成学习', '总用时: ' + Math.floor(clinicalSession.timeSpent.total / 60000) + ' 分钟');
+  }
+
+  // ==================== 动画与视觉效果 ====================
+  
+  // 简单 confetti 效果（无外部库，轻量）
+  function launchConfetti(count) {
+    count = count || 30;
+    for (var i = 0; i < count; i++) {
+      (function() {
+        var conf = document.createElement('div');
+        conf.className = 'confetti-piece';
+        var size = Math.floor(Math.random() * 8) + 6;
+        conf.style.width = size + 'px';
+        conf.style.height = (size * 0.6) + 'px';
+        conf.style.background = ['#28a745','#007bff','#ffc107','#dc3545','#6610f2'][Math.floor(Math.random() * 5)];
+        conf.style.position = 'fixed';
+        conf.style.zIndex = 9999;
+        conf.style.left = (Math.random() * window.innerWidth) + 'px';
+        conf.style.top = '-20px';
+        conf.style.opacity = Math.random() * 0.9 + 0.1;
+        conf.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
+        conf.style.pointerEvents = 'none';
+        document.body.appendChild(conf);
+        var endY = window.innerHeight + 100 + Math.random() * 200;
+        var duration = 1000 + Math.random() * 1200;
+        conf.animate([
+          { transform: conf.style.transform + ' translateY(0px)', opacity: conf.style.opacity },
+          { transform: conf.style.transform + ' translateY(' + endY + 'px)', opacity: 0.6 }
+        ], { duration: duration, easing: 'cubic-bezier(.2,.8,.2,1)' });
+        setTimeout(function() { conf.remove(); }, duration + 200);
+      })();
+    }
+  }
+
+  // 卡片高亮跳动，用于强调成功/错误
+  function flashCard($el, type) {
+    var cls = (type === 'success') ? 'flash-success' : 'flash-warning';
+    $el.addClass(cls);
+    setTimeout(function() { $el.removeClass(cls); }, 900);
+  }
+
+  // 步骤闪光（短暂放大、光晕）
+  function highlightStep(stepName) {
+    var $step = $('.stepper-item[data-step="' + stepName + '"]');
+    $step.addClass('step-highlight');
+    setTimeout(function() { $step.removeClass('step-highlight'); }, 800);
+  }
+
+
+  
+  // ==================== 通用功能函数 ====================
+  
+  function showClinicalThinkingPrompt(stage) {
+    var prompts = {
+      'history': '思考：患者的症状特点是什么？可能的病因有哪些？需要重点关注什么？',
+      'examination': '思考：基于病史，哪些检查最有助于明确诊断？如何平衡诊断价值和成本？',
+      'diagnosis': '思考：检查结果支持哪些诊断？如何进行鉴别诊断？概率最高的是什么？',
+      'treatment': '思考：针对确定的诊断，最佳治疗方案是什么？如何评估风险获益比？',
+      'feedback': '思考：回顾整个诊疗过程，有哪些值得总结的经验？'
+    };
+    
+    if (prompts[stage]) {
+      showFeedbackMessage(prompts[stage], 'guidance');
+    }
+  }
+  
+  function showFeedbackMessage(message, type = 'info') {
+    var alertClass = {
+      'info': 'alert-info',
+      'success': 'alert-success feedback-positive',
+      'warning': 'alert-warning feedback-corrective', 
+      'danger': 'alert-danger',
+      'guidance': 'alert-info feedback-guidance'
+    }[type] || 'alert-info';
+    
+    var icon = {
+      'info': 'fas fa-info-circle',
+      'success': 'fas fa-check-circle',
+      'warning': 'fas fa-exclamation-triangle',
+      'danger': 'fas fa-times-circle',
+      'guidance': 'fas fa-lightbulb'
+    }[type] || 'fas fa-info-circle';
+    
+    var html = '<div class="alert ' + alertClass + ' feedback-animation">';
+    html += '<i class="' + icon + '"></i> ' + message;
+    html += '</div>';
+    
+    $('#feedback-panel').html(html);
+    
+    // 记录反馈历史
+    clinicalSession.feedbackHistory.push({
+      timestamp: new Date(),
+      stage: clinicalSession.currentStage,
+      message: message,
+      type: type
+    });
+  }
+  
+  function showErrorMessage(message) {
+    showFeedbackMessage('错误：' + message, 'danger');
+  }
+  
+  function addToLearningTimeline(action, detail) {
+    var timestamp = new Date().toLocaleTimeString();
+    var html = '<div class="timeline-item">';
+    html += '<div class="d-flex justify-content-between">';
+    html += '<strong>' + action + '</strong>';
+    html += '<small class="text-muted">' + timestamp + '</small>';
+    html += '</div>';
+    html += '<div class="text-muted small">' + detail + '</div>';
+    html += '</div>';
+    
+    $('#learning-timeline').prepend(html);
+    
+    // 保持最多显示10条记录
+    var items = $('#learning-timeline .timeline-item');
+    if (items.length > 10) {
+      items.slice(10).remove();
+    }
+  }
+  
+  function updateTimeSpent() {
+    var now = new Date();
+    var elapsed = Math.floor((now - clinicalSession.startTime) / 1000); // 秒
+    var minutes = Math.floor(elapsed / 60);
+    var seconds = elapsed % 60;
+    
+    var timeStr = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+    $('#time-spent').text(timeStr);
+  }
+  
+  function updateStageProgress() {
+    var stages = clinicalSession.stages;
+    var currentIndex = stages.indexOf(clinicalSession.currentStage);
+    var progress = ((currentIndex + 1) / stages.length) * 100;
+    
+    $('#overall-progress').css('width', progress + '%');
+    $('#current-stage-text').text(getStageDisplayName(clinicalSession.currentStage));
+  }
+  
+  function getStageDisplayName(stage) {
+    var names = {
+      'history': '病史采集',
+      'examination': '检查选择',
+      'diagnosis': '诊断推理',
+      'treatment': '治疗决策',
+      'feedback': '学习反馈'
+    };
+    return names[stage] || stage;
+  }
+  
+  function saveCurrentProgress() {
+    // 保存当前学习进度到本地存储
+    var progressData = {
+      caseId: clinicalSession.caseId,
+      stage: clinicalSession.currentStage,
+      selectedExaminations: clinicalSession.selectedExaminations,
+      selectedDiagnosis: clinicalSession.selectedDiagnosis,
+      selectedTreatments: clinicalSession.selectedTreatments,
+      notes: $('#clinical-notes').val(),
+      timestamp: new Date().toISOString()
+    };
+    
+    localStorage.setItem('clinical_progress_' + clinicalSession.caseId, JSON.stringify(progressData));
+  }
+  
+  function loadSavedProgress() {
+    // 尝试加载之前保存的进度
+    var saved = localStorage.getItem('clinical_progress_' + clinicalSession.caseId);
+    if (saved) {
+      try {
+        var progressData = JSON.parse(saved);
+        // 如果是当天的进度，则恢复
+        var savedTime = new Date(progressData.timestamp);
+        var now = new Date();
+        if (now.toDateString() === savedTime.toDateString()) {
+          return progressData;
+        }
+      } catch (e) {
+        console.log('Failed to load saved progress:', e);
+      }
+    }
+    return null;
+  }
+  
+  // ==================== 主程序入口和事件绑定 ====================
+  
+  $(document).ready(function() {
+    // 初始化时间显示更新
+    setInterval(updateTimeSpent, 1000);
+    
+    // 尝试恢复之前的学习进度
+    var savedProgress = loadSavedProgress();
+    if (savedProgress && confirm('检测到之前的学习进度，是否继续之前的学习？')) {
+      // 恢复进度逻辑
+      clinicalSession.currentStage = savedProgress.stage;
+      clinicalSession.selectedExaminations = savedProgress.selectedExaminations || [];
+      clinicalSession.selectedDiagnosis = savedProgress.selectedDiagnosis;
+      clinicalSession.selectedTreatments = savedProgress.selectedTreatments || [];
+      $('#clinical-notes').val(savedProgress.notes || '');
+    }
+    
+    // 开始病史阶段
+    initializeHistoryStage();
+    
+    // 绑定导航按钮事件
+    $('#btn-next').on('click', function() {
+      handleNextStage();
+    });
+
+    $('#btn-prev').on('click', function() {
+      handlePreviousStage();
+    });
+    
+    // 绑定临床笔记自动保存
+    $('#clinical-notes').on('input', function() {
+      clearTimeout(window.notesSaveTimeout);
+      window.notesSaveTimeout = setTimeout(saveCurrentProgress, 2000);
+    });
+    
+    // 页面离开时保存进度
+    $(window).on('beforeunload', function() {
+      saveCurrentProgress();
+    });
+  });
+  
+  function handleNextStage() {
+    var currentStage = clinicalSession.currentStage;
+    
+    switch (currentStage) {
+      case 'history':
+        // 记录病史阶段用时
+        clinicalSession.timeSpent.history = new Date() - clinicalSession.timeSpent.history;
+        loadExaminationStage();
+        break;
+        
+      case 'examination':
+        if (clinicalSession.selectedExaminations.length === 0) {
+          showFeedbackMessage('请至少选择一项检查', 'warning');
+          return;
+        }
+        submitExaminations();
+        break;
+        
+      case 'diagnosis':
+        if (!clinicalSession.selectedDiagnosis) {
+          showFeedbackMessage('请选择一个诊断', 'warning');
+          return;
+        }
+        submitDiagnosis();
+        break;
+        
+      case 'treatment':
+        if (clinicalSession.selectedTreatments.length === 0) {
+          showFeedbackMessage('请选择至少一种治疗方案', 'warning');
+          return;
+        }
+        submitTreatments();
+        break;
+        
+      default:
+        showFeedbackMessage('当前阶段无法继续', 'warning');
+    }
+  }
+  
+  function handlePreviousStage() {
+    var currentStage = clinicalSession.currentStage;
+    var stages = clinicalSession.stages;
+    var currentIndex = stages.indexOf(currentStage);
+    
+    if (currentIndex > 0) {
+      var previousStage = stages[currentIndex - 1];
+      
+      // 简单的返回逻辑 - 实际应用中可能需要更复杂的状态恢复
+      if (previousStage === 'history') {
+        initializeHistoryStage();
+      } else if (previousStage === 'examination') {
+        loadExaminationStage();
+      }
+      // 可以继续添加其他阶段的返回逻辑
+    }
+  }
+  
+  // 这里省略了submitExaminationChoices, submitDiagnosisChoice, submitTreatmentChoices等函数
+  // 这些函数会调用实际的API，并处理服务器响应
+  // 由于篇幅限制，保持原有的简化API调用逻辑
+  
+})();
+</script>
+{% endblock %}

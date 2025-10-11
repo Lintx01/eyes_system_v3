@@ -1,5 +1,4 @@
-{% extends 'ba            <div class="case-card" style="border: 1px solid #ddd; border-radius: 8px; padding: 20px; background: white; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;" 
-                 data-case-url="{% url 'student_case_detail' case.id %}" onclick="location.href=this.dataset.caseUrl">e.html' %}
+{% extends 'base.html' %}
 {% load static %}
 
 {% block title %}病例列表 - 眼科临床训练系统{% endblock %}
@@ -14,15 +13,15 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
             {% for case in page_obj %}
             <div class="case-card" style="border: 1px solid #ddd; border-radius: 8px; padding: 20px; background: white; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;" 
-                 data-case-url="{% url 'student_case_detail' case.id %}" onclick="location.href=this.dataset.caseUrl">>
+                 data-case-url="{% url 'student_case_detail' case.id %}" onclick="location.href=this.dataset.caseUrl">
                 {% if case.image %}
                 <div style="text-align: center; margin-bottom: 15px;">
-                    <img src="{{ case.image.url }}" alt="{{ case.name }}" style="max-width: 100%; height: 200px; object-fit: cover; border-radius: 4px;">
+                    <img src="{{ case.image.url }}" alt="{{ case.title }}" style="max-width: 100%; height: 200px; object-fit: cover; border-radius: 4px;">
                 </div>
                 {% endif %}
                 
                 <h3 style="color: #b71c1c; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
-                    {{ case.name }}
+                    {{ case.title }}
                     {% if case.id in completed_cases %}
                     <span style="color: #28a745; font-size: 0.8rem; background: #d4edda; padding: 2px 8px; border-radius: 12px;">✓ 已完成</span>
                     {% endif %}
@@ -47,23 +46,23 @@
 
         <!-- 分页 -->
         {% if page_obj.has_other_pages %}
-        <div class="pagination">
+        <div class="pagination" style="text-align: center; margin-top: 30px;">
             {% if page_obj.has_previous %}
-                <a href="?page=1">&laquo; 首页</a>
-                <a href="?page={{ page_obj.previous_page_number }}">上一页</a>
+                <a href="?page=1" style="display: inline-block; padding: 8px 12px; margin: 0 2px; text-decoration: none; border: 1px solid #ddd; border-radius: 4px; color: #007bff;">&laquo; 首页</a>
+                <a href="?page={{ page_obj.previous_page_number }}" style="display: inline-block; padding: 8px 12px; margin: 0 2px; text-decoration: none; border: 1px solid #ddd; border-radius: 4px; color: #007bff;">上一页</a>
             {% endif %}
 
             {% for num in page_obj.paginator.page_range %}
                 {% if page_obj.number == num %}
-                    <span class="current">{{ num }}</span>
+                    <span style="display: inline-block; padding: 8px 12px; margin: 0 2px; background: #007bff; color: white; border: 1px solid #007bff; border-radius: 4px;">{{ num }}</span>
                 {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <a href="?page={{ num }}">{{ num }}</a>
+                    <a href="?page={{ num }}" style="display: inline-block; padding: 8px 12px; margin: 0 2px; text-decoration: none; border: 1px solid #ddd; border-radius: 4px; color: #007bff;">{{ num }}</a>
                 {% endif %}
             {% endfor %}
 
             {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}">下一页</a>
-                <a href="?page={{ page_obj.paginator.num_pages }}">末页 &raquo;</a>
+                <a href="?page={{ page_obj.next_page_number }}" style="display: inline-block; padding: 8px 12px; margin: 0 2px; text-decoration: none; border: 1px solid #ddd; border-radius: 4px; color: #007bff;">下一页</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}" style="display: inline-block; padding: 8px 12px; margin: 0 2px; text-decoration: none; border: 1px solid #ddd; border-radius: 4px; color: #007bff;">末页 &raquo;</a>
             {% endif %}
         </div>
         {% endif %}
@@ -74,6 +73,10 @@
 .case-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+.pagination a:hover {
+    background-color: #e9ecef !important;
 }
 </style>
 {% endblock %}

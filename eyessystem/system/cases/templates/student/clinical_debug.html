@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block title %}临床推理学习 - 测试页面{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>临床推理学习 - 调试页面</h2>
+    
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>API测试</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary" id="test-cases-api">测试案例列表API</button>
+                    <button class="btn btn-secondary ml-2" id="test-stats-api">测试统计API</button>
+                    <div id="api-result" class="mt-3" style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <small>点击按钮测试API响应...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>用户信息</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>用户名：</strong>{{ user.username }}</p>
+                    <p><strong>用户组：</strong>
+                        {% for group in user.groups.all %}
+                            {{ group.name }}
+                        {% empty %}
+                            无
+                        {% endfor %}
+                    </p>
+                    <p><strong>用户组：</strong>{{ user.groups.all|join:", " }}</p>
+                    <p><strong>登录状态：</strong>{{ user.is_authenticated|yesno:"已登录,未登录" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>手动案例列表</h5>
+                </div>
+                <div class="card-body">
+                    <div id="manual-cases">
+                        <p>正在加载案例...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // 手动加载案例
+    loadManualCases();
+    
+    $('#test-cases-api').click(function() {
+        testCasesAPI();
+    });
+    
+    $('#test-stats-api').click(function() {
+        testStatsAPI();
+    });
+});
+
+function testCasesAPI() {
+    $('#api-result').html('<div class="spinner-border spinner-border-sm"></div> 测试案例API...');
+    
+    $.ajax({
+        url: '/api/clinical/cases/',
+        method: 'GET',
+        success: function(response) {
+            $('#api-result').html('<strong>成功:</strong><pre>' + JSON.stringify(response, null, 2) + '</pre>');
+        },
+        error: function(xhr, status, error) {
+            $('#api-result').html('<strong style="color: red;">错误:</strong><br>' + 
+                                'Status: ' + xhr.status + '<br>' +
+                                'Error: ' + error + '<br>' +
+                                'Response: ' + xhr.responseText);
+        }
+    });
+}
+
+function testStatsAPI() {
+    $('#api-result').html('<div class="spinner-border spinner-border-sm"></div> 测试统计API...');
+    
+    $.ajax({
+        url: '/api/clinical/user-stats/',
+        method: 'GET', 
+        success: function(response) {
+            $('#api-result').html('<strong>成功:</strong><pre>' + JSON.stringify(response, null, 2) + '</pre>');
+        },
+        error: function(xhr, status, error) {
+            $('#api-result').html('<strong style="color: red;">错误:</strong><br>' + 
+                                'Status: ' + xhr.status + '<br>' +
+                                'Error: ' + error + '<br>' +
+                                'Response: ' + xhr.responseText);
+        }
+    });
+}
+
+function loadManualCases() {
+    // 不使用AJAX，直接显示后端传递的数据
+    $('#manual-cases').html(`
+        <div class="alert alert-info">
+            <h6>数据库中的临床案例：</h6>
+            <ul>
+                <li>CASE_001 - 糖尿病性黄斑水肿</li>
+                <li>CASE_002 - 急性闭角型青光眼</li>
+            </ul>
+            <p class="mb-0">如果上面的API测试成功，说明后端工作正常。如果失败，请检查用户权限或登录状态。</p>
+        </div>
+        
+        <div class="mt-3">
+            <h6>直接访问案例：</h6>
+            <a href="/student/clinical/CASE_001/" class="btn btn-sm btn-outline-primary">糖尿病性黄斑水肿</a>
+            <a href="/student/clinical/CASE_002/" class="btn btn-sm btn-outline-primary">急性闭角型青光眼</a>
+        </div>
+    `);
+}
+</script>
+{% endblock %}

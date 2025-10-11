@@ -74,12 +74,12 @@
                                 <thead>
                                     <tr>
                                         <th width="5%">#</th>
-                                        <th width="40%">题目内容</th>
+                                        <th width="35%">题目内容</th>
                                         <th width="10%">题目类型</th>
                                         <th width="10%">难度等级</th>
-                                        <th width="10%">状态</th>
-                                        <th width="15%">创建时间</th>
-                                        <th width="10%">操作</th>
+                                        <th width="8%">状态</th>
+                                        <th width="12%">创建时间</th>
+                                        <th width="20%">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -124,14 +124,18 @@
                                         </td>
                                         <td>
                                             <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                                        onclick="showExerciseStats({{ exercise.id }})" title="查看统计">
+                                                    <i class="fas fa-chart-bar"></i> 统计
+                                                </button>
                                                 <a href="{% url 'teacher_exercise_edit' exercise.id %}" 
                                                    class="btn btn-sm btn-outline-primary" title="编辑">
-                                                    <i class="fas fa-edit"></i>
+                                                    <i class="fas fa-edit"></i> 编辑
                                                 </a>
                                                 <button type="button" class="btn btn-sm btn-outline-danger" 
                                                         onclick="showDeleteModal({{ exercise.id }}, '{{ exercise.question|truncatechars:30|escapejs }}')" 
                                                         title="删除">
-                                                    <i class="fas fa-trash"></i>
+                                                    <i class="fas fa-trash"></i> 删除
                                                 </button>
                                             </div>
                                         </td>
@@ -182,6 +186,36 @@
     </div>
 </div>
 
+<!-- 题目统计模态框 -->
+<div class="modal fade" id="statsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-bar"></i> 题目答题统计
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="statsContent">
+                    <div class="text-center py-3">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        <p class="mt-2">正在加载统计数据...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-info" onclick="refreshStats()">
+                    <i class="fas fa-refresh"></i> 刷新数据
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .card-header {
     background-color: #007bff;
@@ -211,6 +245,15 @@
 
 <script>
 let exerciseToDelete = null;
+let currentExerciseId = null;
+
+// CSRF token 获取函数
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
+const csrftoken = getCookie('csrftoken');
 
 function showDeleteModal(exerciseId, questionPreview) {
     exerciseToDelete = exerciseId;
@@ -218,12 +261,174 @@ function showDeleteModal(exerciseId, questionPreview) {
     $('#deleteModal').modal('show');
 }
 
+function showExerciseStats(exerciseId) {
+    currentExerciseId = exerciseId;
+    $('#statsModal').modal('show');
+    loadExerciseStats(exerciseId);
+}
+
+function loadExerciseStats(exerciseId) {
+    // 显示加载状态
+    document.getElementById('statsContent').innerHTML = `
+        <div class="text-center py-3">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p class="mt-2">正在加载统计数据...</p>
+        </div>
+    `;
+
+    fetch(`/api/exercise/${exerciseId}/statistics/`, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrftoken,
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayStats(data.data);
+        } else {
+            showStatsError(data.error || '获取统计数据失败');
+        }
+    })
+    .catch(error => {
+        console.error('获取统计数据出错:', error);
+        showStatsError('网络错误，请稍后重试');
+    });
+}
+
+function displayStats(stats) {
+    const accuracy = stats.accuracy || 0;
+    const accuracyColor = accuracy >= 80 ? 'success' : accuracy >= 60 ? 'warning' : 'danger';
+    
+    let optionsHtml = '';
+    if (stats.answer_stats && Object.keys(stats.answer_stats).length > 0) {
+        optionsHtml = `
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">各选项选择分布</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+        `;
+        
+        for (const [letter, optionData] of Object.entries(stats.answer_stats)) {
+            const isCorrect = letter === stats.correct_answer;
+            const badgeClass = isCorrect ? 'badge-success' : 'badge-secondary';
+            const percentage = optionData.percentage || 0;
+            
+            optionsHtml += `
+                <div class="col-md-6 mb-3">
+                    <div class="d-flex align-items-center">
+                        <span class="badge ${badgeClass} mr-2">${letter}</span>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small">${optionData.option}</span>
+                                <span class="small font-weight-bold">${optionData.count}人 (${percentage}%)</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar ${isCorrect ? 'bg-success' : 'bg-secondary'}" 
+                                     style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        optionsHtml += `
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    const difficultyStars = '★'.repeat(stats.difficulty) + '☆'.repeat(5 - stats.difficulty);
+
+    document.getElementById('statsContent').innerHTML = `
+        <div class="row">
+            <div class="col-12">
+                <h6 class="text-primary mb-3">
+                    <i class="fas fa-question-circle"></i> ${stats.case_title} - 题目统计
+                </h6>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="mb-2"><strong>题目内容：</strong>${stats.question}</p>
+                        <p class="mb-2"><strong>正确答案：</strong><span class="badge badge-success">${stats.correct_answer}</span></p>
+                        <p class="mb-0"><strong>难度等级：</strong><span class="text-warning">${difficultyStars}</span> (${stats.difficulty}/5)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body py-3">
+                        <h4 class="text-primary mb-1">${stats.total_answers}</h4>
+                        <p class="small mb-0 text-muted">总答题人数</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body py-3">
+                        <h4 class="text-success mb-1">${stats.correct_answers}</h4>
+                        <p class="small mb-0 text-muted">答对人数</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body py-3">
+                        <h4 class="text-${accuracyColor} mb-1">${accuracy}%</h4>
+                        <p class="small mb-0 text-muted">正确率</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body py-3">
+                        <h4 class="text-info mb-1">${stats.total_answers - stats.correct_answers}</h4>
+                        <p class="small mb-0 text-muted">答错人数</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        ${optionsHtml}
+        
+        ${stats.total_answers === 0 ? `
+            <div class="alert alert-info text-center mt-3">
+                <i class="fas fa-info-circle"></i> 
+                还没有学生答过这道题，暂无统计数据
+            </div>
+        ` : ''}
+    `;
+}
+
+function showStatsError(errorMessage) {
+    document.getElementById('statsContent').innerHTML = `
+        <div class="alert alert-danger text-center">
+            <i class="fas fa-exclamation-triangle"></i>
+            <p class="mb-0">${errorMessage}</p>
+        </div>
+    `;
+}
+
+function refreshStats() {
+    if (currentExerciseId) {
+        loadExerciseStats(currentExerciseId);
+    }
+}
+
 document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
     if (exerciseToDelete) {
         fetch(`/teacher/exercises/${exerciseToDelete}/delete/`, {
             method: 'POST',
             headers: {
-                'X-CSRFToken': '{{ csrf_token }}',
+                'X-CSRFToken': csrftoken,
                 'Content-Type': 'application/json',
             }
         })
@@ -245,6 +450,10 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', function()
 // 清理模态框状态
 $('#deleteModal').on('hidden.bs.modal', function() {
     exerciseToDelete = null;
+});
+
+$('#statsModal').on('hidden.bs.modal', function() {
+    currentExerciseId = null;
 });
 </script>
 {% endblock %}

@@ -15,6 +15,7 @@ urlpatterns = [
     path('student/', views.student_dashboard, name='student_dashboard'),
     path('student/cases/', views.student_case_list, name='student_case_list'),
     path('student/cases/<int:case_id>/', views.student_case_detail, name='student_case_detail'),
+    path('student/clinical-cases/', views.clinical_case_list_view, name='clinical_case_list'),
     path('student/exercises/', views.student_exercise_list, name='student_exercise_list'),
     path('student/exercise/<int:exercise_id>/', views.student_exercise, name='student_exercise'),
     
@@ -69,4 +70,29 @@ urlpatterns = [
     # AJAX接口
     path('api/cases/<int:case_id>/exercises/', views.get_case_exercises, name='get_case_exercises'),
     path('api/exams/<int:exam_id>/timer/', views.get_exam_timer, name='get_exam_timer'),
+    
+    # 新增AJAX接口
+    path('api/user/progress/', views.get_user_progress, name='get_user_progress'),
+    path('api/exercise/save-answer/', views.save_exercise_answer, name='save_exercise_answer'),
+    path('api/exercise/<int:exercise_id>/statistics/', views.get_exercise_statistics, name='get_exercise_statistics'),
+    path('api/exam/<int:exam_id>/status/', views.real_time_exam_status, name='real_time_exam_status'),
+    
+    # 临床推理系统API
+    path('api/clinical/case/<str:case_id>/', views.clinical_case_detail, name='clinical_case_detail'),
+    path('api/clinical/case/<str:case_id>/examinations/', views.get_examination_options, name='get_examination_options'),
+    path('api/clinical/submit-examinations/', views.submit_examination_choices, name='submit_examination_choices'),
+    path('api/clinical/submit-diagnosis/', views.submit_diagnosis_choice, name='submit_diagnosis_choice'),
+    path('api/clinical/submit-treatments/', views.submit_treatment_choices, name='submit_treatment_choices'),
+    path('api/clinical/progress/<str:case_id>/', views.get_clinical_learning_progress, name='get_clinical_learning_progress'),
+    path('api/clinical/cases/', views.clinical_cases_list, name='clinical_cases_list'),
+    path('api/clinical/user-stats/', views.clinical_user_stats, name='clinical_user_stats'),
+    
+    # 新增：学习进度管理API
+    path('api/clinical/save-progress/', views.save_clinical_progress, name='save_clinical_progress'),
+    path('api/clinical/get-progress/<str:case_id>/', views.get_clinical_progress, name='get_clinical_progress'),
+    path('api/clinical/reset-progress/', views.reset_clinical_progress, name='reset_clinical_progress'),
+
+    # 学生端临床推理页面
+    path('student/clinical/<str:case_id>/', views.student_clinical_view, name='student_clinical_view'),
+    path('clinical-debug/', views.clinical_debug_view, name='clinical_debug'),
 ]

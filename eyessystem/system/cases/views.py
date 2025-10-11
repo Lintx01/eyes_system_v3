@@ -9,7 +9,11 @@ from django.core.paginator import Paginator
 from django.db.models import Q, Count, Avg, Sum, Max, Min
 from django.utils import timezone
 from django.db import transaction
-from .models import Case, Exercise, Exam, ExamRecord, UserProgress, UserAnswer, ExamResult
+from .models import (
+    Case, Exercise, Exam, ExamRecord, UserProgress, UserAnswer, ExamResult,
+    ClinicalCase, ExaminationOption, DiagnosisOption, TreatmentOption, 
+    StudentClinicalSession, TeachingFeedback
+)
 import json
 import csv
 from datetime import datetime, timedelta
@@ -618,8 +622,239 @@ def get_case_exercises(request, case_id):
     
     return JsonResponse({
         'exercises': list(exercises),
-        'case_name': case.name,
+        'case_name': case.title,  # 修正字段名
     })
+
+
+# ==================== 新增AJAX接口：实时数据更新 ====================
+
+@login_required
+def get_user_progress(request):
+    """获取用户学习进度（AJAX）"""
+    try:
+        progress, _ = UserProgress.objects.get_or_create(user=request.user)
+        
+        # 统计数据
+        total_cases = Case.objects.filter(is_active=True).count()
+        completed_cases = progress.completed_cases.filter(is_active=True).count()
+        total_exercises = Exercise.objects.filter(is_active=True).count()
+        completed_exercises = progress.completed_exercises.filter(is_active=True).count()
+        
+        # 最近答题记录
+        recent_answers = UserAnswer.objects.filter(
+            user=request.user
+        ).select_related('exercise').order_by('-answer_time')[:5]
+        
+        recent_list = []
+        for answer in recent_answers:
+            recent_list.append({
+                'exercise_id': answer.exercise.id,
+                'question': answer.exercise.question[:50] + '...',
+                'is_correct': answer.is_correct,
+                'answer_time': answer.answer_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'case_title': answer.exercise.case.title
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'progress_percentage': float(progress.progress_percentage),
+                'total_cases': total_cases,
+                'completed_cases': completed_cases,
+                'total_exercises': total_exercises,
+                'completed_exercises': completed_exercises,
+                'total_study_time': progress.total_study_time,
+                'last_study_date': progress.last_study_date.strftime('%Y-%m-%d %H:%M:%S') if progress.last_study_date else None,
+                'recent_answers': recent_list
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def save_exercise_answer(request):
+    """保存练习答案（AJAX）"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': '请求方法错误'})
+    
+    try:
+        exercise_id = request.POST.get('exercise_id')
+        user_answer = request.POST.get('answer')
+        
+        if not exercise_id or not user_answer:
+            return JsonResponse({'success': False, 'error': '参数不完整'})
+        
+        exercise = get_object_or_404(Exercise, id=exercise_id, is_active=True)
+        
+        # 检查是否已经答过这道题
+        existing_answer = UserAnswer.objects.filter(
+            user=request.user,
+            exercise=exercise,
+            exam_record__isnull=True  # 只检查练习模式的答案
+        ).first()
+        
+        if existing_answer:
+            return JsonResponse({
+                'success': False, 
+                'error': '您已经答过这道题了',
+                'previous_answer': existing_answer.user_answer,
+                'is_correct': existing_answer.is_correct
+            })
+        
+        # 答案格式转换
+        if exercise.question_type in ['single', 'multiple'] and user_answer.isdigit():
+            user_answer_letter = chr(int(user_answer) + ord('A'))
+        else:
+            user_answer_letter = user_answer
+        
+        # 创建答题记录
+        answer_record = UserAnswer.objects.create(
+            user=request.user,
+            exercise=exercise,
+            user_answer=user_answer_letter
+        )
+        
+        # 检查答案
+        is_correct = answer_record.check_answer()
+        answer_record.save()
+        
+        # 更新用户进度
+        progress, _ = UserProgress.objects.get_or_create(user=request.user)
+        progress.completed_exercises.add(exercise)
+        progress.completed_cases.add(exercise.case)
+        progress.update_progress()
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'is_correct': is_correct,
+                'correct_answer': exercise.correct_answer,
+                'explanation': exercise.explanation,
+                'user_answer': user_answer_letter,
+                'progress_percentage': float(progress.progress_percentage)
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'保存答案时发生错误: {str(e)}'
+        })
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def get_exercise_statistics(request, exercise_id):
+    """获取题目统计信息（AJAX）"""
+    try:
+        exercise = get_object_or_404(Exercise, id=exercise_id)
+        
+        # 统计答题情况
+        total_answers = UserAnswer.objects.filter(exercise=exercise).count()
+        correct_answers = UserAnswer.objects.filter(exercise=exercise, is_correct=True).count()
+        
+        # 各选项选择统计
+        answer_stats = {}
+        if exercise.question_type in ['single', 'multiple']:
+            options = exercise.get_options_list()
+            for i, option in enumerate(options):
+                option_letter = chr(ord('A') + i)
+                count = UserAnswer.objects.filter(
+                    exercise=exercise,
+                    user_answer=option_letter
+                ).count()
+                answer_stats[option_letter] = {
+                    'option': option,
+                    'count': count,
+                    'percentage': round((count / total_answers * 100), 1) if total_answers > 0 else 0
+                }
+        
+        accuracy = round((correct_answers / total_answers * 100), 1) if total_answers > 0 else 0
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'exercise_id': exercise.id,
+                'question': exercise.question,
+                'total_answers': total_answers,
+                'correct_answers': correct_answers,
+                'accuracy': accuracy,
+                'correct_answer': exercise.correct_answer,
+                'answer_stats': answer_stats,
+                'difficulty': exercise.difficulty,
+                'case_title': exercise.case.title
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+def real_time_exam_status(request, exam_id):
+    """获取考试实时状态（AJAX）"""
+    try:
+        exam = get_object_or_404(Exam, id=exam_id)
+        now = timezone.now()
+        
+        # 计算时间状态
+        if now < exam.start_time:
+            time_left = int((exam.start_time - now).total_seconds())
+            status = 'not_started'
+            status_text = '尚未开始'
+        elif now > exam.end_time:
+            time_left = 0
+            status = 'finished'
+            status_text = '已结束'
+        else:
+            time_left = int((exam.end_time - now).total_seconds())
+            status = 'in_progress'
+            status_text = '进行中'
+        
+        # 格式化时间
+        hours = time_left // 3600
+        minutes = (time_left % 3600) // 60
+        seconds = time_left % 60
+        formatted_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        
+        # 参与统计
+        total_participants = exam.records.filter(is_completed=True).count()
+        current_participants = exam.records.filter(
+            is_completed=False,
+            started_at__isnull=False
+        ).count()
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'exam_id': exam.id,
+                'status': status,
+                'status_text': status_text,
+                'time_left': time_left,
+                'formatted_time': formatted_time,
+                'start_time': exam.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'end_time': exam.end_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'duration': exam.duration,
+                'total_participants': total_participants,
+                'current_participants': current_participants,
+                'can_start': exam.can_start,
+                'is_finished': exam.is_finished
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 
 # === 考试系统视图 ===
@@ -1652,3 +1887,651 @@ def mock_exam_result(request, result_id):
     }
     
     return render(request, 'student/mock_exam_result.html', context)
+
+
+# ================== 临床推理系统API视图 ==================
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def clinical_case_detail(request, case_id):
+    """获取临床案例详情 - 病史展示阶段"""
+    try:
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        
+        # 获取或创建学生会话
+        session, created = StudentClinicalSession.objects.get_or_create(
+            student=request.user,
+            clinical_case=clinical_case,
+            defaults={'session_status': 'history'}
+        )
+        
+        # 如果是新会话，重置状态
+        if created:
+            session.session_status = 'history'
+            session.save()
+        
+        case_data = {
+            'case_id': clinical_case.case_id,
+            'title': clinical_case.title,
+            'patient_info': {
+                'age': clinical_case.patient_age,
+                'gender': clinical_case.get_patient_gender_display(),
+            },
+            'clinical_info': {
+                'chief_complaint': clinical_case.chief_complaint,
+                'present_illness': clinical_case.present_illness,
+                'past_history': clinical_case.past_history,
+                'family_history': clinical_case.family_history,
+            },
+            'learning_objectives': clinical_case.learning_objectives,
+            'case_images': clinical_case.case_images or [],
+            'session_status': session.session_status,
+            'current_stage': 'history',
+            'next_stage': 'examination'
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'data': case_data,
+            'message': '案例信息获取成功'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'获取案例信息失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+@require_POST
+def submit_examination_choices(request):
+    """提交检查选择 - 检查阶段"""
+    try:
+        data = json.loads(request.body)
+        case_id = data.get('case_id')
+        selected_examinations = data.get('selected_examinations', [])
+        
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        session = get_object_or_404(StudentClinicalSession, 
+                                  student=request.user, 
+                                  clinical_case=clinical_case)
+        
+        # 更新会话状态
+        session.selected_examinations = selected_examinations
+        session.session_status = 'diagnosis'
+        
+        # 计算检查选择得分
+        examination_options = ExaminationOption.objects.filter(clinical_case=clinical_case)
+        total_recommended = examination_options.filter(is_recommended=True).count()
+        selected_recommended = examination_options.filter(
+            id__in=selected_examinations, 
+            is_recommended=True
+        ).count()
+        
+        # 简单评分逻辑：推荐检查选择率 × 0.8 + 避免不必要检查奖励 × 0.2
+        if total_recommended > 0:
+            recommendation_score = selected_recommended / total_recommended
+        else:
+            recommendation_score = 1.0
+            
+        unnecessary_count = len([exam_id for exam_id in selected_examinations 
+                               if not examination_options.filter(id=exam_id, is_recommended=True).exists()])
+        unnecessary_penalty = min(unnecessary_count * 0.1, 0.5)  # 最多扣0.5分
+        
+        session.examination_score = max(0, (recommendation_score * 0.8 + (1 - unnecessary_penalty) * 0.2) * 100)
+        session.save()
+        
+        # 获取选择的检查结果
+        selected_examination_results = []
+        for exam_id in selected_examinations:
+            try:
+                exam_option = ExaminationOption.objects.get(id=exam_id, clinical_case=clinical_case)
+                selected_examination_results.append({
+                    'id': exam_option.id,
+                    'name': exam_option.examination_name,
+                    'type': exam_option.get_examination_type_display(),
+                    'result': exam_option.actual_result,
+                    'images': exam_option.result_images or [],
+                    'diagnostic_value': exam_option.get_diagnostic_value_display(),
+                    'is_recommended': exam_option.is_recommended
+                })
+            except ExaminationOption.DoesNotExist:
+                continue
+        
+        # 获取诊断选项
+        diagnosis_options = DiagnosisOption.objects.filter(
+            clinical_case=clinical_case
+        ).order_by('display_order')
+        
+        diagnosis_data = [{
+            'id': option.id,
+            'name': option.diagnosis_name,
+            'code': option.diagnosis_code,
+            'is_differential': option.is_differential,
+            'probability_score': option.probability_score
+        } for option in diagnosis_options]
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'examination_results': selected_examination_results,
+                'examination_score': session.examination_score,
+                'diagnosis_options': diagnosis_data,
+                'current_stage': 'diagnosis',
+                'next_stage': 'treatment'
+            },
+            'message': '检查结果获取成功，请进行诊断选择'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'提交检查选择失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+@require_POST
+def submit_diagnosis_choice(request):
+    """提交诊断选择 - 诊断阶段"""
+    try:
+        data = json.loads(request.body)
+        case_id = data.get('case_id')
+        selected_diagnosis_id = data.get('selected_diagnosis_id')
+        reasoning = data.get('reasoning', '')
+        
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        session = get_object_or_404(StudentClinicalSession, 
+                                  student=request.user, 
+                                  clinical_case=clinical_case)
+        
+        diagnosis_option = get_object_or_404(DiagnosisOption, 
+                                           id=selected_diagnosis_id, 
+                                           clinical_case=clinical_case)
+        
+        # 更新会话状态
+        session.selected_diagnosis = diagnosis_option
+        session.session_status = 'treatment'
+        
+        # 计算诊断得分
+        if diagnosis_option.is_correct_diagnosis:
+            session.diagnosis_score = 100.0
+            feedback_message = diagnosis_option.correct_feedback
+            feedback_type = 'positive'
+        else:
+            session.diagnosis_score = diagnosis_option.probability_score * 100
+            feedback_message = diagnosis_option.incorrect_feedback
+            feedback_type = 'corrective'
+        
+        session.save()
+        
+        # 创建诊断阶段反馈
+        TeachingFeedback.objects.create(
+            student_session=session,
+            feedback_stage='diagnosis',
+            feedback_type=feedback_type,
+            feedback_content=feedback_message,
+            is_automated=True
+        )
+        
+        # 获取相关的治疗选项
+        treatment_options = TreatmentOption.objects.filter(
+            clinical_case=clinical_case,
+            related_diagnosis=diagnosis_option
+        ).order_by('display_order')
+        
+        # 如果没有特定诊断的治疗选项，获取通用治疗选项
+        if not treatment_options.exists():
+            treatment_options = TreatmentOption.objects.filter(
+                clinical_case=clinical_case,
+                related_diagnosis__isnull=True
+            ).order_by('display_order')
+        
+        treatment_data = [{
+            'id': option.id,
+            'name': option.treatment_name,
+            'type': option.get_treatment_type_display(),
+            'description': option.treatment_description,
+            'is_optimal': option.is_optimal,
+            'is_acceptable': option.is_acceptable,
+            'is_contraindicated': option.is_contraindicated,
+            'efficacy_score': option.get_efficacy_score_display(),
+            'safety_score': option.get_safety_score_display(),
+            'expected_outcome': option.expected_outcome
+        } for option in treatment_options]
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'diagnosis_feedback': feedback_message,
+                'diagnosis_score': session.diagnosis_score,
+                'selected_diagnosis': {
+                    'name': diagnosis_option.diagnosis_name,
+                    'code': diagnosis_option.diagnosis_code,
+                    'is_correct': diagnosis_option.is_correct_diagnosis
+                },
+                'treatment_options': treatment_data,
+                'current_stage': 'treatment',
+                'next_stage': 'feedback'
+            },
+            'message': '诊断选择已提交，请选择治疗方案'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'提交诊断选择失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+@require_POST
+def submit_treatment_choices(request):
+    """提交治疗方案选择 - 治疗阶段"""
+    try:
+        data = json.loads(request.body)
+        case_id = data.get('case_id')
+        selected_treatments = data.get('selected_treatments', [])
+        treatment_reasoning = data.get('reasoning', '')
+        
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        session = get_object_or_404(StudentClinicalSession, 
+                                  student=request.user, 
+                                  clinical_case=clinical_case)
+        
+        # 更新会话状态
+        session.selected_treatments = selected_treatments
+        session.session_status = 'feedback'
+        
+        # 计算治疗方案得分
+        treatment_options = TreatmentOption.objects.filter(
+            id__in=selected_treatments,
+            clinical_case=clinical_case
+        )
+        
+        total_score = 0
+        optimal_count = 0
+        acceptable_count = 0
+        contraindicated_count = 0
+        
+        treatment_feedback = []
+        
+        for treatment in treatment_options:
+            if treatment.is_optimal:
+                optimal_count += 1
+                total_score += 100
+            elif treatment.is_acceptable:
+                acceptable_count += 1
+                total_score += 70
+            elif treatment.is_contraindicated:
+                contraindicated_count += 1
+                total_score += 0  # 禁忌治疗不加分
+            else:
+                total_score += 50  # 中性治疗
+            
+            treatment_feedback.append({
+                'treatment_name': treatment.treatment_name,
+                'feedback': treatment.selection_feedback,
+                'is_optimal': treatment.is_optimal,
+                'is_acceptable': treatment.is_acceptable,
+                'is_contraindicated': treatment.is_contraindicated
+            })
+        
+        # 计算平均分
+        if len(selected_treatments) > 0:
+            session.treatment_score = total_score / len(selected_treatments)
+        else:
+            session.treatment_score = 0
+        
+        # 计算总体得分
+        session.calculate_overall_score()
+        session.completed_at = timezone.now()
+        session.session_status = 'completed'
+        session.save()
+        
+        # 创建治疗阶段反馈
+        treatment_feedback_content = f"您选择了{len(selected_treatments)}个治疗方案。"
+        if optimal_count > 0:
+            treatment_feedback_content += f"其中{optimal_count}个为最佳治疗。"
+        if contraindicated_count > 0:
+            treatment_feedback_content += f"请注意：有{contraindicated_count}个禁忌治疗需要避免。"
+        
+        TeachingFeedback.objects.create(
+            student_session=session,
+            feedback_stage='treatment',
+            feedback_type='guidance',
+            feedback_content=treatment_feedback_content,
+            is_automated=True
+        )
+        
+        # 创建总体反馈
+        overall_feedback = f"恭喜完成临床推理！总体得分：{session.overall_score:.1f}分。"
+        if session.overall_score >= 90:
+            overall_feedback += "表现优秀！您展现了出色的临床思维能力。"
+        elif session.overall_score >= 70:
+            overall_feedback += "表现良好，继续努力提升临床推理能力。"
+        else:
+            overall_feedback += "还有提升空间，建议复习相关知识点。"
+        
+        TeachingFeedback.objects.create(
+            student_session=session,
+            feedback_stage='overall',
+            feedback_type='encouragement',
+            feedback_content=overall_feedback,
+            is_automated=True
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'treatment_feedback': treatment_feedback,
+                'treatment_score': session.treatment_score,
+                'scores': {
+                    'examination_score': session.examination_score,
+                    'diagnosis_score': session.diagnosis_score,
+                    'treatment_score': session.treatment_score,
+                    'overall_score': session.overall_score
+                },
+                'overall_feedback': overall_feedback,
+                'current_stage': 'completed',
+                'completion_time': session.completed_at.isoformat()
+            },
+            'message': '临床推理学习完成！'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'提交治疗方案失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def get_clinical_learning_progress(request, case_id):
+    """获取学生在特定案例中的学习进度"""
+    try:
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        
+        try:
+            session = StudentClinicalSession.objects.get(
+                student=request.user,
+                clinical_case=clinical_case
+            )
+            
+            # 获取相关反馈
+            feedbacks = TeachingFeedback.objects.filter(
+                student_session=session
+            ).order_by('created_at')
+            
+            feedback_data = [{
+                'stage': feedback.feedback_stage,
+                'type': feedback.feedback_type,
+                'content': feedback.feedback_content,
+                'suggestions': feedback.improvement_suggestions,
+                'created_at': feedback.created_at.isoformat()
+            } for feedback in feedbacks]
+            
+            progress_data = {
+                'session_status': session.session_status,
+                'scores': {
+                    'examination_score': session.examination_score,
+                    'diagnosis_score': session.diagnosis_score,
+                    'treatment_score': session.treatment_score,
+                    'overall_score': session.overall_score
+                },
+                'learning_path': {
+                    'selected_examinations': session.selected_examinations,
+                    'selected_diagnosis': {
+                        'id': session.selected_diagnosis.id if session.selected_diagnosis else None,
+                        'name': session.selected_diagnosis.diagnosis_name if session.selected_diagnosis else None
+                    },
+                    'selected_treatments': session.selected_treatments
+                },
+                'time_tracking': {
+                    'started_at': session.started_at.isoformat(),
+                    'completed_at': session.completed_at.isoformat() if session.completed_at else None,
+                    'time_spent': session.time_spent
+                },
+                'feedbacks': feedback_data
+            }
+            
+        except StudentClinicalSession.DoesNotExist:
+            progress_data = {
+                'session_status': 'not_started',
+                'message': '尚未开始学习该案例'
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'data': progress_data,
+            'message': '学习进度获取成功'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'获取学习进度失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def get_examination_options(request, case_id):
+    """获取案例的检查选项列表"""
+    try:
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        
+        examination_options = ExaminationOption.objects.filter(
+            clinical_case=clinical_case
+        ).order_by('display_order', 'examination_type')
+        
+        options_data = [{
+            'id': option.id,
+            'type': option.get_examination_type_display(),
+            'name': option.examination_name,
+            'description': option.examination_description,
+            'diagnostic_value': option.get_diagnostic_value_display(),
+            'cost_effectiveness': option.get_cost_effectiveness_display(),
+            'is_recommended': option.is_recommended,
+            'is_required': option.is_required,
+            'is_multiple_choice': option.is_multiple_choice,
+            'images': option.result_images or []
+        } for option in examination_options]
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'examination_options': options_data,
+                'total_count': len(options_data)
+            },
+            'message': '检查选项获取成功'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'获取检查选项失败：{str(e)}'
+        }, status=500)
+
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def clinical_cases_list(request):
+    """返回临床案例列表（用于前端案例库）"""
+    try:
+        difficulty = request.GET.get('difficulty')
+        qs = ClinicalCase.objects.filter(is_active=True)
+        if difficulty in ['beginner', 'intermediate', 'advanced']:
+            qs = qs.filter(difficulty_level=difficulty)
+
+        cases = []
+        for c in qs.order_by('-created_at'):
+            # 尝试获取学生会话以显示进度
+            try:
+                session = StudentClinicalSession.objects.get(student=request.user, clinical_case=c)
+                status = session.session_status
+                overall = session.overall_score
+            except StudentClinicalSession.DoesNotExist:
+                status = 'not_started'
+                overall = 0
+
+            cases.append({
+                'case_id': c.case_id,
+                'title': c.title,
+                'patient_age': c.patient_age,
+                'patient_gender': c.get_patient_gender_display(),
+                'chief_complaint': c.chief_complaint[:120],
+                'learning_objectives': c.learning_objectives or [],
+                'case_images': c.case_images or [],
+                'difficulty_level': c.difficulty_level,
+                'status': status,
+                'progress': {'overall_score': overall}
+            })
+
+        return JsonResponse({'success': True, 'data': {'cases': cases}})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def clinical_user_stats(request):
+    """返回当前学生的临床学习统计数据"""
+    try:
+        total_completed = StudentClinicalSession.objects.filter(student=request.user, session_status='completed').count()
+        avg_overall = StudentClinicalSession.objects.filter(student=request.user, overall_score__gt=0).aggregate(Avg('overall_score'))['overall_score__avg'] or 0
+
+        stats = {
+            'completed_cases': total_completed,
+            'average_score': round(avg_overall, 2),
+            'difficulty_progress': {
+                'beginner': {'completed': StudentClinicalSession.objects.filter(student=request.user, clinical_case__difficulty_level='beginner', session_status='completed').count(), 'total': ClinicalCase.objects.filter(difficulty_level='beginner', is_active=True).count()},
+                'intermediate': {'completed': StudentClinicalSession.objects.filter(student=request.user, clinical_case__difficulty_level='intermediate', session_status='completed').count(), 'total': ClinicalCase.objects.filter(difficulty_level='intermediate', is_active=True).count()},
+                'advanced': {'completed': StudentClinicalSession.objects.filter(student=request.user, clinical_case__difficulty_level='advanced', session_status='completed').count(), 'total': ClinicalCase.objects.filter(difficulty_level='advanced', is_active=True).count()},
+            }
+        }
+        return JsonResponse({'success': True, 'data': stats})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def clinical_case_list_view(request):
+    """学生端临床推理案例列表页面"""
+    return render(request, 'student/clinical_case_list.html')
+
+
+@login_required
+def clinical_debug_view(request):
+    """临床推理调试页面"""
+    return render(request, 'student/clinical_debug.html')
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def student_clinical_view(request, case_id):
+    """学生端临床推理学习页面（渲染模板，前端通过API驱动）"""
+    clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+    context = {
+        'clinical_case': clinical_case
+    }
+    return render(request, 'student/clinical_case_detail.html', context)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def save_clinical_progress(request):
+    """保存学生的临床推理学习进度"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': '只支持POST请求'}, status=405)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        case_id = data.get('case_id')
+        progress_data = data.get('progress_data')
+        
+        if not case_id or not progress_data:
+            return JsonResponse({'success': False, 'message': '缺少必要参数'}, status=400)
+        
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        
+        # 获取或创建学习会话
+        session, created = StudentClinicalSession.objects.get_or_create(
+            student=request.user,
+            clinical_case=clinical_case,
+            defaults={
+                'session_status': 'in_progress',
+                'step_data': progress_data,
+                'start_time': timezone.now()
+            }
+        )
+        
+        if not created:
+            # 更新现有会话
+            session.step_data = progress_data
+            session.session_status = 'in_progress'
+            session.save()
+        
+        return JsonResponse({'success': True, 'message': '进度已保存'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def get_clinical_progress(request, case_id):
+    """获取学生的临床推理学习进度"""
+    try:
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        
+        try:
+            session = StudentClinicalSession.objects.get(
+                student=request.user,
+                clinical_case=clinical_case
+            )
+            progress_data = session.step_data or {}
+            return JsonResponse({'success': True, 'data': progress_data})
+        except StudentClinicalSession.DoesNotExist:
+            return JsonResponse({'success': True, 'data': None})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def reset_clinical_progress(request):
+    """重置学生的临床推理学习进度"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': '只支持POST请求'}, status=405)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        case_id = data.get('case_id')
+        
+        if not case_id:
+            return JsonResponse({'success': False, 'message': '缺少案例ID'}, status=400)
+        
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        
+        # 删除现有会话或重置为初始状态
+        try:
+            session = StudentClinicalSession.objects.get(
+                student=request.user,
+                clinical_case=clinical_case
+            )
+            session.delete()
+        except StudentClinicalSession.DoesNotExist:
+            pass
+        
+        return JsonResponse({'success': True, 'message': '进度已重置'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
