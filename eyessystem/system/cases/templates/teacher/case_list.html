@@ -7,8 +7,20 @@
 <div class="card">
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
         <h2>病例管理</h2>
-        <div>
-            <a href="{% url 'teacher_case_create' %}" class="btn">创建新病例</a>
+        <div style="display:flex; gap:8px; align-items: center;">
+            <!-- 切换管理类型 -->
+            <div>
+                <a href="?type=traditional" class="btn {% if list_type != 'clinical' %}active{% endif %}">管理传统病例</a>
+                <a href="?type=clinical" class="btn {% if list_type == 'clinical' %}active{% endif %}">管理临床推理案例</a>
+            </div>
+
+            <!-- 创建按钮根据类型变更目标 -->
+            {% if list_type == 'clinical' %}
+                <a href="{% url 'teacher_case_create' %}?type=clinical" class="btn">创建新临床案例</a>
+            {% else %}
+                <a href="{% url 'teacher_create_traditional_case' %}" class="btn">创建新病例</a>
+            {% endif %}
+
             <button class="btn secondary" onclick="document.getElementById('importModal').style.display='block'">批量导入</button>
         </div>
     </div>
@@ -49,12 +61,18 @@
                 <tr>
                     <td>
                         <div style="display: flex; align-items: center;">
-                            {% if case.image %}
-                                <img src="{{ case.image.url }}" alt="{{ case.title }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; margin-right: 10px;">
+                            {% if list_type == 'clinical' %}
+                                {% if case.case_images and case.case_images.0 %}
+                                    <img src="/{{ case.case_images.0 }}" alt="{{ case.title }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; margin-right: 10px;">
+                                {% endif %}
+                            {% else %}
+                                {% if case.image %}
+                                    <img src="{{ case.image.url }}" alt="{{ case.title }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; margin-right: 10px;">
+                                {% endif %}
                             {% endif %}
                             <div>
                                 <strong>{{ case.title }}</strong><br>
-                                <small style="color: #666;">{{ case.description|truncatewords:10 }}</small>
+                                <small style="color: #666;">{% if list_type == 'clinical' %}{{ case.chief_complaint|truncatewords:10 }}{% else %}{{ case.description|truncatewords:10 }}{% endif %}</small>
                             </div>
                         </div>
                     </td>
@@ -65,12 +83,25 @@
                             <span style="color: #dc3545; background: #f8d7da; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">禁用</span>
                         {% endif %}
                     </td>
-                    <td>{{ case.exercises.count }}</td>
+                    <td>
+                        {% if list_type == 'clinical' %}
+                            <!-- 临床案例暂时无 exercises 计数，显示短横线或 0 -->
+                            {{ case.studentclinicalsession_set.count }}
+                        {% else %}
+                            {{ case.exercises.count }}
+                        {% endif %}
+                    </td>
                     <td>{{ case.created_at|date:"Y-m-d H:i" }}</td>
                     <td>
-                        <a href="{% url 'teacher_case_edit' case.id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">编辑</a>
-                        <a href="{% url 'teacher_exercise_list' case.id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">题目</a>
-                        <button class="btn danger" style="padding: 6px 12px; font-size: 0.8rem;" data-case-id="{{ case.id }}" data-case-title="{{ case.title|escapejs }}" onclick="deleteCase(this)">删除</button>
+                        {% if list_type == 'clinical' %}
+                            <a href="{% url 'teacher_clinical_edit' case.case_id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">编辑</a>
+                            <a href="{% url 'teacher_clinical_exercise_list' case.case_id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">题目</a>
+                            <button class="btn danger" style="padding: 6px 12px; font-size: 0.8rem;" data-case-id="{{ case.case_id }}" data-case-title="{{ case.title|escapejs }}" onclick="deleteClinicalCase(this)">删除</button>
+                        {% else %}
+                            <a href="{% url 'teacher_case_edit' case.id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">编辑</a>
+                            <a href="{% url 'teacher_exercise_list' case.id %}" class="btn secondary" style="padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">题目</a>
+                            <button class="btn danger" style="padding: 6px 12px; font-size: 0.8rem;" data-case-id="{{ case.id }}" data-case-title="{{ case.title|escapejs }}" onclick="deleteCase(this)">删除</button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% empty %}
@@ -176,6 +207,33 @@ function deleteCase(button) {
             console.error('删除操作失败:', error);
             alert('删除操作失败，请检查网络连接后重试');
         });
+    }
+}
+
+function deleteClinicalCase(button) {
+    const caseId = button.dataset.caseId;
+    const caseName = button.dataset.caseTitle;
+    if (confirmDelete('确定要删除临床案例 "' + caseName + '" 吗？')) {
+        fetch('/teacher/clinical/' + caseId + '/delete/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.success) {
+                const successMsg = document.createElement('div');
+                successMsg.className = 'message success';
+                successMsg.textContent = '临床案例删除成功！';
+                document.querySelector('.container').insertBefore(successMsg, document.querySelector('.card'));
+                setTimeout(() => { location.reload(); }, 800);
+            } else {
+                alert('删除失败：' + (data.message || '请重试'));
+            }
+        })
+        .catch(err => { console.error(err); alert('删除失败，请稍后重试'); });
     }
 }
 

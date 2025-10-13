@@ -264,43 +264,80 @@ def teacher_dashboard(request):
 @login_required
 @user_passes_test(is_teacher, login_url='login')
 def teacher_case_list(request):
-    """教师病例管理"""
+    """教师病例管理：支持管理传统病例（Case）或临床推理案例（ClinicalCase）"""
+    list_type = request.GET.get('type', 'traditional')  # 'traditional' 或 'clinical'
     search = request.GET.get('search', '')
     status = request.GET.get('status', '')
-    
-    cases = Case.objects.all()
-    
+
+    if list_type == 'clinical':
+        cases_qs = ClinicalCase.objects.all()
+    else:
+        cases_qs = Case.objects.all()
+
     if search:
-        cases = cases.filter(
-            Q(name__icontains=search) | 
-            Q(description__icontains=search)
-        )
-    
+        if list_type == 'clinical':
+            cases_qs = cases_qs.filter(Q(title__icontains=search) | Q(chief_complaint__icontains=search))
+        else:
+            cases_qs = cases_qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
+
     if status == 'active':
-        cases = cases.filter(is_active=True)
+        cases_qs = cases_qs.filter(is_active=True)
     elif status == 'inactive':
-        cases = cases.filter(is_active=False)
-    
-    cases = cases.order_by('-created_at')
-    
+        cases_qs = cases_qs.filter(is_active=False)
+
+    cases_qs = cases_qs.order_by('-created_at')
+
     # 分页
-    paginator = Paginator(cases, 15)
+    paginator = Paginator(cases_qs, 15)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
+
     context = {
         'page_obj': page_obj,
         'search': search,
         'status': status,
+        'list_type': list_type,
     }
-    
+
     return render(request, 'teacher/case_list.html', context)
 
 
 @login_required
 @user_passes_test(is_teacher, login_url='login')
-def teacher_case_create(request):
-    """教师创建病例"""
+def teacher_clinical_edit(request, case_id):
+    """临床案例编辑（基础实现，渲染相同表单模板）"""
+    clinical = get_object_or_404(ClinicalCase, case_id=case_id)
+    if request.method == 'POST':
+        # 简化处理：实际编辑逻辑可进一步实现
+        messages.success(request, '临床案例已更新（占位实现）')
+        return redirect('teacher_case_list')
+    return render(request, 'teacher/case_form.html', {'title': '编辑临床案例', 'action': '保存', 'case': clinical})
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def teacher_clinical_delete(request, case_id):
+    clinical = get_object_or_404(ClinicalCase, case_id=case_id)
+    if request.method == 'POST':
+        clinical.delete()
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False, 'message': '仅支持POST删除'}, status=405)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def teacher_clinical_exercise_list(request, case_id):
+    clinical = get_object_or_404(ClinicalCase, case_id=case_id)
+    # 占位：若临床案例有关联练习，请在此处加载；目前返回空并渲染常规练习页面
+    exercises = []
+    return render(request, 'teacher/exercise_list.html', {'exercises': exercises, 'case': clinical})
+
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def teacher_create_traditional_case(request):
+    """教师创建传统 Case（保持原有逻辑）"""
     if request.method == 'POST':
         title = request.POST.get('title')
         description = request.POST.get('description')
@@ -310,7 +347,7 @@ def teacher_case_create(request):
         case_type = request.POST.get('case_type', 'clinical')
         image = request.FILES.get('image')
         is_active = request.POST.get('is_active') == 'on'
-        
+
         # 验证必填字段
         if not title or not description or not symptoms:
             messages.error(request, '请填写所有必填字段（病例名称、病例描述、症状表现）')
@@ -319,7 +356,7 @@ def teacher_case_create(request):
                 'action': '创建',
                 'form_data': request.POST,
             })
-        
+
         case = Case.objects.create(
             title=title,
             description=description,
@@ -330,12 +367,145 @@ def teacher_case_create(request):
             image=image,
             is_active=is_active
         )
-        
+
         messages.success(request, f'病例 "{case.title}" 创建成功！')
         return redirect('teacher_case_list')
-    
+
     return render(request, 'teacher/case_form.html', {
         'title': '创建病例',
+        'action': '创建',
+    })
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def teacher_case_create(request):
+    """教师创建临床推理案例（保存到 ClinicalCase）"""
+    from django.core.files.storage import default_storage
+    from django.conf import settings
+    import os
+    
+    if request.method == 'POST':
+        # ClinicalCase 所需字段
+        title = request.POST.get('title')
+        case_id = request.POST.get('case_id') or f"CC{int(timezone.now().timestamp())}"
+        patient_age = request.POST.get('patient_age')
+        patient_gender = request.POST.get('patient_gender')
+        chief_complaint = request.POST.get('chief_complaint')
+        present_illness = request.POST.get('present_illness')
+        past_history = request.POST.get('past_history')
+        family_history = request.POST.get('family_history')
+        learning_objectives_raw = request.POST.get('learning_objectives', '')
+        difficulty_level = request.POST.get('difficulty_level', 'intermediate')
+        is_active = request.POST.get('is_active') == 'on'
+
+        # 学习目标：前端以换行分隔，每行一个目标，后端转为 list
+        learning_objectives = [lo.strip() for lo in learning_objectives_raw.splitlines() if lo.strip()]
+
+        # 处理多图上传：保存到 MEDIA/case_images/ 并记录相对路径列表
+        uploaded_files = request.FILES.getlist('case_images')
+        saved_paths = []
+        for f in uploaded_files:
+            save_dir = os.path.join('case_images')
+            filename = default_storage.save(os.path.join(save_dir, f.name), f)
+            # 存储相对路径
+            saved_paths.append(filename)
+
+        # 验证必填字段（选择性检查）
+        if not title or not chief_complaint or not present_illness:
+            messages.error(request, '请填写所有必填字段（案例标题、主诉、现病史）')
+            return render(request, 'teacher/case_form.html', {
+                'title': '创建临床案例',
+                'action': '创建',
+                'form_data': request.POST,
+            })
+
+        # 创建 ClinicalCase
+        clinical = ClinicalCase.objects.create(
+            title=title,
+            case_id=case_id,
+            patient_age=int(patient_age) if patient_age else 0,
+            patient_gender=patient_gender or 'M',
+            chief_complaint=chief_complaint,
+            present_illness=present_illness,
+            past_history=past_history or '',
+            family_history=family_history or '',
+            learning_objectives=learning_objectives,
+            difficulty_level=difficulty_level,
+            is_active=is_active,
+            created_by=request.user,
+            case_images=saved_paths or None,
+        )
+
+        # 解析并创建 ExaminationOption
+        exam_names = request.POST.getlist('examination_name[]')
+        exam_types = request.POST.getlist('examination_type[]')
+        for i, name in enumerate(exam_names):
+            etype = exam_types[i] if i < len(exam_types) else 'basic'
+            is_required = request.POST.get(f'examination_is_required_{i}') == '1'
+            is_multiple = request.POST.get(f'examination_is_multiple_{i}') == '1'
+            ExaminationOption.objects.create(
+                clinical_case=clinical,
+                examination_type=etype,
+                examination_name=name,
+                examination_description='',
+                diagnostic_value=2,
+                cost_effectiveness=2,
+                is_required=is_required,
+                is_multiple_choice=is_multiple,
+            )
+
+        # 解析并创建 DiagnosisOption
+        diag_names = request.POST.getlist('diagnosis_name[]')
+        diag_codes = request.POST.getlist('diagnosis_code[]')
+        for i, name in enumerate(diag_names):
+            code = diag_codes[i] if i < len(diag_codes) else ''
+            probability = request.POST.get(f'diagnosis_probability_{i}') or 0
+            supporting = request.POST.get(f'diagnosis_supporting_{i}') or ''
+            DiagnosisOption.objects.create(
+                clinical_case=clinical,
+                diagnosis_name=name,
+                diagnosis_code=code,
+                is_correct_diagnosis=False,
+                is_differential=True,
+                supporting_evidence=supporting,
+                contradicting_evidence='',
+                typical_symptoms=[],
+                typical_signs=[],
+                correct_feedback='',
+                incorrect_feedback='',
+                probability_score=float(probability) if probability else 0.0,
+            )
+
+        # 解析并创建 TreatmentOption
+        treat_names = request.POST.getlist('treatment_name[]')
+        treat_types = request.POST.getlist('treatment_type[]')
+        for i, name in enumerate(treat_names):
+            ttype = treat_types[i] if i < len(treat_types) else 'medication'
+            efficacy = request.POST.get(f'treatment_efficacy_{i}') or 2
+            description = request.POST.get(f'treatment_description_{i}') or ''
+            TreatmentOption.objects.create(
+                clinical_case=clinical,
+                related_diagnosis=None,
+                treatment_type=ttype,
+                treatment_name=name,
+                treatment_description=description,
+                is_optimal=False,
+                is_acceptable=True,
+                is_contraindicated=False,
+                efficacy_score=int(efficacy),
+                safety_score=2,
+                cost_score=2,
+                expected_outcome='',
+                potential_complications='',
+                selection_feedback='',
+            )
+
+        messages.success(request, f'临床案例 "{clinical.title}" 创建成功！')
+        return redirect('teacher_case_list')
+
+    return render(request, 'teacher/case_form.html', {
+        'title': '创建临床案例',
         'action': '创建',
     })
 

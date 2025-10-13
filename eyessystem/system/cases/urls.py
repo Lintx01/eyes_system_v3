@@ -31,12 +31,18 @@ urlpatterns = [
     path('teacher/', views.teacher_dashboard, name='teacher_dashboard'),
     path('teacher/cases/', views.teacher_case_list, name='teacher_case_list'),
     path('teacher/cases/create/', views.teacher_case_create, name='teacher_case_create'),
+    path('teacher/cases/create_traditional/', views.teacher_create_traditional_case, name='teacher_create_traditional_case'),
     path('teacher/cases/<int:case_id>/edit/', views.teacher_case_edit, name='teacher_case_edit'),
     path('teacher/cases/<int:case_id>/delete/', views.teacher_case_delete, name='teacher_case_delete'),
     path('teacher/cases/<int:case_id>/exercises/', views.teacher_exercise_list, name='teacher_exercise_list'),
     path('teacher/cases/<int:case_id>/exercises/create/', views.teacher_exercise_create, name='teacher_exercise_create'),
     path('teacher/exercises/<int:exercise_id>/edit/', views.teacher_exercise_edit, name='teacher_exercise_edit'),
     path('teacher/exercises/<int:exercise_id>/delete/', views.teacher_exercise_delete, name='teacher_exercise_delete'),
+
+    # 教师端 - 临床案例专属管理路由（编辑/删除/练习列表）
+    path('teacher/clinical/<str:case_id>/edit/', views.teacher_clinical_edit, name='teacher_clinical_edit'),
+    path('teacher/clinical/<str:case_id>/delete/', views.teacher_clinical_delete, name='teacher_clinical_delete'),
+    path('teacher/clinical/<str:case_id>/exercises/', views.teacher_clinical_exercise_list, name='teacher_clinical_exercise_list'),
     
     # 教师端考试系统
     path('teacher/exams/', views.teacher_exam_list, name='teacher_exam_list'),

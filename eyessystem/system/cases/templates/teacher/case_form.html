@@ -23,7 +23,7 @@
                         
                         <div class="row">
                             <div class="col-md-8">
-                                <!-- 基本信息 -->
+                                <!-- 基本信息 (用于 ClinicalCase) -->
                                 <div class="form-group">
                                     <label for="title" class="required">病例名称 *</label>
                                     <input type="text" class="form-control" id="title" name="title" 
@@ -32,61 +32,85 @@
                                            placeholder="请输入病例名称">
                                     <small class="form-text text-muted">请输入简洁明确的病例标题</small>
                                 </div>
-                                
                                 <div class="form-group">
-                                    <label for="description" class="required">病例描述 *</label>
-                                    <textarea class="form-control" id="description" name="description" rows="4" 
-                                              required placeholder="请输入详细的病例描述和背景信息">{% if case %}{{ case.description }}{% elif form_data %}{{ form_data.description }}{% endif %}</textarea>
-                                    <small class="form-text text-muted">详细描述病例的背景信息、病史等</small>
+                                    <label for="case_id">案例编号</label>
+                                    <input type="text" class="form-control" id="case_id" name="case_id"
+                                           value="{% if case %}{{ case.case_id }}{% elif form_data %}{{ form_data.case_id }}{% endif %}"
+                                           placeholder="留空则系统自动生成">
+                                    <small class="form-text text-muted">用于临床推理系统的唯一编号（可选）</small>
                                 </div>
-                                
+
                                 <div class="form-group">
-                                    <label for="symptoms" class="required">症状表现 *</label>
-                                    <textarea class="form-control" id="symptoms" name="symptoms" rows="3" 
-                                              required placeholder="请输入患者的主要症状和表现">{% if case %}{{ case.symptoms }}{% elif form_data %}{{ form_data.symptoms }}{% endif %}</textarea>
-                                    <small class="form-text text-muted">描述患者的主要症状和临床表现</small>
+                                    <label for="patient_age">患者年龄</label>
+                                    <input type="number" class="form-control" id="patient_age" name="patient_age"
+                                           value="{% if case %}{{ case.patient_age }}{% elif form_data %}{{ form_data.patient_age }}{% endif %}"
+                                           placeholder="例如：45">
                                 </div>
-                                
+
                                 <div class="form-group">
-                                    <label for="diagnosis">诊断结果</label>
-                                    <textarea class="form-control" id="diagnosis" name="diagnosis" rows="3" 
-                                              placeholder="请输入各项检查的详细结果">{% if case %}{{ case.diagnosis }}{% elif form_data %}{{ form_data.diagnosis }}{% endif %}</textarea>
-                                    <small class="form-text text-muted">包括各项检查结果、诊断依据等</small>
+                                    <label for="patient_gender">患者性别</label>
+                                    <select class="form-control" id="patient_gender" name="patient_gender">
+                                        <option value="M" {% if case.patient_gender == 'M' or form_data.patient_gender == 'M' %}selected{% endif %}>男</option>
+                                        <option value="F" {% if case.patient_gender == 'F' or form_data.patient_gender == 'F' %}selected{% endif %}>女</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="chief_complaint" class="required">主诉 *</label>
+                                    <textarea class="form-control" id="chief_complaint" name="chief_complaint" rows="2" required
+                                              placeholder="请输入主诉">{% if case %}{{ case.chief_complaint }}{% elif form_data %}{{ form_data.chief_complaint }}{% endif %}</textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="present_illness" class="required">现病史 *</label>
+                                    <textarea class="form-control" id="present_illness" name="present_illness" rows="4" required
+                                              placeholder="请输入现病史">{% if case %}{{ case.present_illness }}{% elif form_data %}{{ form_data.present_illness }}{% endif %}</textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="past_history">既往史</label>
+                                    <textarea class="form-control" id="past_history" name="past_history" rows="2"
+                                              placeholder="既往史（可选）">{% if case %}{{ case.past_history }}{% elif form_data %}{{ form_data.past_history }}{% endif %}</textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="family_history">家族史</label>
+                                    <textarea class="form-control" id="family_history" name="family_history" rows="2"
+                                              placeholder="家族史（可选）">{% if case %}{{ case.family_history }}{% elif form_data %}{{ form_data.family_history }}{% endif %}</textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="learning_objectives">学习目标（每行一个）</label>
+                                    <textarea class="form-control" id="learning_objectives" name="learning_objectives" rows="3" placeholder="例如：\n识别白内障的主要临床特征\n理解常见并发症的处理方法">{% if case %}{{ case.learning_objectives|join:"\n" }}{% elif form_data %}{{ form_data.learning_objectives }}{% endif %}</textarea>
+                                    <small class="form-text text-muted">每行一个学习目标，系统会保存为 JSON 列表</small>
                                 </div>
                             </div>
                             
                             <div class="col-md-4">
                                 <!-- 病例配置 -->
                                 <div class="form-group">
-                                    <label for="difficulty">难度等级</label>
-                                    <select class="form-control" id="difficulty" name="difficulty">
-                                        <option value="easy" {% if case.difficulty == 'easy' or form_data.difficulty == 'easy' %}selected{% endif %}>简单</option>
-                                        <option value="medium" {% if not case and not form_data or case.difficulty == 'medium' or form_data.difficulty == 'medium' %}selected{% endif %}>中等</option>
-                                        <option value="hard" {% if case.difficulty == 'hard' or form_data.difficulty == 'hard' %}selected{% endif %}>困难</option>
+                                    <label for="difficulty_level">难度等级</label>
+                                    <select class="form-control" id="difficulty_level" name="difficulty_level">
+                                        <option value="beginner" {% if case.difficulty_level == 'beginner' or form_data.difficulty_level == 'beginner' %}selected{% endif %}>初级</option>
+                                        <option value="intermediate" {% if not case and not form_data or case.difficulty_level == 'intermediate' or form_data.difficulty_level == 'intermediate' %}selected{% endif %}>中级</option>
+                                        <option value="advanced" {% if case.difficulty_level == 'advanced' or form_data.difficulty_level == 'advanced' %}selected{% endif %}>高级</option>
                                     </select>
                                 </div>
-                                
+
                                 <div class="form-group">
-                                    <label for="case_type">病例类型</label>
-                                    <select class="form-control" id="case_type" name="case_type">
-                                        <option value="clinical" {% if not case and not form_data or case.case_type == 'clinical' or form_data.case_type == 'clinical' %}selected{% endif %}>临床病例</option>
-                                        <option value="surgery" {% if case.case_type == 'surgery' or form_data.case_type == 'surgery' %}selected{% endif %}>手术病例</option>
-                                        <option value="emergency" {% if case.case_type == 'emergency' or form_data.case_type == 'emergency' %}selected{% endif %}>急诊病例</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label for="image">病例图像</label>
-                                    <input type="file" class="form-control-file" id="image" name="image" 
-                                           accept="image/*">
-                                    <small class="form-text text-muted">上传相关的检查图片或眼底照片</small>
-                                    
-                                    {% if case.image %}
+                                    <label for="case_images">案例图片（可多选）</label>
+                                    <input type="file" class="form-control-file" id="case_images" name="case_images" 
+                                           accept="image/*" multiple>
+                                    <small class="form-text text-muted">可上传多张图片，系统会将路径保存为 JSON 列表</small>
+
+                                    {% if case.case_images %}
                                     <div class="mt-2">
                                         <p class="text-muted small">当前图片：</p>
-                                        <img src="{{ case.image.url }}" class="img-thumbnail" 
-                                             style="max-width: 200px; max-height: 150px;" 
-                                             alt="{{ case.title }}">
+                                        <div class="d-flex flex-wrap" style="gap:8px;">
+                                            {% for img in case.case_images %}
+                                            <img src="/{{ img }}" class="img-thumbnail" style="max-width:120px; max-height:90px;" alt="{{ case.title }}">
+                                            {% endfor %}
+                                        </div>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -126,6 +150,36 @@
                             </div>
                         </div>
                     </form>
+
+                    <!-- 临床推理相关选项：检查/诊断/治疗 -->
+                    <hr />
+                    <h5>临床推理配置</h5>
+
+                    <!-- 检查选项 -->
+                    <div class="card mb-3">
+                        <div class="card-header">检查选项
+                            <button class="btn btn-sm btn-primary" id="addExamBtn" style="float:right;">添加检查</button>
+                        </div>
+                        <div class="card-body" id="examinationsContainer">
+                            <!-- 模板项 -->
+                        </div>
+                    </div>
+
+                    <!-- 诊断选项 -->
+                    <div class="card mb-3">
+                        <div class="card-header">诊断选项
+                            <button class="btn btn-sm btn-primary" id="addDiagBtn" style="float:right;">添加诊断</button>
+                        </div>
+                        <div class="card-body" id="diagnosisContainer"></div>
+                    </div>
+
+                    <!-- 治疗选项 -->
+                    <div class="card mb-3">
+                        <div class="card-header">治疗选项
+                            <button class="btn btn-sm btn-primary" id="addTreatBtn" style="float:right;">添加治疗</button>
+                        </div>
+                        <div class="card-body" id="treatmentContainer"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -271,6 +325,85 @@ document.getElementById('image').addEventListener('change', function(e) {
         };
         reader.readAsDataURL(file);
     }
+});
+</script>
+<script>
+// 临床推理表单动态添加项脚本
+document.addEventListener('DOMContentLoaded', function() {
+    // Examination template
+    const examTpl = function(index) {
+        return `
+        <div class="exam-item mb-2" data-index="${index}">
+            <div class="form-row">
+                <div class="col-md-4"><input name="examination_name[]" class="form-control" placeholder="检查名称" required></div>
+                <div class="col-md-3"><select name="examination_type[]" class="form-control"><option value="basic">基础</option><option value="imaging">影像</option><option value="laboratory">实验室</option><option value="special">特殊</option><option value="fundus">眼底</option></select></div>
+                <div class="col-md-2"><input type="hidden" name="examination_is_required_${index}" value="0"><input type="checkbox" name="examination_is_required_${index}" value="1"> 必选</div>
+                <div class="col-md-2"><input type="hidden" name="examination_is_multiple_${index}" value="0"><input type="checkbox" name="examination_is_multiple_${index}" value="1"> 多选</div>
+                <div class="col-md-1 text-right"><button class="btn btn-sm btn-danger remove-exam">删除</button></div>
+            </div>
+        </div>`;
+    };
+
+    const diagTpl = function(index) {
+        return `
+        <div class="diag-item mb-2" data-index="${index}">
+            <div class="form-row">
+                <div class="col-md-4"><input name="diagnosis_name[]" class="form-control" placeholder="诊断名称" required></div>
+                <div class="col-md-3"><input name="diagnosis_code[]" class="form-control" placeholder="编码（可选）"></div>
+                <div class="col-md-3"><input name="diagnosis_probability_${index}" class="form-control" placeholder="概率（0-1）" type="number" step="0.01" min="0" max="1"></div>
+                <div class="col-md-2 text-right"><button class="btn btn-sm btn-danger remove-diag">删除</button></div>
+            </div>
+            <div class="form-group mt-2">
+                <textarea name="diagnosis_supporting_${index}" class="form-control" placeholder="支持依据（必填）"></textarea>
+            </div>
+        </div>`;
+    };
+
+    const treatTpl = function(index) {
+        return `
+        <div class="treat-item mb-2" data-index="${index}">
+            <div class="form-row">
+                <div class="col-md-4"><select name="treatment_type[]" class="form-control"><option value="medication">药物</option><option value="surgery">手术</option><option value="observation">观察</option><option value="referral">转诊</option><option value="lifestyle">生活方式</option><option value="combination">综合</option></select></div>
+                <div class="col-md-4"><input name="treatment_name[]" class="form-control" placeholder="治疗名称" required></div>
+                <div class="col-md-3"><input name="treatment_efficacy_${index}" type="number" class="form-control" min="1" max="3" value="2"></div>
+                <div class="col-md-1 text-right"><button class="btn btn-sm btn-danger remove-treat">删除</button></div>
+            </div>
+            <div class="form-group mt-2">
+                <textarea name="treatment_description_${index}" class="form-control" placeholder="治疗描述"></textarea>
+            </div>
+        </div>`;
+    };
+
+    let examIndex = 0;
+    document.getElementById('addExamBtn').addEventListener('click', function(e){
+        e.preventDefault();
+        document.getElementById('examinationsContainer').insertAdjacentHTML('beforeend', examTpl(examIndex++));
+    });
+
+    document.getElementById('addDiagBtn').addEventListener('click', function(e){
+        e.preventDefault();
+        document.getElementById('diagnosisContainer').insertAdjacentHTML('beforeend', diagTpl(examIndex));
+        examIndex++;
+    });
+
+    document.getElementById('addTreatBtn').addEventListener('click', function(e){
+        e.preventDefault();
+        document.getElementById('treatmentContainer').insertAdjacentHTML('beforeend', treatTpl(examIndex));
+        examIndex++;
+    });
+
+    // 事件委托删除
+    document.addEventListener('click', function(e){
+        if (e.target && e.target.classList.contains('remove-exam')) {
+            e.target.closest('.exam-item').remove();
+        }
+        if (e.target && e.target.classList.contains('remove-diag')) {
+            e.target.closest('.diag-item').remove();
+        }
+        if (e.target && e.target.classList.contains('remove-treat')) {
+            e.target.closest('.treat-item').remove();
+        }
+    });
 });
 </script>
 {% endblock %}
