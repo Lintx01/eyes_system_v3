@@ -1,0 +1,564 @@
+{% extends "base.html" %}
+
+{% block title %}临床推理病例管理 - 眼科教学系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 2rem;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+    }
+    
+    .page-title {
+        font-size: 1.8rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    .page-subtitle {
+        margin-top: 0.5rem;
+        opacity: 0.9;
+        font-size: 1rem;
+    }
+    
+    .search-filters {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .cases-container {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .case-card {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .case-card:hover {
+        border-color: #667eea;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .case-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+    
+    .case-title {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1.2rem;
+        margin: 0;
+        line-height: 1.4;
+    }
+    
+    .case-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+    
+    .case-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .case-content {
+        color: #5a6c7d;
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+    
+    .case-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #eee;
+    }
+    
+    .stat-item {
+        text-align: center;
+        padding: 0.5rem;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 8px;
+    }
+    
+    .stat-value {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1.1rem;
+    }
+    
+    .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    
+    .difficulty-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .difficulty-beginner {
+        background: linear-gradient(135deg, #27ae60, #229954);
+    }
+    
+    .difficulty-intermediate {
+        background: linear-gradient(135deg, #f39c12, #e67e22);
+    }
+    
+    .difficulty-advanced {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .status-active {
+        background: linear-gradient(135deg, #27ae60, #229954);
+    }
+    
+    .status-inactive {
+        background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+    }
+    
+    .btn-primary-custom {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary-custom:hover {
+        background: linear-gradient(135deg, #764ba2, #667eea);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .btn-success-custom {
+        background: linear-gradient(135deg, #27ae60, #229954);
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 50px;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-success-custom:hover {
+        background: linear-gradient(135deg, #229954, #1e8449);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(39, 174, 96, 0.4);
+        color: white;
+    }
+    
+    .btn-purple {
+        background: linear-gradient(135deg, #8e44ad, #7d3c98);
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-purple:hover {
+        background: linear-gradient(135deg, #7d3c98, #6c3483);
+        transform: translateY(-1px);
+        color: white;
+    }
+    
+    .btn-sm-custom {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        border-radius: 6px;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #6c757d;
+    }
+    
+    .empty-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        color: #dee2e6;
+    }
+    
+    .pagination-custom {
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    
+    .pagination-custom .page-link {
+        border: none;
+        padding: 0.5rem 1rem;
+        margin: 0 0.25rem;
+        border-radius: 8px;
+        color: #667eea;
+        background: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+    
+    .pagination-custom .page-link:hover {
+        background: #667eea;
+        color: white;
+        transform: translateY(-1px);
+    }
+    
+    .pagination-custom .page-item.active .page-link {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+    
+    .search-box {
+        position: relative;
+    }
+    
+    .search-box .form-control {
+        padding-left: 2.5rem;
+        border-radius: 50px;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+    
+    .search-box .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .search-box .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        z-index: 10;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 页面标题 -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="page-title">
+                    <i class="fas fa-brain me-3"></i>
+                    临床推理病例管理
+                </h1>
+                <p class="page-subtitle mb-0">创建和管理临床推理学习病例</p>
+            </div>
+            <div>
+                <a href="{% url 'teacher_clinical_case_create' %}" class="btn btn-success-custom">
+                    <i class="fas fa-plus me-2"></i>创建新病例
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索和筛选 -->
+    <div class="search-filters">
+        <form method="get">
+            <!-- 第一行：搜索框 -->
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <div class="search-box">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" class="form-control" name="search" 
+                               value="{{ search_query }}" placeholder="搜索病例标题、主诉或诊断...">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 第二行：筛选条件和操作按钮 -->
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <!-- 左侧：筛选条件 -->
+                <div style="display: flex; align-items: center; gap: 2rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <label style="margin: 0; color: #6c757d; font-size: 0.875rem; white-space: nowrap;">难度筛选</label>
+                        <select class="form-select" name="difficulty" style="min-width: 120px; width: auto;">
+                            <option value="">所有难度</option>
+                            <option value="beginner" {% if difficulty_filter == 'beginner' %}selected{% endif %}>初级</option>
+                            <option value="intermediate" {% if difficulty_filter == 'intermediate' %}selected{% endif %}>中级</option>
+                            <option value="advanced" {% if difficulty_filter == 'advanced' %}selected{% endif %}>高级</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <label style="margin: 0; color: #6c757d; font-size: 0.875rem; white-space: nowrap;">状态筛选</label>
+                        <select class="form-select" name="status" style="min-width: 120px; width: auto;">
+                            <option value="">所有状态</option>
+                            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>启用</option>
+                            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>禁用</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 右侧：操作按钮 -->
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="submit" class="btn btn-primary-custom" style="padding: 0.5rem 1rem; min-width: 80px;">
+                        <i class="fas fa-filter me-1"></i>筛选
+                    </button>
+                    <a href="{% url 'teacher_clinical_case_list' %}" class="btn btn-outline-secondary" style="padding: 0.5rem 1rem; min-width: 80px; display: inline-flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-undo me-1"></i>重置
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- 病例列表 -->
+    <div class="cases-container">
+        {% if page_obj %}
+            {% for case in page_obj %}
+                <div class="case-card">
+                    <div class="case-header">
+                        <h5 class="case-title">{{ case.title }}</h5>
+                        <div class="case-actions">
+                            <a href="{% url 'teacher_clinical_case_preview' case.case_id %}" 
+                               class="btn btn-info btn-sm-custom" title="预览">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'teacher_examination_options' case.case_id %}" 
+                               class="btn btn-warning btn-sm-custom" title="管理检查选项">
+                                <i class="fas fa-stethoscope"></i>
+                            </a>
+                            <a href="{% url 'teacher_diagnosis_options' case.case_id %}" 
+                               class="btn btn-success btn-sm-custom" title="管理诊断选项">
+                                <i class="fas fa-diagnoses"></i>
+                            </a>
+                            <a href="{% url 'teacher_treatment_options' case.case_id %}" 
+                               class="btn btn-purple btn-sm-custom" title="管理治疗方案">
+                                <i class="fas fa-prescription-bottle-alt"></i>
+                            </a>
+                            <a href="{% url 'teacher_clinical_case_edit' case.case_id %}" 
+                               class="btn btn-primary-custom btn-sm-custom" title="编辑">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'teacher_clinical_case_delete' case.case_id %}" 
+                               class="btn btn-danger btn-sm-custom" title="删除"
+                               onclick="return confirm('确认删除此病例吗？')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="case-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-chart-line"></i>
+                            <span class="difficulty-badge difficulty-{{ case.difficulty_level }}">
+                                {{ case.get_difficulty_level_display }}
+                            </span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-user"></i>
+                            {{ case.patient_age }}岁 {% if case.patient_gender == 'M' %}男性{% else %}女性{% endif %}
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar-alt"></i>
+                            {{ case.created_at|date:"Y-m-d H:i" }}
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-toggle-{% if case.is_active %}on{% else %}off{% endif %}"></i>
+                            <span class="status-badge status-{% if case.is_active %}active{% else %}inactive{% endif %}">
+                                {% if case.is_active %}启用{% else %}禁用{% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="case-content">
+                        <p><strong>主诉：</strong>{{ case.chief_complaint|truncatewords:20 }}</p>
+                        <p><strong>现病史：</strong>{{ case.present_illness|truncatewords:15 }}</p>
+                        {% if case.learning_objectives %}
+                            <p><strong>学习目标：</strong>
+                            {% for objective in case.learning_objectives %}
+                                {{ objective }}{% if not forloop.last %}，{% endif %}
+                            {% endfor %}
+                            </p>
+                        {% endif %}
+                    </div>
+
+                    <div class="case-stats">
+                        <div class="stat-item">
+                            <div class="stat-value">{{ case.examination_count }}</div>
+                            <div class="stat-label">检查选项</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ case.diagnosis_count }}</div>
+                            <div class="stat-label">诊断选项</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ case.treatment_count }}</div>
+                            <div class="stat-label">治疗方案</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ case.student_sessions_count }}</div>
+                            <div class="stat-label">学习人数</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ case.completion_rate }}%</div>
+                            <div class="stat-label">完成率</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ case.avg_score }}</div>
+                            <div class="stat-label">平均分</div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            <!-- 分页 -->
+            {% if page_obj.has_other_pages %}
+                <nav aria-label="病例分页">
+                    <ul class="pagination pagination-custom">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if difficulty_filter %}&difficulty={{ difficulty_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if difficulty_filter %}&difficulty={{ difficulty_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if difficulty_filter %}&difficulty={{ difficulty_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+
+        {% else %}
+            <!-- 空状态 -->
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <h4>暂无临床推理病例</h4>
+                <p class="text-muted">开始创建您的第一个临床推理病例，为学生提供高质量的学习内容。</p>
+                <a href="{% url 'teacher_clinical_case_create' %}" class="btn btn-success-custom">
+                    <i class="fas fa-plus me-2"></i>创建第一个病例
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // 页面加载动画
+    $('.page-header, .search-filters, .cases-container').addClass('animate__animated animate__fadeInUp');
+    
+    // 卡片悬停效果增强
+    $('.case-card').on('mouseenter', function() {
+        $(this).find('.case-actions').addClass('animate__animated animate__fadeIn');
+    });
+    
+    // 删除确认
+    $('a[href*="delete"]').on('click', function(e) {
+        e.preventDefault();
+        const url = $(this).attr('href');
+        const caseTitle = $(this).closest('.case-card').find('.case-title').text().trim();
+        
+        Swal.fire({
+            title: '确认删除？',
+            text: `您确定要删除病例 "${caseTitle}" 吗？此操作无法撤销！`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e74c3c',
+            cancelButtonColor: '#95a5a6',
+            confirmButtonText: '确认删除',
+            cancelButtonText: '取消'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = url;
+            }
+        });
+    });
+    
+    // 搜索框实时反馈
+    $('.search-box input').on('input', function() {
+        const value = $(this).val();
+        const icon = $(this).siblings('.search-icon');
+        
+        if (value.length > 0) {
+            icon.removeClass('fas fa-search').addClass('fas fa-times-circle text-danger');
+            icon.css('cursor', 'pointer');
+        } else {
+            icon.removeClass('fas fa-times-circle text-danger').addClass('fas fa-search');
+            icon.css('cursor', 'default');
+        }
+    });
+    
+    // 点击搜索图标清空搜索
+    $(document).on('click', '.fa-times-circle', function() {
+        $(this).siblings('input').val('').focus();
+        $(this).removeClass('fas fa-times-circle text-danger').addClass('fas fa-search');
+        $(this).css('cursor', 'default');
+    });
+    
+    // 工具提示
+    $('[title]').tooltip();
+});
+</script>
+{% endblock %}

@@ -11,16 +11,16 @@
     <div class="card-body">
         <div class="stats-grid">
             <div class="stat-card" role="status" aria-label="总体学习进度">
-                <div class="stat-number">{{ progress.progress_percentage|floatformat:1 }}%</div>
+                <div class="stat-number">{{ progress.progress_percentage|floatformat:1|default:0 }}%</div>
                 <div class="stat-label">总体进度</div>
             </div>
             <div class="stat-card" role="status" aria-label="已完成病例数量">
-                <div class="stat-number">{{ completed_cases|default:0 }}</div>
+                <div class="stat-number">{{ completed_sessions }}</div>
                 <div class="stat-label">已完成病例</div>
             </div>
-            <div class="stat-card" role="status" aria-label="已完成练习数量">
-                <div class="stat-number">{{ completed_exercises|default:0 }}</div>
-                <div class="stat-label">已完成练习</div>
+            <div class="stat-card" role="status" aria-label="总病例数量">
+                <div class="stat-number">{{ total_clinical_cases }}</div>
+                <div class="stat-label">总病例数</div>
             </div>
             <div class="stat-card" role="status" aria-label="总学习时长">
                 <div class="stat-number">{{ progress.total_study_time|default:0 }}</div>
@@ -30,55 +30,57 @@
 
         <div class="progress-container" style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 20px 0;">
             <div class="progress-bar" 
-                 style="background: #b71c1c; height: 20px; border-radius: 10px; transition: width 0.3s; width: 0%;" 
-                 data-progress="{{ progress.progress_percentage|floatformat:1 }}"></div>
-            <div style="text-align: center; margin-top: 5px; color: #666;">学习进度：{{ completed_cases }}/{{ total_cases }} 个病例</div>
+                 style="background: #007bff; height: 20px; border-radius: 10px; transition: width 0.3s; width: 0%;" 
+                 data-progress="{{ progress.progress_percentage|floatformat:1|default:0 }}"></div>
+            <div style="text-align: center; margin-top: 5px; color: #666;">学习进度：{{ completed_sessions }}/{{ total_clinical_cases }} 个病例</div>
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{% url 'clinical_case_list' %}" class="btn" style="margin-right: 15px; background: #007bff; color: white;">
-                <i class="fas fa-stethoscope"></i> 临床推理学习
+            <a href="{% url 'clinical_case_list' %}" class="btn" style="background: #007bff; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none;">
+                <i class="fas fa-stethoscope"></i> 开始临床推理学习
             </a>
-            <a href="{% url 'student_case_list' %}" class="btn secondary" style="margin-right: 15px;">传统病例学习</a>
-            <a href="{% url 'student_mock_exam_list' %}" class="btn secondary" style="margin-right: 15px;">模拟考试</a>
-            <a href="{% url 'student_exercise_list' %}" class="btn secondary">练习题目</a>
         </div>
     </div>
 </div>
 
-{% if recent_exams %}
+{% if recent_sessions %}
 <div class="card">
     <div class="card-header">
-        <h3>最近的考试记录</h3>
+        <h3>最近的学习记录</h3>
     </div>
     <div class="card-body">
         <table class="table">
             <thead>
                 <tr>
-                    <th>考试类型</th>
-                    <th>得分</th>
-                    <th>题目数</th>
-                    <th>正确率</th>
-                    <th>考试时间</th>
+                    <th>病例名称</th>
+                    <th>学习状态</th>
+                    <th>开始时间</th>
+                    <th>完成时间</th>
                 </tr>
             </thead>
             <tbody>
-                {% for exam in recent_exams %}
+                {% for session in recent_sessions %}
                 <tr>
-                    <td>{{ exam.get_exam_type_display|default:"未知类型" }}</td>
-                    <td><strong>{{ exam.score|floatformat:1|default:"0.0" }}分</strong></td>
-                    <td>{{ exam.total_questions|default:0 }}</td>
-                    <td>{{ exam.correct_answers|default:0 }}/{{ exam.total_questions|default:0 }}</td>
-                    <td>{{ exam.created_at|date:"Y-m-d H:i"|default:"未知时间" }}</td>
+                    <td>{{ session.clinical_case.title }}</td>
+                    <td>
+                        {% if session.completed_at %}
+                            <span class="badge badge-success">已完成</span>
+                        {% else %}
+                            <span class="badge badge-warning">学习中</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ session.started_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        {% if session.completed_at %}
+                            {{ session.completed_at|date:"Y-m-d H:i" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% if recent_exams|length >= 5 %}
-        <div style="text-align: center; margin-top: 15px;">
-            <a href="{% url 'student_mock_exam_list' %}" class="btn secondary">查看更多考试记录</a>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% else %}
@@ -87,39 +89,42 @@
         <h3>开始你的学习之旅</h3>
     </div>
     <div class="card-body" style="text-align: center; padding: 40px 20px;">
-        <p style="color: #666; margin-bottom: 20px;">还没有考试记录，开始你的第一次模拟考试吧！</p>
-        <a href="{% url 'student_mock_exam_list' %}" class="btn">立即开始模拟考试</a>
+        <p style="color: #666; margin-bottom: 20px;">还没有学习记录，开始你的第一个临床推理病例吧！</p>
+        <a href="{% url 'clinical_case_list' %}" class="btn" style="background: #28a745; color: white;">立即开始学习</a>
     </div>
 </div>
 {% endif %}
 
 <script>
-// 动态设置进度条宽度
+// 动态设置进度条宽度和颜色
 document.addEventListener('DOMContentLoaded', function() {
     const progressBar = document.querySelector('.progress-bar');
     if (progressBar) {
-        const progress = progressBar.dataset.progress;
+        const progress = parseFloat(progressBar.dataset.progress) || 0;
+        
         // 延迟设置宽度以创建动画效果
         setTimeout(() => {
             progressBar.style.width = progress + '%';
+            
+            // 根据进度设置颜色
+            if (progress >= 100) {
+                progressBar.style.background = '#28a745'; // 绿色 - 完成
+            } else if (progress >= 80) {
+                progressBar.style.background = '#20c997'; // 青绿色 - 优秀
+            } else if (progress >= 60) {
+                progressBar.style.background = '#ffc107'; // 黄色 - 良好
+            } else if (progress >= 40) {
+                progressBar.style.background = '#fd7e14'; // 橙色 - 一般
+            } else {
+                progressBar.style.background = '#dc3545'; // 红色 - 需要努力
+            }
         }, 300);
         
-        // 添加颜色变化
-        const progressValue = parseFloat(progress);
-        if (progressValue >= 80) {
-            progressBar.style.background = '#28a745'; // 绿色
-        } else if (progressValue >= 60) {
-            progressBar.style.background = '#ffc107'; // 黄色
-        } else if (progressValue >= 40) {
-            progressBar.style.background = '#fd7e14'; // 橙色
-        }
-        // 默认红色 #b71c1c
-        
         // 添加完成度提示
-        if (progressValue >= 100) {
+        if (progress >= 100) {
             const congratsMsg = document.createElement('div');
-            congratsMsg.style.cssText = 'background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin: 10px 0; text-align: center;';
-            congratsMsg.innerHTML = '🎉 恭喜你完成了所有病例的学习！';
+            congratsMsg.style.cssText = 'background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin: 10px 0; text-align: center; border: 1px solid #c3e6cb;';
+            congratsMsg.innerHTML = '🎉 恭喜你完成了所有病例的学习！继续保持学习的热情！';
             progressBar.parentElement.after(congratsMsg);
         }
     }

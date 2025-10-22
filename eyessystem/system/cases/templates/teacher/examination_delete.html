@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}删除检查选项 - 眼科教学系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .delete-warning {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+        border-radius: 12px;
+        padding: 2rem;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(238, 90, 82, 0.3);
+    }
+    
+    .delete-warning i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    
+    .examination-info {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .examination-field {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .examination-field:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    
+    .field-label {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+    
+    .field-value {
+        color: #5a6c7d;
+        line-height: 1.6;
+    }
+    
+    .btn-group-center {
+        text-align: center;
+        margin-top: 2rem;
+    }
+    
+    .btn-danger-custom {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 50px;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-danger-custom:hover {
+        background: linear-gradient(135deg, #ee5a52, #e04848);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(238, 90, 82, 0.4);
+        color: white;
+    }
+    
+    .btn-secondary-custom {
+        background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 50px;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        margin-right: 1rem;
+    }
+    
+    .btn-secondary-custom:hover {
+        background: linear-gradient(135deg, #7f8c8d, #6c7b7d);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(127, 140, 141, 0.4);
+        color: white;
+    }
+    
+    .case-link {
+        color: #3498db;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    
+    .case-link:hover {
+        color: #2980b9;
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-trash-alt text-danger me-2"></i>删除检查选项</h2>
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-folder-medical me-1"></i>
+                        病例：<a href="{% url 'teacher_clinical_case_preview' case.case_id %}" class="case-link">{{ case.title }}</a>
+                    </p>
+                </div>
+                <div>
+                    <a href="{% url 'teacher_examination_options' case.case_id %}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left me-2"></i>返回检查选项
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- 删除警告 -->
+            <div class="delete-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>确认删除检查选项</h3>
+                <p class="mb-0">此操作无法撤销，请确认您要删除此检查选项</p>
+            </div>
+
+            <!-- 检查选项信息 -->
+            <div class="examination-info">
+                <h5 class="mb-3">
+                    <i class="fas fa-stethoscope text-primary me-2"></i>
+                    检查选项详情
+                </h5>
+                
+                <div class="examination-field">
+                    <div class="field-label">检查名称</div>
+                    <div class="field-value">{{ examination.name }}</div>
+                </div>
+
+                <div class="examination-field">
+                    <div class="field-label">检查类型</div>
+                    <div class="field-value">
+                        <span class="badge bg-info">{{ examination.get_exam_type_display }}</span>
+                    </div>
+                </div>
+
+                <div class="examination-field">
+                    <div class="field-label">检查描述</div>
+                    <div class="field-value">{{ examination.description|truncatewords:20 }}</div>
+                </div>
+
+                <div class="examination-field">
+                    <div class="field-label">检查结果</div>
+                    <div class="field-value">{{ examination.result|truncatewords:20 }}</div>
+                </div>
+
+                <div class="examination-field">
+                    <div class="field-label">临床意义</div>
+                    <div class="field-value">{{ examination.clinical_significance|truncatewords:20 }}</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="examination-field">
+                            <div class="field-label">费用</div>
+                            <div class="field-value">
+                                <i class="fas fa-yen-sign text-success"></i> {{ examination.cost }} 元
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="examination-field">
+                            <div class="field-label">风险等级</div>
+                            <div class="field-value">
+                                {% if examination.risk_level == 'low' %}
+                                    <span class="badge bg-success">{{ examination.get_risk_level_display }}</span>
+                                {% elif examination.risk_level == 'medium' %}
+                                    <span class="badge bg-warning">{{ examination.get_risk_level_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ examination.get_risk_level_display }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="examination-field">
+                            <div class="field-label">必要性</div>
+                            <div class="field-value">
+                                {% if examination.is_essential %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-star me-1"></i>必需检查
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-circle me-1"></i>可选检查
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 确认表单 -->
+            <form method="post">
+                {% csrf_token %}
+                <div class="btn-group-center">
+                    <a href="{% url 'teacher_examination_options' case.case_id %}" class="btn btn-secondary-custom">
+                        <i class="fas fa-times me-2"></i>取消
+                    </a>
+                    <button type="submit" class="btn btn-danger-custom" onclick="return confirm('确认删除此检查选项吗？此操作不可撤销！')">
+                        <i class="fas fa-trash-alt me-2"></i>确认删除
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // 页面加载动画
+    $('.delete-warning, .examination-info').addClass('animate__animated animate__fadeInUp');
+});
+</script>
+{% endblock %}

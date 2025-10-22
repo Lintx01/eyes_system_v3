@@ -1,0 +1,331 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_edit %}编辑治疗方案{% else %}创建治疗方案{% endif %} - {{ case.title }} - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2>{% if is_edit %}编辑治疗方案{% else %}创建治疗方案{% endif %}</h2>
+                    <p class="text-muted mb-0">病例：{{ case.title }}</p>
+                </div>
+                <a href="{% url 'teacher_treatment_options' case.case_id %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回治疗方案列表
+                </a>
+            </div>
+
+            {% if messages %}
+            <div class="row">
+                <div class="col-12">
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-prescription-bottle-alt"></i> 治疗方案信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <!-- 基本信息 -->
+                                <div class="form-group mb-3">
+                                    <label for="treatment_name" class="form-label required">治疗方案名称 *</label>
+                                    <input type="text" class="form-control" id="treatment_name" name="treatment_name" 
+                                           value="{% if treatment %}{{ treatment.treatment_name }}{% endif %}" 
+                                           required maxlength="200"
+                                           placeholder="例如：激光光凝治疗">
+                                    <div class="form-text">请输入准确的治疗方案名称</div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="treatment_type" class="form-label required">治疗类型 *</label>
+                                    <select class="form-control" id="treatment_type" name="treatment_type" required>
+                                        <option value="">请选择治疗类型</option>
+                                        {% for value, label in treatment_type_choices %}
+                                        <option value="{{ value }}" 
+                                                {% if treatment.treatment_type == value %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">选择合适的治疗类别</div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="description" class="form-label">治疗方案描述</label>
+                                    <textarea class="form-control" id="description" name="description" 
+                                              rows="4" placeholder="详细描述治疗方案的具体内容、步骤和注意事项">{% if treatment %}{{ treatment.treatment_description }}{% endif %}</textarea>
+                                    <div class="form-text">详细说明治疗方法和步骤</div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" id="is_optimal" name="is_optimal"
+                                                   {% if treatment.is_optimal %}checked{% endif %}>
+                                            <label for="is_optimal" class="form-check-label">
+                                                <strong>最佳治疗方案</strong>
+                                            </label>
+                                            <div class="form-text">标记为首选治疗</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" id="is_acceptable" name="is_acceptable"
+                                                   {% if treatment.is_acceptable %}checked{% endif %}>
+                                            <label for="is_acceptable" class="form-check-label">
+                                                <strong>可接受治疗</strong>
+                                            </label>
+                                            <div class="form-text">可以考虑的治疗</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <!-- 评分设置 -->
+                                <div class="form-group mb-3">
+                                    <label for="efficacy_score" class="form-label">疗效评分</label>
+                                    <select class="form-control" id="efficacy_score" name="efficacy_score">
+                                        {% for value, label in efficacy_score_choices %}
+                                        <option value="{{ value }}" 
+                                                {% if treatment.efficacy_score == value %}selected{% elif not treatment and value == 2 %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">治疗效果评估</div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="safety_score" class="form-label">安全性评分</label>
+                                    <select class="form-control" id="safety_score" name="safety_score">
+                                        {% for value, label in safety_score_choices %}
+                                        <option value="{{ value }}" 
+                                                {% if treatment.safety_score == value %}selected{% elif not treatment and value == 2 %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">治疗安全性评估</div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="cost_score" class="form-label">成本评分</label>
+                                    <select class="form-control" id="cost_score" name="cost_score">
+                                        {% for value, label in cost_score_choices %}
+                                        <option value="{{ value }}" 
+                                                {% if treatment.cost_score == value %}selected{% elif not treatment and value == 2 %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">治疗成本评估</div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="order" class="form-label">显示顺序</label>
+                                    <input type="number" class="form-control" id="order" name="order"
+                                           value="{% if treatment %}{{ treatment.display_order }}{% else %}0{% endif %}"
+                                           min="0" step="1">
+                                    <div class="form-text">数字越小显示越靠前</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 详细信息 -->
+                        <hr class="my-4">
+                        <h6 class="mb-3">
+                            <i class="fas fa-info-circle"></i> 治疗详情
+                        </h6>
+                        
+                        <div class="form-group mb-3">
+                            <label for="expected_outcome" class="form-label">预期疗效</label>
+                            <textarea class="form-control" id="expected_outcome" name="expected_outcome" 
+                                      rows="2" placeholder="描述治疗后的预期效果">{% if treatment %}{{ treatment.expected_outcome }}{% endif %}</textarea>
+                            <div class="form-text">说明治疗的预期结果</div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="potential_complications" class="form-label">潜在并发症</label>
+                            <textarea class="form-control" id="potential_complications" name="potential_complications" 
+                                      rows="2" placeholder="可能出现的并发症或副作用">{% if treatment %}{{ treatment.potential_complications }}{% endif %}</textarea>
+                            <div class="form-text">列出可能的风险和并发症</div>
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label for="selection_feedback" class="form-label">选择反馈</label>
+                            <textarea class="form-control" id="selection_feedback" name="selection_feedback" 
+                                      rows="3" placeholder="当学生选择此治疗方案时给出的教学指导">{% if treatment %}{{ treatment.selection_feedback }}{% endif %}</textarea>
+                            <div class="form-text">学生选择该治疗方案时显示的反馈内容</div>
+                        </div>
+                        
+                        <!-- 提交按钮 -->
+                        <div class="form-group text-center">
+                            {% if is_edit %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> 更新治疗方案
+                            </button>
+                            {% else %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> 创建治疗方案
+                            </button>
+                            {% endif %}
+                            <a href="{% url 'teacher_treatment_options' case.case_id %}" class="btn btn-outline-secondary btn-lg ms-3">
+                                <i class="fas fa-times"></i> 取消
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 帮助信息 -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-lightbulb"></i> 填写提示
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2">
+                                    <i class="fas fa-star text-warning me-2"></i>
+                                    <strong>最佳方案：</strong>标记首选治疗方法
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-chart-line text-info me-2"></i>
+                                    <strong>评分系统：</strong>客观评估疗效、安全性和成本
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                                    <strong>并发症：</strong>详细说明潜在风险
+                                </li>
+                                <li>
+                                    <i class="fas fa-graduation-cap text-secondary me-2"></i>
+                                    <strong>教学反馈：</strong>提供有价值的学习指导
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-eye"></i> 常见眼科治疗示例
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2">• 激光光凝治疗（药物治疗）</li>
+                                <li class="mb-2">• 玻璃体切除术（手术治疗）</li>
+                                <li class="mb-2">• 抗VEGF注射（药物治疗）</li>
+                                <li class="mb-2">• 定期随访观察（观察等待）</li>
+                                <li>• 转诊专科治疗（转诊）</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+
+.card-header h5,
+.card-header h6 {
+    color: white;
+}
+
+.required::after {
+    content: " *";
+    color: red;
+}
+
+.form-label {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.form-check-label {
+    font-weight: 500;
+}
+
+.btn-lg {
+    padding: 0.5rem 2rem;
+}
+</style>
+
+<script>
+// 表单交互增强
+document.addEventListener('DOMContentLoaded', function() {
+    const optimalCheckbox = document.getElementById('is_optimal');
+    const acceptableCheckbox = document.getElementById('is_acceptable');
+    
+    // 当标记为最佳治疗时，自动标记为可接受
+    optimalCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            acceptableCheckbox.checked = true;
+            acceptableCheckbox.style.borderColor = '#28a745';
+        }
+    });
+    
+    // 实时验证
+    const form = document.querySelector('form');
+    const requiredFields = form.querySelectorAll('[required]');
+    
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('请填写所有必填字段！');
+        }
+    });
+    
+    // 字段验证
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

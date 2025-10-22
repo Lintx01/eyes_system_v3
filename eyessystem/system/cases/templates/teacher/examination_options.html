@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+
+{% block title %}管理检查选项 - {{ case.title }} - 眼科教学系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .case-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 2rem;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+    }
+    
+    .case-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .case-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .case-meta {
+        display: flex;
+        gap: 1rem;
+        margin-top: 0.5rem;
+    }
+    
+    .case-badge {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+    }
+    
+    .examinations-container {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .section-header {
+        display: flex;
+        justify-content-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #eee;
+    }
+    
+    .exam-type-group {
+        margin-bottom: 2rem;
+    }
+    
+    .exam-type-header {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border-left: 4px solid #3498db;
+    }
+    
+    .exam-type-title {
+        font-weight: 600;
+        color: #2c3e50;
+        margin: 0;
+        font-size: 1.1rem;
+    }
+    
+    .exam-card {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .exam-card:hover {
+        border-color: #3498db;
+        box-shadow: 0 4px 15px rgba(52, 152, 219, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .exam-header {
+        display: flex;
+        justify-content-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+    
+    .exam-name {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    
+    .exam-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .exam-content {
+        color: #5a6c7d;
+        line-height: 1.6;
+    }
+    
+    .exam-description {
+        margin-bottom: 1rem;
+        font-size: 0.95rem;
+    }
+    
+    .exam-meta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #eee;
+    }
+    
+    .meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .meta-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .meta-value {
+        font-size: 0.9rem;
+        color: #2c3e50;
+        font-weight: 600;
+    }
+    
+    .badge-essential {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .badge-optional {
+        background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .badge-risk {
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .badge-risk-low {
+        background: linear-gradient(135deg, #27ae60, #229954);
+    }
+    
+    .badge-risk-medium {
+        background: linear-gradient(135deg, #f39c12, #e67e22);
+    }
+    
+    .badge-risk-high {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6c757d;
+    }
+    
+    .empty-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        color: #dee2e6;
+    }
+    
+    .btn-primary-custom {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        color: white;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary-custom:hover {
+        background: linear-gradient(135deg, #2980b9, #21618c);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        color: white;
+    }
+    
+    .btn-success-custom {
+        background: linear-gradient(135deg, #27ae60, #229954);
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        color: white;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-success-custom:hover {
+        background: linear-gradient(135deg, #229954, #1e8449);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+        color: white;
+    }
+    
+    .btn-sm-custom {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        border-radius: 4px;
+    }
+    
+    .cost-display {
+        color: #27ae60;
+        font-weight: 600;
+    }
+    
+    .order-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: linear-gradient(135deg, #9b59b6, #8e44ad);
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 病例信息头部 -->
+    <div class="case-header">
+        <div class="case-info">
+            <div>
+                <h2 class="case-title">
+                    <i class="fas fa-stethoscope me-2"></i>
+                    {{ case.title }}
+                </h2>
+                <div class="case-meta">
+                    <div class="case-badge">
+                        <i class="fas fa-chart-line me-1"></i>
+                        {{ case.get_difficulty_level_display }}
+                    </div>
+                    <div class="case-badge">
+                        <i class="fas fa-user-md me-1"></i>
+                        {{ case.patient_age }}岁 {% if case.patient_gender == 'M' %}男性{% else %}女性{% endif %}
+                    </div>
+                    <div class="case-badge">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        {{ case.created_at|date:"Y-m-d" }}
+                    </div>
+                </div>
+            </div>
+            <div>
+                <a href="{% url 'teacher_clinical_case_list' %}" class="btn btn-light">
+                    <i class="fas fa-arrow-left me-2"></i>返回病例列表
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 检查选项管理 -->
+    <div class="examinations-container">
+        <div class="section-header">
+            <h4 class="mb-0">
+                <i class="fas fa-list-ul text-primary me-2"></i>
+                检查选项管理
+                <span class="badge bg-primary ms-2">{{ examinations.count }} 个选项</span>
+            </h4>
+            <a href="{% url 'teacher_examination_create' case.case_id %}" class="btn btn-success-custom">
+                <i class="fas fa-plus me-2"></i>添加检查选项
+            </a>
+        </div>
+
+        {% if examinations %}
+            {% regroup examinations by examination_type as examinations_by_type %}
+            {% for exam_type_group in examinations_by_type %}
+                <div class="exam-type-group">
+                    <!-- 检查类型标题 -->
+                    <div class="exam-type-header">
+                        <h5 class="exam-type-title">
+                            <i class="fas fa-folder-open me-2"></i>
+                            {% if exam_type_group.grouper == 'basic' %}
+                                基础眼科检查
+                            {% elif exam_type_group.grouper == 'oct' %}
+                                OCT检查
+                            {% elif exam_type_group.grouper == 'fundus' %}
+                                眼底检查
+                            {% else %}
+                                {{ exam_type_group.grouper|capfirst }}
+                            {% endif %}
+                            <span class="badge bg-primary ms-2">已设置{{ exam_type_group.list|length }}项检查</span>
+                        </h5>
+                    </div>
+
+                    <!-- 该类型下的检查选项 -->
+                    {% for examination in exam_type_group.list %}
+                        <div class="exam-card">
+                            {% if examination.display_order %}
+                                <div class="order-badge">{{ examination.display_order }}</div>
+                            {% endif %}
+                            
+                            <div class="exam-header">
+                                <h6 class="exam-name">{{ examination.examination_name }}</h6>
+                                <div class="exam-actions">
+                                    <a href="{% url 'teacher_examination_edit' examination.id %}" 
+                                       class="btn btn-primary-custom btn-sm-custom" 
+                                       title="编辑">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'teacher_examination_delete' examination.id %}" 
+                                       class="btn btn-danger btn-sm-custom" 
+                                       title="删除"
+                                       onclick="return confirm('确认删除此检查选项吗？')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="exam-content">
+                                <div class="exam-description">
+                                    {{ examination.examination_description|truncatewords:30 }}
+                                </div>
+
+                                <div class="exam-meta">
+                                    <div class="meta-item">
+                                        <div class="meta-label">正常结果</div>
+                                        <div class="meta-value">{{ examination.normal_result|truncatewords:10 }}</div>
+                                    </div>
+                                    
+                                    <div class="meta-item">
+                                        <div class="meta-label">实际结果</div>
+                                        <div class="meta-value">{{ examination.actual_result|truncatewords:10 }}</div>
+                                    </div>
+                                    
+                                    <div class="meta-item">
+                                        <div class="meta-label">诊断价值</div>
+                                        <div class="meta-value">
+                                            {% if examination.diagnostic_value == 1 %}
+                                                <span class="badge-risk badge-risk-low">低</span>
+                                            {% elif examination.diagnostic_value == 2 %}
+                                                <span class="badge-risk badge-risk-medium">中</span>
+                                            {% else %}
+                                                <span class="badge-risk badge-risk-high">高</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="meta-item">
+                                        <div class="meta-label">成本效益</div>
+                                        <div class="meta-value">
+                                            {% if examination.cost_effectiveness == 1 %}
+                                                <span class="badge-risk badge-risk-low">低</span>
+                                            {% elif examination.cost_effectiveness == 2 %}
+                                                <span class="badge-risk badge-risk-medium">中</span>
+                                            {% else %}
+                                                <span class="badge-risk badge-risk-high">高</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="meta-item">
+                                        <div class="meta-label">必要性</div>
+                                        <div class="meta-value">
+                                            {% if examination.is_required %}
+                                                <span class="badge-essential">
+                                                    <i class="fas fa-star me-1"></i>必需
+                                                </span>
+                                            {% elif examination.is_recommended %}
+                                                <span class="badge-risk badge-risk-medium">
+                                                    <i class="fas fa-thumbs-up me-1"></i>推荐
+                                                </span>
+                                            {% else %}
+                                                <span class="badge-optional">
+                                                    <i class="fas fa-circle me-1"></i>可选
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    {% if examination.is_fundus_exam %}
+                                        <div class="meta-item">
+                                            <div class="meta-label">检查类型</div>
+                                            <div class="meta-value">
+                                                <span class="badge-risk badge-risk-high">
+                                                    <i class="fas fa-eye me-1"></i>眼底检查
+                                                </span>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <!-- 空状态 -->
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-stethoscope"></i>
+                </div>
+                <h5>暂无检查选项</h5>
+                <p class="text-muted">为这个病例添加一些检查选项，让学生能够进行临床推理学习。</p>
+                <a href="{% url 'teacher_examination_create' case.case_id %}" class="btn btn-success-custom">
+                    <i class="fas fa-plus me-2"></i>添加第一个检查选项
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-eye text-primary me-2"></i>
+                        预览病例
+                    </h6>
+                    <p class="card-text text-muted">查看病例的完整信息和学生视图</p>
+                    <a href="{% url 'teacher_clinical_case_preview' case.case_id %}" class="btn btn-primary-custom">
+                        <i class="fas fa-eye me-2"></i>预览
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-edit text-success me-2"></i>
+                        编辑病例
+                    </h6>
+                    <p class="card-text text-muted">修改病例的基本信息和教学配置</p>
+                    <a href="{% url 'teacher_clinical_case_edit' case.case_id %}" class="btn btn-success-custom">
+                        <i class="fas fa-edit me-2"></i>编辑
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // 页面加载动画
+    $('.case-header, .examinations-container').addClass('animate__animated animate__fadeInUp');
+    
+    // 卡片悬停效果增强
+    $('.exam-card').on('mouseenter', function() {
+        $(this).find('.exam-actions').addClass('animate__animated animate__fadeIn');
+    });
+    
+    // 删除确认
+    $('a[href*="delete"]').on('click', function(e) {
+        e.preventDefault();
+        const url = $(this).attr('href');
+        const examName = $(this).closest('.exam-card').find('.exam-name').text().trim();
+        
+        Swal.fire({
+            title: '确认删除？',
+            text: `您确定要删除检查选项 "${examName}" 吗？此操作无法撤销！`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e74c3c',
+            cancelButtonColor: '#95a5a6',
+            confirmButtonText: '确认删除',
+            cancelButtonText: '取消'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = url;
+            }
+        });
+    });
+    
+    // 工具提示
+    $('[title]').tooltip();
+});
+</script>
+{% endblock %}

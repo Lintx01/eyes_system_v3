@@ -433,6 +433,22 @@ class ExaminationOption(models.Model):
         verbose_name="眼底检查提示文字"
     )
     
+    # 基础眼科检查特殊字段
+    left_eye_vision = models.CharField(max_length=10, blank=True, verbose_name="左眼视力", 
+                                     help_text="如：0.8, 1.0")
+    right_eye_vision = models.CharField(max_length=10, blank=True, verbose_name="右眼视力",
+                                      help_text="如：0.8, 1.0")
+    left_eye_pressure = models.DecimalField(max_digits=4, decimal_places=1, blank=True, null=True, 
+                                          verbose_name="左眼眼压 (mmHg)", help_text="正常范围：10-21")
+    right_eye_pressure = models.DecimalField(max_digits=4, decimal_places=1, blank=True, null=True,
+                                           verbose_name="右眼眼压 (mmHg)", help_text="正常范围：10-21")
+    
+    # 影像检查图片（OCT和眼底照相）
+    left_eye_image = models.ImageField(upload_to='examination_images/', blank=True, null=True,
+                                     verbose_name="左眼检查图片", help_text="OCT或眼底照相的左眼图片")
+    right_eye_image = models.ImageField(upload_to='examination_images/', blank=True, null=True,
+                                      verbose_name="右眼检查图片", help_text="OCT或眼底照相的右眼图片")
+    
     is_recommended = models.BooleanField(default=False, verbose_name="是否推荐检查")
     display_order = models.IntegerField(default=0, verbose_name="显示顺序")
     
@@ -627,9 +643,9 @@ class StudentClinicalSession(models.Model):
     def calculate_overall_score(self):
         """计算总体得分"""
         weights = {
-            'examination': 0.3,
-            'diagnosis': 0.4,
-            'treatment': 0.3
+            'examination': 0.3,  # 30%
+            'diagnosis': 0.5,    # 50% (修正：原来是0.4)
+            'treatment': 0.2     # 20% (修正：原来是0.3)
         }
         self.overall_score = (
             self.examination_score * weights['examination'] +

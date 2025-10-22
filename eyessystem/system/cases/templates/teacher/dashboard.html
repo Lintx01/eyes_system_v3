@@ -12,62 +12,70 @@
     <div class="card-body">
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-number">{{ total_cases }}</div>
-                <div class="stat-label">病例总数</div>
+                <div class="stat-number">{{ total_clinical_cases }}</div>
+                <div class="stat-label">临床病例总数</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ active_cases }}</div>
+                <div class="stat-number">{{ active_clinical_cases }}</div>
                 <div class="stat-label">启用病例</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ total_exercises }}</div>
-                <div class="stat-label">练习题目</div>
+                <div class="stat-number">{{ total_examinations }}</div>
+                <div class="stat-label">检查选项</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ total_students }}</div>
                 <div class="stat-label">学生人数</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ avg_progress }}%</div>
-                <div class="stat-label">平均进度</div>
+                <div class="stat-number">{{ total_sessions }}</div>
+                <div class="stat-label">学习会话</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ completion_rate }}%</div>
+                <div class="stat-label">完成率</div>
             </div>
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{% url 'teacher_case_create' %}" class="btn" style="margin-right: 15px;">创建新病例</a>
-            <a href="{% url 'teacher_case_list' %}" class="btn secondary" style="margin-right: 15px;">管理病例</a>
-            <a href="{% url 'teacher_student_progress_list' %}" class="btn secondary" style="margin-right: 15px;">查看学生进度</a>
-            <a href="{% url 'teacher_exam_list' %}" class="btn secondary">考试管理</a>
+            <a href="{% url 'teacher_clinical_case_create' %}" class="btn" style="margin-right: 15px;">创建临床推理病例</a>
+            <a href="{% url 'teacher_clinical_case_list' %}" class="btn secondary" style="margin-right: 15px;">管理临床推理病例</a>
         </div>
     </div>
 </div>
 
-{% if recent_exams %}
+{% if recent_sessions %}
 <div class="card">
     <div class="card-header">
-        <h3>最近的学生活动</h3>
+        <h3>最近的学习活动</h3>
     </div>
     <div class="card-body">
         <table class="table">
             <thead>
                 <tr>
                     <th>学生</th>
-                    <th>考试类型</th>
-                    <th>得分</th>
-                    <th>题目数</th>
-                    <th>用时</th>
-                    <th>考试时间</th>
+                    <th>临床病例</th>
+                    <th>学习状态</th>
+                    <th>总分</th>
+                    <th>开始时间</th>
+                    <th>最后活动</th>
                 </tr>
             </thead>
             <tbody>
-                {% for exam in recent_exams %}
+                {% for session in recent_sessions %}
                 <tr>
-                    <td>{{ exam.user.get_full_name|default:exam.user.username }}</td>
-                    <td>{{ exam.get_exam_type_display }}</td>
-                    <td><strong>{{ exam.score|floatformat:1 }}分</strong></td>
-                    <td>{{ exam.total_questions }}</td>
-                    <td>{{ exam.time_spent }}分钟</td>
-                    <td>{{ exam.exam_time|date:"m-d H:i" }}</td>
+                    <td>{{ session.student.get_full_name|default:session.student.username }}</td>
+                    <td>{{ session.clinical_case.title }}</td>
+                    <td>{{ session.get_session_status_display|default:session.session_status }}</td>
+                    <td>
+                        {% if session.overall_score %}
+                            <strong>{{ session.overall_score|floatformat:1 }}分</strong>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ session.started_at|date:"m-d H:i" }}</td>
+                    <td>{{ session.last_activity|date:"m-d H:i"|default:"-" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

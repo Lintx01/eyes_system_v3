@@ -277,13 +277,11 @@
             <nav class="nav-links">
                 {% if user.groups.all.0.name == 'Teachers' or user.is_superuser %}
                     <a href="{% url 'teacher_dashboard' %}">仪表板</a>
-                    <a href="{% url 'teacher_case_list' %}">病例管理</a>
-                    <a href="{% url 'teacher_student_progress_list' %}">学生进度</a>
                     <a href="/admin/">系统管理</a>
                 {% else %}
                     <a href="{% url 'student_dashboard' %}">我的学习</a>
                     <a href="{% url 'clinical_case_list' %}">临床推理学习</a>
-                    <a href="{% url 'student_case_list' %}">病例学习</a>
+                    <a href="{% url 'clinical_case_list' %}">病例学习</a>
                 {% endif %}
             </nav>
             <div class="user-info">

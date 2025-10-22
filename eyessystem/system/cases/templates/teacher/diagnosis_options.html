@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+
+{% block title %}诊断选项管理 - {{ case.title }} - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="h2 mb-2 fw-bold">诊断选项管理</h1>
+                    <p class="text-muted mb-0 fs-6">病例：<span class="fw-medium">{{ case.title }}</span></p>
+                </div>
+                <div>
+                    <a href="{% url 'teacher_diagnosis_create' case.case_id %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> 添加诊断选项
+                    </a>
+                    <a href="{% url 'teacher_clinical_case_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回病例列表
+                    </a>
+                </div>
+            </div>
+
+            {% if messages %}
+            <div class="row">
+                <div class="col-12">
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0 fw-semibold">
+                        <i class="fas fa-stethoscope me-2"></i>诊断选项列表
+                        <span class="badge bg-light text-dark ms-2 fw-normal">{{ diagnosis_options|length }} 个选项</span>
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if diagnosis_options %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>排序</th>
+                                    <th>诊断名称</th>
+                                    <th>ICD编码</th>
+                                    <th>正确诊断</th>
+                                    <th>可能性</th>
+                                    <th>支持证据</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for diagnosis in diagnosis_options %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ diagnosis.display_order }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ diagnosis.diagnosis_name }}</strong>
+                                        {% if diagnosis.is_correct_diagnosis %}
+                                        <span class="badge bg-success ms-2">
+                                            <i class="fas fa-check"></i> 正确
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if diagnosis.diagnosis_code %}
+                                        <code>{{ diagnosis.diagnosis_code }}</code>
+                                        {% else %}
+                                        <span class="text-muted">未设置</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if diagnosis.is_correct_diagnosis %}
+                                        <span class="text-success">
+                                            <i class="fas fa-check-circle"></i> 是
+                                        </span>
+                                        {% else %}
+                                        <span class="text-muted">
+                                            <i class="fas fa-times-circle"></i> 否
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% with probability_percent=diagnosis.probability_score|floatformat:2 %}
+                                        <div class="progress" style="width: 80px; height: 20px;">
+                                            <div class="progress-bar 
+                                                {% if diagnosis.probability_score >= 0.8 %}bg-success
+                                                {% elif diagnosis.probability_score >= 0.6 %}bg-warning
+                                                {% else %}bg-danger{% endif %}"
+                                                role="progressbar" 
+                                                style="width: {% widthratio diagnosis.probability_score 1 100 %}%"
+                                                aria-valuenow="{% widthratio diagnosis.probability_score 1 100 %}" 
+                                                aria-valuemin="0" 
+                                                aria-valuemax="100">
+                                                {% widthratio diagnosis.probability_score 1 100 %}%
+                                            </div>
+                                        </div>
+                                        {% endwith %}
+                                    </td>
+                                    <td>
+                                        <small class="text-truncate" style="max-width: 200px; display: inline-block;">
+                                            {{ diagnosis.supporting_evidence|truncatewords:10 }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'teacher_diagnosis_edit' diagnosis.id %}" 
+                                               class="btn btn-sm btn-outline-primary" title="编辑">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'teacher_diagnosis_delete' diagnosis.id %}" 
+                                               class="btn btn-sm btn-outline-danger" 
+                                               title="删除"
+                                               onclick="return confirm('确定删除诊断选项「{{ diagnosis.diagnosis_name }}」吗？')">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="d-flex align-items-center justify-content-center py-5">
+                        <i class="fas fa-stethoscope fa-2x text-muted me-3"></i>
+                        <span class="h5 text-muted fw-bold mb-0">暂无诊断选项</span>
+                        <span class="text-secondary fs-6 ms-2">（请点击上方"添加诊断选项"按钮来创建第一个诊断选项）</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if diagnosis_options %}
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-chart-pie"></i> 诊断分布统计
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="text-primary">
+                                        <h3 class="mb-1 font-weight-bold">{{ diagnosis_options|length|add:0 }}</h3>
+                                        <span class="text-muted small">总选项数</span>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-success">
+                                        <h3 class="mb-1 font-weight-bold">
+                                            {% regroup diagnosis_options by is_correct_diagnosis as correct_groups %}
+                                            {% for group in correct_groups %}
+                                                {% if group.grouper %}{{ group.list|length }}{% endif %}
+                                            {% empty %}0{% endfor %}
+                                        </h3>
+                                        <span class="text-muted small">正确诊断</span>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-info">
+                                        <h3 class="mb-1 font-weight-bold">
+                                            {% regroup diagnosis_options by is_correct_diagnosis as correct_groups %}
+                                            {% for group in correct_groups %}
+                                                {% if not group.grouper %}{{ group.list|length }}{% endif %}
+                                            {% empty %}0{% endfor %}
+                                        </h3>
+                                        <span class="text-muted small">鉴别诊断</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-lightbulb"></i> 教学提示
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-3">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    <span class="fw-medium">确保至少有一个正确诊断</span>
+                                </li>
+                                <li class="mb-3">
+                                    <i class="fas fa-balance-scale text-info me-2"></i>
+                                    <span class="fw-medium">设置合理的鉴别诊断</span>
+                                </li>
+                                <li class="mb-3">
+                                    <i class="fas fa-comments text-warning me-2"></i>
+                                    <span class="fw-medium">提供详细的教学反馈</span>
+                                </li>
+                                <li>
+                                    <i class="fas fa-sort-numeric-down text-secondary me-2"></i>
+                                    <span class="fw-medium">调整显示顺序优化学习体验</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+
+.card-header h4,
+.card-header h5,
+.card-header h6 {
+    color: white;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    background-color: #f8f9fa;
+    font-size: 0.9rem;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.btn-group .btn {
+    margin: 0 1px;
+}
+
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fw-semibold {
+    font-weight: 600;
+}
+
+.fw-medium {
+    font-weight: 500;
+}
+
+.fs-6 {
+    font-size: 0.875rem;
+}
+</style>
+
+<script>
+// 表格交互增强
+document.addEventListener('DOMContentLoaded', function() {
+    // 表格行悬停效果
+    const tableRows = document.querySelectorAll('tbody tr');
+    tableRows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#f8f9fa';
+        });
+        row.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '';
+        });
+    });
+});
+</script>
+{% endblock %}

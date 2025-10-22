@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_edit %}编辑诊断选项{% else %}创建诊断选项{% endif %} - {{ case.title }} - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2>{% if is_edit %}编辑诊断选项{% else %}创建诊断选项{% endif %}</h2>
+                    <p class="text-muted mb-0">病例：{{ case.title }}</p>
+                </div>
+                <a href="{% url 'teacher_diagnosis_options' case.case_id %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回诊断选项列表
+                </a>
+            </div>
+
+            {% if messages %}
+            <div class="row">
+                <div class="col-12">
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-stethoscope"></i> 诊断选项信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <!-- 基本信息 -->
+                                <div class="form-group mb-3">
+                                    <label for="diagnosis_name" class="form-label required">诊断名称 *</label>
+                                    <input type="text" class="form-control" id="diagnosis_name" name="diagnosis_name" 
+                                           value="{% if diagnosis %}{{ diagnosis.diagnosis_name }}{% endif %}" 
+                                           required maxlength="200"
+                                           placeholder="例如：糖尿病视网膜病变">
+                                    <div class="form-text">请输入准确的医学诊断名称</div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="icd_code" class="form-label">ICD编码</label>
+                                    <input type="text" class="form-control" id="icd_code" name="icd_code"
+                                           value="{% if diagnosis %}{{ diagnosis.diagnosis_code }}{% endif %}"
+                                           maxlength="20"
+                                           placeholder="例如：E11.3">
+                                    <div class="form-text">国际疾病分类编码（可选）</div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" id="is_correct" name="is_correct"
+                                                   {% if diagnosis.is_correct_diagnosis %}checked{% endif %}>
+                                            <label for="is_correct" class="form-check-label">
+                                                <strong>这是正确诊断</strong>
+                                            </label>
+                                            <div class="form-text">标记为本病例的标准答案</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="probability" class="form-label">诊断可能性 (%)</label>
+                                        <input type="number" class="form-control" id="probability" name="probability"
+                                               value="{% if diagnosis %}{% widthratio diagnosis.probability_score 1 100 %}{% else %}50{% endif %}"
+                                               min="0" max="100" step="5"
+                                               placeholder="50">
+                                        <div class="form-text">该诊断的可能性百分比</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <!-- 显示设置 -->
+                                <div class="form-group mb-3">
+                                    <label for="order" class="form-label">显示顺序</label>
+                                    <input type="number" class="form-control" id="order" name="order"
+                                           value="{% if diagnosis %}{{ diagnosis.display_order }}{% else %}0{% endif %}"
+                                           min="0" step="1">
+                                    <div class="form-text">数字越小显示越靠前</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 详细信息 -->
+                        <hr class="my-4">
+                        <h6 class="mb-3">
+                            <i class="fas fa-info-circle"></i> 教学内容
+                        </h6>
+                        
+                        <div class="form-group mb-3">
+                            <label for="supporting_evidence" class="form-label">支持证据</label>
+                            <textarea class="form-control" id="supporting_evidence" name="supporting_evidence" 
+                                      rows="3" placeholder="描述支持该诊断的临床表现、检查结果等">{% if diagnosis %}{{ diagnosis.supporting_evidence }}{% endif %}</textarea>
+                            <div class="form-text">列出支持该诊断的所有证据</div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="contradicting_evidence" class="form-label">反对证据</label>
+                            <textarea class="form-control" id="contradicting_evidence" name="contradicting_evidence" 
+                                      rows="2" placeholder="不支持该诊断的证据（可选）">{% if diagnosis %}{{ diagnosis.contradicting_evidence }}{% endif %}</textarea>
+                            <div class="form-text">列出不支持该诊断的证据（用于教学鉴别）</div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="educational_feedback" class="form-label">教学反馈</label>
+                            <textarea class="form-control" id="educational_feedback" name="educational_feedback" 
+                                      rows="3" placeholder="当学生选择此诊断时给出的教学指导">{% if diagnosis %}{{ diagnosis.educational_feedback }}{% endif %}</textarea>
+                            <div class="form-text">学生选择该诊断时显示的反馈内容</div>
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label for="differential_points" class="form-label">鉴别要点</label>
+                            <textarea class="form-control" id="differential_points" name="differential_points" 
+                                      rows="3" placeholder="与其他疾病的鉴别要点">{% if diagnosis %}{{ diagnosis.differential_points }}{% endif %}</textarea>
+                            <div class="form-text">说明如何与其他相似疾病进行鉴别</div>
+                        </div>
+                        
+                        <!-- 提交按钮 -->
+                        <div class="form-group text-center">
+                            {% if is_edit %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> 更新诊断选项
+                            </button>
+                            {% else %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> 创建诊断选项
+                            </button>
+                            {% endif %}
+                            <a href="{% url 'teacher_diagnosis_options' case.case_id %}" class="btn btn-outline-secondary btn-lg ms-3">
+                                <i class="fas fa-times"></i> 取消
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 帮助信息 -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-lightbulb"></i> 填写提示
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    <strong>诊断名称：</strong>使用标准医学术语
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-percentage text-info me-2"></i>
+                                    <strong>可能性：</strong>正确诊断建议80%以上
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-clipboard-list text-warning me-2"></i>
+                                    <strong>支持证据：</strong>详细列出临床依据
+                                </li>
+                                <li>
+                                    <i class="fas fa-graduation-cap text-secondary me-2"></i>
+                                    <strong>教学反馈：</strong>提供有价值的学习指导
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-eye"></i> 常见眼科诊断示例
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2">• 糖尿病视网膜病变 (E11.3)</li>
+                                <li class="mb-2">• 高血压视网膜病变 (H35.0)</li>
+                                <li class="mb-2">• 视网膜静脉阻塞 (H34.8)</li>
+                                <li class="mb-2">• Valsalva视网膜病变 (H35.6)</li>
+                                <li>• 外伤性视网膜病变 (S05.2)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    background-color: #007bff;
+    color: white;
+}
+
+.card-header h5,
+.card-header h6 {
+    color: white;
+}
+
+.required::after {
+    content: " *";
+    color: red;
+}
+
+.form-label {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.form-check-label {
+    font-weight: 500;
+}
+
+.btn-lg {
+    padding: 0.5rem 2rem;
+}
+</style>
+
+<script>
+// 表单交互增强
+document.addEventListener('DOMContentLoaded', function() {
+    const correctCheckbox = document.getElementById('is_correct');
+    const probabilityInput = document.getElementById('probability');
+    
+    // 当标记为正确诊断时，自动调整可能性
+    correctCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            if (parseInt(probabilityInput.value) < 80) {
+                probabilityInput.value = 95;
+            }
+            probabilityInput.style.borderColor = '#28a745';
+        } else {
+            if (parseInt(probabilityInput.value) >= 80) {
+                probabilityInput.value = 50;
+            }
+            probabilityInput.style.borderColor = '';
+        }
+    });
+    
+    // 实时验证
+    const form = document.querySelector('form');
+    const requiredFields = form.querySelectorAll('[required]');
+    
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('请填写所有必填字段！');
+        }
+    });
+    
+    // 字段验证
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

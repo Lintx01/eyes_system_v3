@@ -251,7 +251,7 @@
                 <i style="margin-right: 5px;">⬅️</i>返回病例
             </a>
             
-            <a href="{% url 'student_case_list' %}" class="btn">
+            <a href="{% url 'clinical_case_list' %}" class="btn">
                 <i style="margin-right: 5px;">📚</i>继续学习
             </a>
             
@@ -305,7 +305,7 @@ document.addEventListener('keydown', function(e) {
             break;
         case 'Enter':
             // Enter键继续学习
-            window.location.href = "{% url 'student_case_list' %}";
+            window.location.href = "{% url 'clinical_case_list' %}";
             break;
     }
 });

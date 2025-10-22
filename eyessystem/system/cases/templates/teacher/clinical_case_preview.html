@@ -1,0 +1,405 @@
+{% extends 'base.html' %}
+
+{% block title %}预览临床推理病例 - {{ case.title }} - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>
+                    <i class="fas fa-eye"></i> 预览病例：{{ case.title }}
+                </h2>
+                <div>
+                    <a href="{% url 'teacher_clinical_case_edit' case.case_id %}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit"></i> 编辑病例
+                    </a>
+                    <a href="{% url 'teacher_clinical_case_list' %}" class="btn btn-secondary ml-2">
+                        <i class="fas fa-arrow-left"></i> 返回列表
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 病例信息卡片 -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-md"></i> 病例基本信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- 第一行：病例编号和标题 -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="info-item">
+                                <span class="info-label">病例编号：</span>
+                                <span class="info-value">{{ case.case_id }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-item">
+                                <span class="info-label">创建者：</span>
+                                <span class="info-value">{{ case.created_by.username }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-item">
+                                <span class="info-label">创建时间：</span>
+                                <span class="info-value">{{ case.created_at|date:"Y年n月j日 H:i" }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 第二行：患者信息和状态 -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="info-item">
+                                <span class="info-label">患者年龄：</span>
+                                <span class="info-value">{{ case.patient_age }} 岁</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-item">
+                                <span class="info-label">患者性别：</span>
+                                <span class="info-value">{% if case.patient_gender == 'M' %}男性{% else %}女性{% endif %}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-item">
+                                <span class="info-label">难度等级：</span>
+                                <span class="info-value">
+                                    <span class="badge {% if case.difficulty_level == 'beginner' %}badge-success{% elif case.difficulty_level == 'intermediate' %}badge-warning{% else %}badge-danger{% endif %}">
+                                        {{ case.get_difficulty_level_display }}
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-item">
+                                <span class="info-label">状态：</span>
+                                <span class="info-value">
+                                    {% if case.is_active %}
+                                        <span class="badge badge-success">启用</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">禁用</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 第三行：图片信息 -->
+                    {% if case.case_images %}
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="info-item">
+                                <span class="info-label">病例图片：</span>
+                                <span class="info-value">{{ case.case_images|length }} 张</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- 临床信息 -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-stethoscope"></i> 临床信息（主要内容）
+                    </h5>
+                </div>
+                <div class="card-body clinical-content">
+                    <div class="row">
+                        <div class="col-12">
+                            <h5 class="font-weight-bold text-info mb-3"><i class="fas fa-comment-medical"></i> 主诉</h5>
+                            <div class="clinical-section border-left border-info pl-4 mb-4">
+                                <p class="clinical-text">{{ case.chief_complaint }}</p>
+                            </div>
+                            
+                            <h5 class="font-weight-bold text-info mb-3"><i class="fas fa-history"></i> 现病史</h5>
+                            <div class="clinical-section border-left border-info pl-4 mb-4">
+                                <p class="clinical-text">{{ case.present_illness|linebreaksbr }}</p>
+                            </div>
+                            
+                            {% if case.past_history %}
+                            <h5 class="font-weight-bold text-info mb-3"><i class="fas fa-file-medical"></i> 既往史</h5>
+                            <div class="clinical-section border-left border-info pl-4 mb-4">
+                                <p class="clinical-text">{{ case.past_history|linebreaksbr }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if case.family_history %}
+                            <h5 class="font-weight-bold text-info mb-3"><i class="fas fa-users"></i> 家族史</h5>
+                            <div class="clinical-section border-left border-info pl-4 mb-4">
+                                <p class="clinical-text">{{ case.family_history|linebreaksbr }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 教学信息 -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-graduation-cap"></i> 教学信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- 左侧：学习目标和知识点 -->
+                        <div class="col-md-8">
+                            {% if case.learning_objectives %}
+                            <h5 class="font-weight-bold text-success mb-3"><i class="fas fa-bullseye"></i> 学生应掌握的知识点</h5>
+                            <div class="border-left border-success pl-4 mb-4">
+                                <div class="knowledge-points">
+                                    {% for objective in case.learning_objectives %}
+                                    <div class="knowledge-item mb-2">
+                                        <i class="fas fa-check-circle text-success mr-2"></i>
+                                        <span class="knowledge-text">{{ objective }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% else %}
+                            <h5 class="font-weight-bold text-success mb-3"><i class="fas fa-bullseye"></i> 学生应掌握的知识点</h5>
+                            <div class="border-left border-success pl-4 mb-4">
+                                <p class="text-muted">暂未设置具体的学习目标</p>
+                            </div>
+                            {% endif %}
+                            
+                            <h5 class="font-weight-bold text-success mb-3"><i class="fas fa-book"></i> 参考资料</h5>
+                            <div class="border-left border-success pl-4 mb-4">
+                                <div class="reference-materials">
+                                    <div class="reference-item mb-2">
+                                        <i class="fas fa-book-open text-success mr-2"></i>
+                                        <span class="reference-text">眼科学第九版 - 临床医学系列教材</span>
+                                    </div>
+                                    <div class="reference-item mb-2">
+                                        <i class="fas fa-globe text-success mr-2"></i>
+                                        <span class="reference-text">中华医学会眼科学分会诊疗规范</span>
+                                    </div>
+                                    <div class="reference-item mb-2">
+                                        <i class="fas fa-file-alt text-success mr-2"></i>
+                                        <span class="reference-text">
+                                            {% if case.difficulty_level == 'beginner' %}
+                                                基础眼科诊断学 - 适合初学者
+                                            {% elif case.difficulty_level == 'intermediate' %}
+                                                临床眼科学案例分析 - 中级教程
+                                            {% else %}
+                                                高级眼科疾病诊疗指南 - 专业进阶
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 右侧：难度分析和推荐时间 -->
+                        <div class="col-md-4">
+                            <h5 class="font-weight-bold text-success mb-3"><i class="fas fa-chart-line"></i> 难度分析</h5>
+                            <div class="difficulty-analysis mb-4">
+                                <div class="progress mb-2" style="height: 30px;">
+                                    {% if case.difficulty_level == 'beginner' %}
+                                    <div class="progress-bar bg-success" style="width: 33%">
+                                        <strong>初级 (33%)</strong>
+                                    </div>
+                                    {% elif case.difficulty_level == 'intermediate' %}
+                                    <div class="progress-bar bg-warning" style="width: 66%">
+                                        <strong>中级 (66%)</strong>
+                                    </div>
+                                    {% else %}
+                                    <div class="progress-bar bg-danger" style="width: 100%">
+                                        <strong>高级 (100%)</strong>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">
+                                    {% if case.difficulty_level == 'beginner' %}
+                                        适合眼科初学者和医学生
+                                    {% elif case.difficulty_level == 'intermediate' %}
+                                        适合有一定基础的医学生和住院医师
+                                    {% else %}
+                                        适合高年资医师和专科进修
+                                    {% endif %}
+                                </small>
+                            </div>
+                            
+                            <h5 class="font-weight-bold text-success mb-3"><i class="fas fa-clock"></i> 推荐学习时间</h5>
+                            <div class="time-recommendation">
+                                <div class="alert alert-info text-center">
+                                    <h4 class="mb-1">
+                                        {% if case.difficulty_level == 'beginner' %}
+                                            30-45 分钟
+                                        {% elif case.difficulty_level == 'intermediate' %}
+                                            45-60 分钟
+                                        {% else %}
+                                            60-90 分钟
+                                        {% endif %}
+                                    </h4>
+                                    <small>包括阅读、分析和总结时间</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 病例图片 -->
+            {% if case.case_images %}
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-images"></i> 病例图片
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for image in case.case_images %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card">
+                                <img src="/{{ image }}" class="card-img-top" alt="病例图片" style="height: 200px; object-fit: cover;" data-toggle="modal" data-target="#imageModal{{ forloop.counter }}">
+                                <div class="card-footer text-center">
+                                    <small class="text-muted">图片 {{ forloop.counter }}</small>
+                                </div>
+                            </div>
+                            
+                            <!-- 图片模态框 -->
+                            <div class="modal fade" id="imageModal{{ forloop.counter }}" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">病例图片 {{ forloop.counter }}</h5>
+                                            <button type="button" class="close" data-dismiss="modal">
+                                                <span>&times;</span>
+                                            </button>
+                                        </div>
+                                        <div class="modal-body text-center">
+                                            <img src="/{{ image }}" class="img-fluid" alt="病例图片">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- 操作按钮 -->
+            <div class="card">
+                <div class="card-body text-center">
+                    <a href="{% url 'teacher_clinical_case_edit' case.case_id %}" class="btn btn-primary btn-lg mr-3">
+                        <i class="fas fa-edit"></i> 编辑病例
+                    </a>
+                    <a href="{% url 'teacher_examination_options' case.case_id %}" class="btn btn-info btn-lg mr-3">
+                        <i class="fas fa-cogs"></i> 配置检查选项
+                    </a>
+                    <a href="{% url 'teacher_clinical_case_delete' case.case_id %}" class="btn btn-outline-danger btn-lg" onclick="return confirm('确定要删除此病例吗？')">
+                        <i class="fas fa-trash"></i> 删除病例
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.border-left {
+    border-left: 4px solid !important;
+}
+.card-img-top {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.card-img-top:hover {
+    transform: scale(1.05);
+}
+
+/* 基本信息样式 */
+.info-item {
+    margin-bottom: 8px;
+}
+.info-label {
+    font-weight: 600;
+    color: #495057;
+    display: inline-block;
+    min-width: 80px;
+}
+.info-value {
+    font-weight: 500;
+    color: #212529;
+}
+
+/* 临床信息样式 - 主要内容，字体更大 */
+.clinical-content {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+}
+.clinical-section {
+    background-color: white;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.clinical-text {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #212529;
+    font-weight: 500;
+    margin-bottom: 0;
+}
+
+/* 教学信息样式 */
+.knowledge-points .knowledge-item {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+}
+.knowledge-text {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #495057;
+}
+.reference-materials .reference-item {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+}
+.reference-text {
+    font-size: 0.95rem;
+    color: #495057;
+}
+.difficulty-analysis {
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    padding: 15px;
+}
+.time-recommendation {
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .info-item {
+        margin-bottom: 12px;
+    }
+    .info-label {
+        display: block;
+        margin-bottom: 4px;
+    }
+    .clinical-text {
+        font-size: 1rem;
+    }
+}
+</style>
+{% endblock %}

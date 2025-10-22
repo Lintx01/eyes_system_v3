@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if is_edit %}编辑检查选项{% else %}创建检查选项{% endif %} - 眼科教学系统
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .form-section {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 2px solid #eee;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    
+    .section-title {
+        color: #2c3e50;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 0.5rem;
+        color: #3498db;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+    
+    .required {
+        color: #e74c3c;
+    }
+    
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+    }
+    
+    .btn-primary-custom {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary-custom:hover {
+        background: linear-gradient(135deg, #20c997, #17a2b8);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+        color: white;
+    }
+    
+    .btn-secondary-custom {
+        background: #6c757d;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        margin-right: 1rem;
+    }
+    
+    .btn-secondary-custom:hover {
+        background: #5a6268;
+        transform: translateY(-2px);
+        color: white;
+    }
+    
+    .case-info {
+        background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #2196f3;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    
+    .basic-exam-fields {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        border: 1px dashed #dee2e6;
+    }
+    
+    .vision-field, .pressure-field {
+        margin-bottom: 0.75rem;
+    }
+    
+    .input-group-text {
+        background: #e9ecef;
+        border: 2px solid #e9ecef;
+        color: #495057;
+        font-weight: 500;
+    }
+    
+    .form-check {
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-check-input:checked {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    
+    .form-check-label {
+        margin-left: 0.25rem;
+    }
+    
+    .risk-level-high { color: #dc3545; }
+    .risk-level-medium { color: #ffc107; }
+    .risk-level-low { color: #28a745; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>
+                        <i class="{% if is_edit %}fas fa-edit{% else %}fas fa-plus{% endif %} text-primary me-2"></i>
+                        {% if is_edit %}编辑检查选项{% else %}创建检查选项{% endif %}
+                    </h2>
+                </div>
+                <div>
+                    <a href="{% url 'teacher_examination_options' case.case_id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>返回检查选项
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <form method="post" class="form-container">
+                {% csrf_token %}
+                
+                <!-- 病例信息 -->
+                <div class="case-info">
+                    <h5 class="mb-2">
+                        <i class="fas fa-folder-medical text-primary me-2"></i>
+                        所属病例
+                    </h5>
+                    <h6 class="mb-0">{{ case.title }}</h6>
+                    <small class="text-muted">{{ case.patient_age }}岁 {% if case.patient_gender == 'M' %}男性{% else %}女性{% endif %} · {{ case.get_difficulty_level_display }}</small>
+                </div>
+
+                <!-- 基本信息 -->
+                <div class="form-section">
+                    <h5 class="section-title">
+                        <i class="fas fa-stethoscope"></i>
+                        基本信息
+                    </h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examination_type" class="form-label">
+                                    检查类型 <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="examination_type" name="examination_type" required>
+                                    <option value="">请选择检查类型</option>
+                                    <option value="basic" {% if is_edit and examination.examination_type == 'basic' %}selected{% endif %}>基础眼科检查</option>
+                                    <option value="oct" {% if is_edit and examination.examination_type == 'oct' %}selected{% endif %}>OCT检查</option>
+                                    <option value="fundus" {% if is_edit and examination.examination_type == 'fundus' %}selected{% endif %}>眼底检查</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examination_name" class="form-label">
+                                    检查名称 <span class="required">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="examination_name" name="examination_name" 
+                                       value="{% if is_edit %}{{ examination.examination_name }}{% endif %}" 
+                                       maxlength="100" required placeholder="请选择检查类型后输入对应的检查名称">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="examination_description" class="form-label">
+                            检查描述 <span class="required">*</span>
+                        </label>
+                        <textarea class="form-control" id="examination_description" name="examination_description" 
+                                  rows="3" required placeholder="描述检查的操作过程、使用的设备和注意事项">{% if is_edit %}{{ examination.examination_description }}{% endif %}</textarea>
+                        <div class="help-text">详细说明如何进行此项检查</div>
+                    </div>
+                </div>
+
+                <!-- 检查结果 -->
+                <div class="form-section">
+                    <h5 class="section-title">
+                        <i class="fas fa-chart-line"></i>
+                        检查结果
+                    </h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="normal_result" class="form-label">
+                                    正常结果描述 <span class="required">*</span>
+                                </label>
+                                <textarea class="form-control" id="normal_result" name="normal_result" 
+                                          rows="4" required placeholder="描述该检查的正常结果表现">{% if is_edit %}{{ examination.normal_result }}{% endif %}</textarea>
+                                <div class="help-text">当检查结果正常时应显示的内容</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="actual_result" class="form-label">
+                                    实际检查结果 <span class="required">*</span>
+                                </label>
+                                <textarea class="form-control" id="actual_result" name="actual_result" 
+                                          rows="4" required placeholder="描述此病例中该检查的实际结果">{% if is_edit %}{{ examination.actual_result }}{% endif %}</textarea>
+                                <div class="help-text">该病例中实际的检查结果</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="abnormal_result" class="form-label">异常结果描述</label>
+                        <textarea class="form-control" id="abnormal_result" name="abnormal_result" 
+                                  rows="3" placeholder="如有异常，描述异常结果的表现和意义">{% if is_edit %}{{ examination.abnormal_result }}{% endif %}</textarea>
+                        <div class="help-text">描述可能的异常结果（可选）</div>
+                    </div>
+
+                    <!-- 基础眼科检查的特殊字段 -->
+                    <div id="basic-exam-fields" class="basic-exam-fields" style="display: none;">
+                        <h6><i class="fas fa-eye text-primary me-2"></i>基础眼科检查数值</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="vision-field">
+                                    <label for="left_eye_vision" class="form-label">左眼视力</label>
+                                    <input type="text" class="form-control" id="left_eye_vision" name="left_eye_vision" 
+                                           placeholder="如：0.8" value="{% if is_edit %}{{ examination.left_eye_vision }}{% endif %}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="vision-field">
+                                    <label for="right_eye_vision" class="form-label">右眼视力</label>
+                                    <input type="text" class="form-control" id="right_eye_vision" name="right_eye_vision" 
+                                           placeholder="如：1.0" value="{% if is_edit %}{{ examination.right_eye_vision }}{% endif %}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="pressure-field">
+                                    <label for="left_eye_pressure" class="form-label">左眼眼压</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="left_eye_pressure" name="left_eye_pressure" 
+                                               placeholder="15" min="0" max="50" step="0.1" value="{% if is_edit %}{{ examination.left_eye_pressure }}{% endif %}">
+                                        <span class="input-group-text">mmHg</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="pressure-field">
+                                    <label for="right_eye_pressure" class="form-label">右眼眼压</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="right_eye_pressure" name="right_eye_pressure" 
+                                               placeholder="16" min="0" max="50" step="0.1" value="{% if is_edit %}{{ examination.right_eye_pressure }}{% endif %}">
+                                        <span class="input-group-text">mmHg</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="help-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            正常眼压范围：10-21 mmHg，正常视力：≥0.8
+                        </div>
+                    </div>
+
+                    <!-- 影像检查的图片字段 -->
+                    <div id="imaging-exam-fields" class="basic-exam-fields" style="display: none;">
+                        <h6><i class="fas fa-images text-primary me-2"></i>检查影像</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="left_eye_image" class="form-label">左眼影像</label>
+                                    <input type="file" class="form-control" id="left_eye_image" name="left_eye_image" 
+                                           accept="image/*">
+                                    <div class="help-text">支持JPG、PNG格式，建议大小不超过5MB</div>
+                                    {% if is_edit and examination.left_eye_image %}
+                                        <div class="mt-2">
+                                            <img src="{{ examination.left_eye_image }}" class="img-thumbnail" style="max-width: 200px;">
+                                            <small class="d-block text-muted">当前左眼影像</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="right_eye_image" class="form-label">右眼影像</label>
+                                    <input type="file" class="form-control" id="right_eye_image" name="right_eye_image" 
+                                           accept="image/*">
+                                    <div class="help-text">支持JPG、PNG格式，建议大小不超过5MB</div>
+                                    {% if is_edit and examination.right_eye_image %}
+                                        <div class="mt-2">
+                                            <img src="{{ examination.right_eye_image }}" class="img-thumbnail" style="max-width: 200px;">
+                                            <small class="d-block text-muted">当前右眼影像</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="help-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            请上传清晰的检查影像，这些图片将在学生进行检查选择时显示
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 检查属性 -->
+                <div class="form-section">
+                    <h5 class="section-title">
+                        <i class="fas fa-cogs"></i>
+                        检查属性
+                    </h5>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="diagnostic_value" class="form-label">
+                                    诊断价值 <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="diagnostic_value" name="diagnostic_value" required>
+                                    <option value="">请选择</option>
+                                    <option value="1" {% if is_edit and examination.diagnostic_value == 1 %}selected{% endif %}>低</option>
+                                    <option value="2" {% if is_edit and examination.diagnostic_value == 2 %}selected{% endif %}>中</option>
+                                    <option value="3" {% if is_edit and examination.diagnostic_value == 3 %}selected{% endif %}>高</option>
+                                </select>
+                                <div class="help-text">该检查对确定诊断的重要程度</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="cost_effectiveness" class="form-label">
+                                    成本效益 <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="cost_effectiveness" name="cost_effectiveness" required>
+                                    <option value="">请选择</option>
+                                    <option value="1" {% if is_edit and examination.cost_effectiveness == 1 %}selected{% endif %}>低</option>
+                                    <option value="2" {% if is_edit and examination.cost_effectiveness == 2 %}selected{% endif %}>中</option>
+                                    <option value="3" {% if is_edit and examination.cost_effectiveness == 3 %}selected{% endif %}>高</option>
+                                </select>
+                                <div class="help-text">检查的经济效益评估</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="display_order" class="form-label">显示顺序</label>
+                                <input type="number" class="form-control" id="display_order" name="display_order" 
+                                       value="{% if is_edit %}{{ examination.display_order }}{% else %}0{% endif %}" 
+                                       min="0" max="999">
+                                <div class="help-text">数值越小越靠前显示</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">检查必要性</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_required" name="is_required" 
+                                       {% if is_edit and examination.is_required %}checked{% endif %}>
+                                <label class="form-check-label" for="is_required">
+                                    <strong>必需检查</strong>
+                                </label>
+                                <div class="help-text">必需检查项必须被选择才能进入下一步</div>
+                            </div>
+                            
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_recommended" name="is_recommended" 
+                                       {% if is_edit and examination.is_recommended %}checked{% endif %}>
+                                <label class="form-check-label" for="is_recommended">
+                                    <strong>推荐检查</strong>
+                                </label>
+                                <div class="help-text">推荐学生选择的检查项目</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_fundus_exam" name="is_fundus_exam" 
+                                       {% if is_edit and examination.is_fundus_exam %}checked{% endif %}>
+                                <label class="form-check-label" for="is_fundus_exam">
+                                    <strong>眼底检查</strong>
+                                </label>
+                                <div class="help-text">标记为眼底专科检查</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 提交按钮 -->
+                <div class="text-center">
+                    <a href="{% url 'teacher_examination_options' case.case_id %}" class="btn btn-secondary-custom">
+                        <i class="fas fa-times me-2"></i>取消
+                    </a>
+                    <button type="submit" class="btn btn-primary-custom">
+                        <i class="{% if is_edit %}fas fa-save{% else %}fas fa-plus{% endif %} me-2"></i>
+                        {% if is_edit %}更新检查选项{% else %}创建检查选项{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const examinationTypeSelect = document.getElementById('examination_type');
+    
+    // 根据检查类型显示/隐藏特殊字段并更新提示
+    function toggleBasicExamFields() {
+        const selectedType = examinationTypeSelect.value;
+        const examinationNameInput = document.getElementById('examination_name');
+        const basicExamFields = document.getElementById('basic-exam-fields');
+        const imagingExamFields = document.getElementById('imaging-exam-fields');
+        
+        // 更新检查名称的提示
+        let placeholder = '';
+        switch(selectedType) {
+            case 'basic':
+                placeholder = '如：视力检查、眼压测量、裂隙灯检查';
+                break;
+            case 'fundus':
+                placeholder = '如：眼底照相';
+                break;
+            case 'oct':
+                placeholder = '如：OCT黄斑扫描、前节OCT';
+                break;
+            default:
+                placeholder = '请选择检查类型后输入对应的检查名称';
+        }
+        examinationNameInput.placeholder = placeholder;
+        
+        // 隐藏所有特殊字段
+        basicExamFields.style.display = 'none';
+        imagingExamFields.style.display = 'none';
+        
+        // 移除所有特殊字段的必填要求
+        ['left_eye_vision', 'right_eye_vision', 'left_eye_pressure', 'right_eye_pressure'].forEach(id => {
+            const field = document.getElementById(id);
+            if (field) field.removeAttribute('required');
+        });
+        
+        // 根据检查类型显示对应字段
+        if (selectedType === 'basic') {
+            basicExamFields.style.display = 'block';
+            // 设置基础检查字段为必填
+            ['left_eye_vision', 'right_eye_vision', 'left_eye_pressure', 'right_eye_pressure'].forEach(id => {
+                const field = document.getElementById(id);
+                if (field) field.setAttribute('required', 'required');
+            });
+        } else if (selectedType === 'fundus' || selectedType === 'oct') {
+            imagingExamFields.style.display = 'block';
+            // 影像检查需要上传图片（可选，但推荐）
+        }
+    }
+    
+    // 监听检查类型变化
+    examinationTypeSelect.addEventListener('change', toggleBasicExamFields);
+    
+    // 页面加载时初始化
+    toggleBasicExamFields();
+    
+    // 表单验证
+    document.querySelector('form').addEventListener('submit', function(e) {
+        let isValid = true;
+        let firstError = null;
+        
+        // 清除之前的错误样式
+        document.querySelectorAll('.is-invalid').forEach(el => {
+            el.classList.remove('is-invalid');
+        });
+        
+        // 检查必填字段
+        const requiredFields = document.querySelectorAll('input[required], select[required], textarea[required]');
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                isValid = false;
+                field.classList.add('is-invalid');
+                if (!firstError) {
+                    firstError = field;
+                }
+            }
+        });
+        
+        // 检查眼压数值范围（如果是基础检查）
+        if (examinationTypeSelect.value === 'basic') {
+            ['left_eye_pressure', 'right_eye_pressure'].forEach(id => {
+                const field = document.getElementById(id);
+                if (field && field.value) {
+                    const pressure = parseFloat(field.value);
+                    if (pressure < 0 || pressure > 50) {
+                        isValid = false;
+                        field.classList.add('is-invalid');
+                        if (!firstError) firstError = field;
+                    }
+                }
+            });
+        }
+        
+        // 检查显示顺序范围
+        const displayOrder = document.getElementById('display_order');
+        if (displayOrder.value) {
+            const order = parseInt(displayOrder.value);
+            if (order < 0 || order > 999) {
+                isValid = false;
+                displayOrder.classList.add('is-invalid');
+                if (!firstError) firstError = displayOrder;
+            }
+        }
+        
+        if (!isValid) {
+            e.preventDefault();
+            if (firstError) {
+                firstError.focus();
+                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            // 显示错误消息
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: '表单验证失败',
+                    text: '请检查并完善必填字段，确保数值在有效范围内',
+                    confirmButtonColor: '#28a745'
+                });
+            } else {
+                alert('请检查并完善必填字段，确保数值在有效范围内');
+            }
+        }
+    });
+    
+    // 实时移除验证错误样式
+    document.querySelectorAll('input, select, textarea').forEach(field => {
+        field.addEventListener('input', function() {
+            this.classList.remove('is-invalid');
+        });
+        field.addEventListener('change', function() {
+            this.classList.remove('is-invalid');
+        });
+    });
+    
+    // 为基础检查字段提供实时验证提示
+    ['left_eye_pressure', 'right_eye_pressure'].forEach(id => {
+        const field = document.getElementById(id);
+        if (field) {
+            field.addEventListener('blur', function() {
+                if (this.value) {
+                    const pressure = parseFloat(this.value);
+                    if (pressure < 10 || pressure > 21) {
+                        this.style.borderColor = '#ffc107';
+                        this.title = '注意：正常眼压范围通常为10-21 mmHg';
+                    } else {
+                        this.style.borderColor = '#28a745';
+                        this.title = '眼压值在正常范围内';
+                    }
+                }
+            });
+        }
+    });
+    
+    // 视力字段格式提示
+    ['left_eye_vision', 'right_eye_vision'].forEach(id => {
+        const field = document.getElementById(id);
+        if (field) {
+            field.addEventListener('blur', function() {
+                if (this.value) {
+                    const vision = parseFloat(this.value);
+                    if (vision >= 0.8) {
+                        this.style.borderColor = '#28a745';
+                        this.title = '视力正常';
+                    } else if (vision >= 0.5) {
+                        this.style.borderColor = '#ffc107';
+                        this.title = '视力轻度下降';
+                    } else {
+                        this.style.borderColor = '#dc3545';
+                        this.title = '视力明显下降';
+                    }
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

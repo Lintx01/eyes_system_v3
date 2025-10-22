@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}删除临床推理病例 - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> 确认删除临床推理病例
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger" role="alert">
+                        <h6 class="alert-heading">注意：这个操作无法撤销！</h6>
+                        <p class="mb-0">删除病例将同时删除相关的所有学生记录和练习数据。</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>要删除的病例信息：</h6>
+                        <table class="table table-sm table-bordered">
+                            <tr>
+                                <td class="font-weight-bold" style="width: 120px;">病例ID：</td>
+                                <td>{{ case.case_id }}</td>
+                            </tr>
+                            <tr>
+                                <td class="font-weight-bold">病例名称：</td>
+                                <td>{{ case.title }}</td>
+                            </tr>
+                            <tr>
+                                <td class="font-weight-bold">患者信息：</td>
+                                <td>{{ case.patient_age }}岁，{% if case.patient_gender == 'M' %}男性{% else %}女性{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td class="font-weight-bold">主诉：</td>
+                                <td>{{ case.chief_complaint|truncatechars:100 }}</td>
+                            </tr>
+                            <tr>
+                                <td class="font-weight-bold">创建时间：</td>
+                                <td>{{ case.created_at|date:"Y年n月j日 H:i" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="font-weight-bold">难度等级：</td>
+                                <td>{{ case.get_difficulty_level_display }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>相关数据统计：</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card border-warning">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title text-warning">{{ student_sessions_count }}</h5>
+                                        <p class="card-text">学生练习记录</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-info">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title text-info">{{ completed_sessions_count }}</h5>
+                                        <p class="card-text">已完成练习</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" name="confirm_delete" required>
+                            <label class="form-check-label" for="confirmDelete">
+                                我确认要删除此病例及其所有相关数据
+                            </label>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
+                                    <i class="fas fa-trash"></i> 确认删除
+                                </button>
+                                <a href="{% url 'teacher_clinical_case_edit' case.case_id %}" class="btn btn-outline-secondary ml-2">
+                                    <i class="fas fa-edit"></i> 返回编辑
+                                </a>
+                            </div>
+                            <a href="{% url 'teacher_clinical_case_list' %}" class="btn btn-primary">
+                                <i class="fas fa-arrow-left"></i> 返回病例列表
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmCheckbox = document.getElementById('confirmDelete');
+    const deleteBtn = document.getElementById('deleteBtn');
+    
+    confirmCheckbox.addEventListener('change', function() {
+        deleteBtn.disabled = !this.checked;
+        if (this.checked) {
+            deleteBtn.classList.remove('btn-danger');
+            deleteBtn.classList.add('btn-danger');
+        }
+    });
+    
+    // 二次确认
+    deleteBtn.addEventListener('click', function(e) {
+        if (!confirm('最后确认：确定要删除病例 "{{ case.title }}" 吗？\n\n这个操作无法撤销！')) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %}
