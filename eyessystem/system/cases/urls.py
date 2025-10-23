@@ -46,6 +46,8 @@ urlpatterns = [
     # 临床推理系统API
     path('api/clinical/case/<str:case_id>/', views.clinical_case_detail, name='clinical_case_detail'),
     path('api/clinical/case/<str:case_id>/examinations/', views.get_examination_options, name='get_examination_options'),
+    path('api/clinical/case/<str:case_id>/examination/<int:exam_id>/', views.get_examination_result, name='get_examination_result'),
+    path('api/clinical/confirm-examination-selection/', views.confirm_examination_selection, name='confirm_examination_selection'),
     path('api/clinical/submit-examinations/', views.submit_examination_choices, name='submit_examination_choices'),
     path('api/clinical/submit-diagnosis/', views.submit_diagnosis_choice, name='submit_diagnosis_choice'),
     path('api/clinical/submit-treatments/', views.submit_treatment_choices, name='submit_treatment_choices'),

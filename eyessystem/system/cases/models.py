@@ -449,6 +449,36 @@ class ExaminationOption(models.Model):
     right_eye_image = models.ImageField(upload_to='examination_images/', blank=True, null=True,
                                       verbose_name="右眼检查图片", help_text="OCT或眼底照相的右眼图片")
     
+    # OCT检查特殊字段
+    is_oct_exam = models.BooleanField(default=False, verbose_name="是否OCT检查")
+    oct_report_text = models.TextField(blank=True, verbose_name="OCT报告文字描述", 
+                                     help_text="OCT检查的详细文字报告")
+    oct_measurement_data = models.JSONField(blank=True, null=True, verbose_name="OCT测量数据",
+                                          help_text="OCT的各项测量数据，如RNFL厚度等")
+    
+    # 图像显示设置
+    image_display_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ('single', '单张显示'),
+            ('comparison', '对比显示'),
+            ('sequence', '序列显示'),
+            ('overlay', '叠加显示')
+        ],
+        default='single',
+        verbose_name="图像显示模式"
+    )
+    
+    # 图像标注和说明
+    image_annotations = models.JSONField(blank=True, null=True, verbose_name="图像标注",
+                                       help_text="图像上的标注信息，包含坐标和说明文字")
+    image_findings = models.TextField(blank=True, verbose_name="图像所见",
+                                    help_text="图像中可以观察到的病理改变")
+    
+    # 多张图像支持
+    additional_images = models.JSONField(blank=True, null=True, verbose_name="附加图像",
+                                       help_text="除左右眼主要图像外的其他相关图像")
+    
     is_recommended = models.BooleanField(default=False, verbose_name="是否推荐检查")
     display_order = models.IntegerField(default=0, verbose_name="显示顺序")
     
@@ -630,6 +660,10 @@ class StudentClinicalSession(models.Model):
     # 学习成果
     learning_notes = models.TextField(blank=True, verbose_name="学习笔记")
     reflection = models.TextField(blank=True, verbose_name="学习反思")
+    
+    # 会话数据存储 - 用于保存检查顺序等临时数据
+    session_data = models.JSONField(default=dict, verbose_name="会话数据", 
+                                   help_text="保存检查顺序、当前进度等临时数据")
     
     class Meta:
         verbose_name = "学生临床会话"

@@ -168,7 +168,7 @@
 
     <div class="row justify-content-center">
         <div class="col-lg-8">
-            <form method="post" class="form-container">
+            <form method="post" class="form-container" enctype="multipart/form-data">
                 {% csrf_token %}
                 
                 <!-- 病例信息 -->
@@ -318,7 +318,7 @@
                                     <div class="help-text">支持JPG、PNG格式，建议大小不超过5MB</div>
                                     {% if is_edit and examination.left_eye_image %}
                                         <div class="mt-2">
-                                            <img src="{{ examination.left_eye_image }}" class="img-thumbnail" style="max-width: 200px;">
+                                            <img src="{{ examination.left_eye_image.url }}" class="img-thumbnail" style="max-width: 200px;">
                                             <small class="d-block text-muted">当前左眼影像</small>
                                         </div>
                                     {% endif %}
@@ -332,7 +332,7 @@
                                     <div class="help-text">支持JPG、PNG格式，建议大小不超过5MB</div>
                                     {% if is_edit and examination.right_eye_image %}
                                         <div class="mt-2">
-                                            <img src="{{ examination.right_eye_image }}" class="img-thumbnail" style="max-width: 200px;">
+                                            <img src="{{ examination.right_eye_image.url }}" class="img-thumbnail" style="max-width: 200px;">
                                             <small class="d-block text-muted">当前右眼影像</small>
                                         </div>
                                     {% endif %}
@@ -342,6 +342,89 @@
                         <div class="help-text">
                             <i class="fas fa-info-circle me-1"></i>
                             请上传清晰的检查影像，这些图片将在学生进行检查选择时显示
+                        </div>
+                    </div>
+
+                    <!-- OCT检查特殊字段 -->
+                    <div id="oct-exam-fields" class="basic-exam-fields" style="display: none;">
+                        <h6><i class="fas fa-microscope text-primary me-2"></i>OCT检查专用设置</h6>
+                        
+                        <!-- OCT报告文字 -->
+                        <div class="mb-3">
+                            <label for="oct_report_text" class="form-label">OCT报告文字</label>
+                            <textarea class="form-control" id="oct_report_text" name="oct_report_text" 
+                                      rows="6" placeholder="请输入详细的OCT检查报告，包括黄斑区、RNFL等分析结果">{% if is_edit %}{{ examination.oct_report_text }}{% endif %}</textarea>
+                            <div class="help-text">详细的OCT检查报告，将在学生查看检查结果时显示</div>
+                        </div>
+                        
+                        <!-- OCT测量数据 -->
+                        <div class="mb-3">
+                            <label for="oct_measurement_data" class="form-label">OCT测量数据（JSON格式）</label>
+                            <textarea class="form-control" id="oct_measurement_data" name="oct_measurement_data" 
+                                      rows="8" placeholder='示例格式：
+{
+  "central_thickness": "245μm",
+  "average_thickness": "267μm", 
+  "volume": "8.45mm³",
+  "rnfl_superior": "125μm",
+  "rnfl_inferior": "119μm",
+  "rnfl_nasal": "78μm",
+  "rnfl_temporal": "68μm",
+  "cup_disc_ratio": "0.3",
+  "rim_area": "1.45mm²"
+}'></textarea>
+                            <div class="help-text">OCT各项测量数据，JSON格式。将显示为测量卡片</div>
+                        </div>
+                        
+                        <!-- OCT影像上传 -->
+                        <h6 class="mt-4"><i class="fas fa-images text-primary me-2"></i>OCT影像</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="left_eye_oct" class="form-label">左眼OCT图像</label>
+                                    <input type="file" class="form-control" id="left_eye_oct" name="left_eye_image" 
+                                           accept="image/*">
+                                    <div class="help-text">左眼OCT扫描图像</div>
+                                    {% if is_edit and examination.left_eye_image %}
+                                        <div class="mt-2">
+                                            <img src="{{ examination.left_eye_image.url }}" class="img-thumbnail" style="max-width: 200px;">
+                                            <small class="d-block text-muted">当前左眼OCT图像</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="right_eye_oct" class="form-label">右眼OCT图像</label>
+                                    <input type="file" class="form-control" id="right_eye_oct" name="right_eye_image" 
+                                           accept="image/*">
+                                    <div class="help-text">右眼OCT扫描图像</div>
+                                    {% if is_edit and examination.right_eye_image %}
+                                        <div class="mt-2">
+                                            <img src="{{ examination.right_eye_image.url }}" class="img-thumbnail" style="max-width: 200px;">
+                                            <small class="d-block text-muted">当前右眼OCT图像</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 附加OCT图像 -->
+                        <div class="mb-3">
+                            <label for="additional_oct_images" class="form-label">附加OCT图像（可多选）</label>
+                            <input type="file" class="form-control" id="additional_oct_images" name="additional_images" 
+                                   accept="image/*" multiple>
+                            <div class="help-text">可上传多张OCT图像（如RNFL分析图、3D图像等）</div>
+                            {% if is_edit and examination.additional_images %}
+                                <div class="mt-2">
+                                    <small class="text-muted">当前附加图像：{{ examination.additional_images|length }}张</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="help-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            OCT图像将按左眼、右眼分组显示，支持图像标注和测量工具
                         </div>
                     </div>
                 </div>
@@ -454,6 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const examinationNameInput = document.getElementById('examination_name');
         const basicExamFields = document.getElementById('basic-exam-fields');
         const imagingExamFields = document.getElementById('imaging-exam-fields');
+        const octExamFields = document.getElementById('oct-exam-fields');
         
         // 更新检查名称的提示
         let placeholder = '';
@@ -462,10 +546,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 placeholder = '如：视力检查、眼压测量、裂隙灯检查';
                 break;
             case 'fundus':
-                placeholder = '如：眼底照相';
+                placeholder = '如：眼底照相、眼底血管造影';
                 break;
             case 'oct':
-                placeholder = '如：OCT黄斑扫描、前节OCT';
+                placeholder = '如：OCT黄斑扫描、OCT视盘扫描、前节OCT';
                 break;
             default:
                 placeholder = '请选择检查类型后输入对应的检查名称';
@@ -475,6 +559,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 隐藏所有特殊字段
         basicExamFields.style.display = 'none';
         imagingExamFields.style.display = 'none';
+        octExamFields.style.display = 'none';
         
         // 移除所有特殊字段的必填要求
         ['left_eye_vision', 'right_eye_vision', 'left_eye_pressure', 'right_eye_pressure'].forEach(id => {
@@ -490,9 +575,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const field = document.getElementById(id);
                 if (field) field.setAttribute('required', 'required');
             });
-        } else if (selectedType === 'fundus' || selectedType === 'oct') {
+        } else if (selectedType === 'fundus') {
             imagingExamFields.style.display = 'block';
-            // 影像检查需要上传图片（可选，但推荐）
+            // 眼底检查需要上传图片
+        } else if (selectedType === 'oct') {
+            octExamFields.style.display = 'block';
+            // OCT检查显示专用字段
         }
     }
     
@@ -501,6 +589,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 页面加载时初始化
     toggleBasicExamFields();
+    
+    // 格式化OCT测量数据显示
+    {% if is_edit and examination.oct_measurement_data %}
+    const octDataField = document.getElementById('oct_measurement_data');
+    if (octDataField) {
+        octDataField.value = `{{ oct_measurement_json|default:"" }}`;
+    }
+    {% endif %}
     
     // 表单验证
     document.querySelector('form').addEventListener('submit', function(e) {

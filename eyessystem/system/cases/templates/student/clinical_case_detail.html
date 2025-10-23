@@ -92,6 +92,14 @@
           </div>
         </div>
         <div class="card-body">
+          <!-- 静态提示区域 -->
+          <div id="start-examination-hint" class="start-examination-prompt" style="display: none;">
+            <div class="text-center p-3 bg-light rounded border" style="background-color: #f8f9fa;">
+              <h5 class="text-primary fw-bold mb-2" style="font-size: 1.2rem;">准备开始检查</h5>
+              <p class="text-muted mb-0" style="font-size: 0.9rem;">点击下方"查看检查结果"按钮开始逐一查看检查结果</p>
+            </div>
+          </div>
+          
           <div id="stage-content">
             <div class="text-center p-5">
               <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
@@ -707,15 +715,101 @@
 
 /* 眼底检查提示字幕样式 */
 #fundus-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
   pointer-events: none;
   user-select: none;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+#fundus-overlay.show {
+  opacity: 1;
 }
 
 #fundus-subtitle {
-  letter-spacing: 1px;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(255,255,255,0.1);
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
+  padding: 20px 40px;
+  border-radius: 15px;
+  text-align: center;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(15px);
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transform: translateY(20px);
+  transition: all 0.8s ease-out;
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+#fundus-overlay.show #fundus-subtitle {
+  transform: translateY(0);
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* 眼底检查结果留白样式 */
+.fundus-examination-blank {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px dashed #6c757d;
+  border-radius: 15px;
+  padding: 80px 40px;
+  text-align: center;
+  color: #6c757d;
+  position: relative;
+  overflow: hidden;
+}
+
+.fundus-examination-blank::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shine 3s ease-in-out infinite;
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  50% { left: 100%; }
+  100% { left: 100%; }
+}
+
+.fundus-examination-blank .icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.fundus-examination-blank .message {
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.fundus-examination-blank .submessage {
+  font-size: 1.1rem;
+  opacity: 0.8;
 }
 
 @media (max-width: 768px) {
@@ -723,6 +817,22 @@
     font-size: 1.4rem !important;
     padding: 15px 25px !important;
     max-width: 90% !important;
+  }
+  
+  .fundus-examination-blank {
+    padding: 60px 20px;
+  }
+  
+  .fundus-examination-blank .icon {
+    font-size: 3rem;
+  }
+  
+  .fundus-examination-blank .message {
+    font-size: 1.2rem;
+  }
+  
+  .fundus-examination-blank .submessage {
+    font-size: 1rem;
   }
 }
 
@@ -824,25 +934,450 @@
   border-left: 3px solid #007bff;
 }
 
-/* 检查选项样式增强 */
-.examination-option {
+/* 检查顺序排列样式 */
+.examination-order-section {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #dee2e6;
+}
+
+.examination-order-list {
+  min-height: 120px;
+  border-radius: 8px;
   transition: all 0.3s ease;
-  cursor: pointer;
 }
 
-.examination-option:hover {
+.empty-drag-area {
+  transition: all 0.4s ease;
+}
+
+.empty-drag-area:hover {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%) !important;
+  border-color: #2196f3 !important;
+  transform: scale(1.02);
+}
+
+.examination-order-item {
+  cursor: move;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%) !important;
+  border: 2px solid #2196f3 !important;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.examination-order-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #1976d2, #42a5f5, #64b5f6);
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+.examination-order-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(33, 150, 243, 0.3);
+  background: linear-gradient(135deg, #bbdefb 0%, #90caf9 100%) !important;
+  border-color: #1976d2 !important;
+}
+
+.examination-order-item.dragging {
+  opacity: 0.8;
+  transform: rotate(3deg) scale(1.05);
+  box-shadow: 0 10px 30px rgba(33, 150, 243, 0.4);
+  z-index: 1000;
+}
+
+.examination-order-item .fas.fa-grip-vertical {
+  color: #1976d2;
+  font-size: 1.2rem;
+  text-shadow: 0 1px 2px rgba(25, 118, 210, 0.3);
+  transition: all 0.3s ease;
+}
+
+.examination-order-item:hover .fas.fa-grip-vertical {
+  color: #0d47a1;
+  transform: scale(1.1);
+  text-shadow: 0 2px 4px rgba(13, 71, 161, 0.5);
+}
+
+.order-number {
+  font-size: 1rem;
+  font-weight: bold;
+  min-width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.examination-order-item:hover .order-number {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.5) !important;
+}
+
+.pulse-badge {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+@keyframes pulse-border {
+  0% { border-color: #f44336; }
+  50% { border-color: #e57373; }
+  100% { border-color: #f44336; }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-5px);
+  }
+  60% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pulse-text {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.pulse-text {
+  animation: pulse-text 1.5s ease-in-out infinite;
+}
+
+/* 得分详情样式 */
+.score-details-alert {
+  border-left: 4px solid #007bff;
+  background: linear-gradient(135deg, #f8f9ff 0%, #e6f3ff 100%);
+  animation: slideInUp 0.6s ease-out;
+}
+
+.score-item {
+  padding: 10px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease;
+}
+
+.score-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
-.examination-option.selected {
+.score-value {
+  font-size: 1.1rem;
+  margin-bottom: 2px;
+}
+
+.score-label {
+  font-weight: 500;
+  margin-bottom: 1px;
+}
+
+.score-stats {
+  font-size: 0.8rem;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.examination-order-section .alert-warning {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border: 2px solid #ffc107;
+  border-radius: 8px;
+}
+
+.examination-order-section h5 {
+  color: #1976d2;
+  text-shadow: 0 1px 2px rgba(25, 118, 210, 0.2);
+}
+
+
+
+/* 拖动状态样式 */
+.examination-order-list.drag-active {
+  background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+  border: 2px dashed #4caf50;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.examination-order-item.drop-target {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%) !important;
+  border-color: #9c27b0 !important;
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+.examination-order-item.drag-hover {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffcc02 100%) !important;
+  border-color: #ff9800 !important;
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(255, 152, 0, 0.4);
+}
+
+.examination-order-item.dragging {
+  opacity: 0.8;
+  transform: rotate(3deg) scale(1.05);
+  box-shadow: 0 10px 30px rgba(33, 150, 243, 0.4);
+  z-index: 1000;
+  background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%) !important;
+  border-color: #4caf50 !important;
+}
+
+.remove-exam-btn {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.examination-order-item:hover .remove-exam-btn {
+  opacity: 1;
+}
+
+/* 单个检查结果展示样式 */
+.single-examination-result {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.examination-progress .progress {
+  background-color: #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.examination-progress .progress-bar {
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  transition: width 0.8s ease;
+}
+
+.current-examination-result .card {
+  border: 2px solid #007bff;
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
+}
+
+.result-box {
+  border-left: 4px solid #007bff !important;
+  background: linear-gradient(135deg, #f8f9ff 0%, #e6f3ff 100%) !important;
+}
+
+.examination-data .data-item {
+  border-left: 3px solid #28a745;
+  transition: all 0.3s ease;
+}
+
+.examination-data .data-item:hover {
+  transform: translateX(5px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.examination-image {
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.examination-image:hover {
+  transform: scale(1.05);
   border-color: #007bff;
-  background-color: #f8f9ff;
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.3);
 }
 
-.examination-option .form-check-input:checked + .form-check-label {
-  color: #007bff;
+/* OCT检查特殊样式 */
+.oct-examination-display {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.oct-image-container {
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.oct-image-container:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.oct-image {
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.oct-image:hover {
+  filter: brightness(1.05);
+}
+
+.eye-section {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+}
+
+.measurement-card {
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.measurement-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.measurement-label {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.measurement-value {
   font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.oct-report .report-content {
+  background: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.image-overlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+}
+
+.overlay-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.overlay-controls .btn {
+  opacity: 0.8;
+  backdrop-filter: blur(5px);
+  border: none;
+}
+
+.overlay-controls .btn:hover {
+  opacity: 1;
+}
+
+/* 标准图像显示样式 */
+.standard-image-container {
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+}
+
+.standard-image-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+}
+
+.image-findings {
+  border-left: 3px solid #007bff;
+}
+
+/* 检查确认界面样式 */
+.examination-confirmed {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.examination-sequence-preview .card {
+  transition: all 0.3s ease;
+}
+
+.examination-sequence-preview .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
+}
+
+.start-examination-prompt {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+/* 继续提示样式 */
+.continue-prompt {
+  border-top: 2px dashed #dee2e6;
+  padding-top: 20px;
+  margin-top: 20px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .examination-order-section {
+    padding: 15px;
+  }
+  
+  .examination-order-item {
+    margin-bottom: 10px;
+  }
+  
+  .order-number {
+    min-width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+  }
+  
+  .current-examination-result .card-header h4 {
+    font-size: 1.2rem;
+  }
+  
+  .examination-data .row {
+    margin: 0;
+  }
+  
+  .examination-data .col-md-6 {
+    padding: 5px;
+  }
 }
 
 /* 诊断选项样式 */
@@ -850,6 +1385,20 @@
   border: 2px solid transparent;
   transition: all 0.3s ease;
   cursor: pointer;
+}
+
+.diagnosis-option .d-flex {
+  align-items: flex-start !important;
+}
+
+.diagnosis-option .form-check-input {
+  margin-top: 2px !important;
+  flex-shrink: 0 !important;
+}
+
+.diagnosis-option .form-check-label {
+  cursor: pointer;
+  margin-bottom: 0 !important;
 }
 
 .diagnosis-option:hover {
@@ -1002,6 +1551,148 @@
   50% { transform: scale(1.08); box-shadow: 0 10px 30px rgba(0,123,255,0.22); }
   100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,123,255,0); }
 }
+
+/* 检查选项布局优化 */
+.examination-option .form-check {
+  margin-bottom: 0;
+}
+
+.examination-option .form-check-input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.examination-option .form-check-label {
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.examination-option .text-muted {
+  padding-left: 0;
+  margin-left: 0;
+}
+
+.examination-option .examination-info {
+  padding-left: 0;
+  margin-left: 0;
+}
+
+/* 选中状态样式 */
+.examination-option.selected {
+  background-color: #e7f3ff;
+  border-color: #007bff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+}
+
+.examination-option:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+/* 统计区域样式优化 */
+.examination-summary h5 {
+  border-bottom: 2px solid #007bff;
+  padding-bottom: 8px;
+  display: inline-block;
+  margin-bottom: 25px;
+}
+
+.examination-summary .card-body {
+  padding: 2rem;
+}
+
+/* 检查顺序预览样式 */
+.examination-sequence-preview h3 {
+  text-shadow: 0 2px 4px rgba(0,123,255,0.1);
+}
+
+.sequence-cards-container {
+  max-width: 100%;
+  margin: 0 auto;
+  overflow-x: auto;
+}
+
+.sequence-cards-container > div {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 15px !important;
+  justify-content: flex-start !important;
+}
+
+.sequence-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 2px solid #007bff;
+  border-radius: 12px;
+  padding: 15px 20px;
+  text-align: center;
+  min-width: 140px;
+  width: calc(33.333% - 10px); /* 每行最多3个，考虑间距 */
+  max-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+  transition: all 0.3s ease;
+  position: relative;
+  flex: 0 0 calc(33.333% - 10px) !important;
+  display: inline-block !important;
+}
+
+.sequence-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 123, 255, 0.25);
+}
+
+.sequence-number {
+  background: #007bff;
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin: 0 auto 10px auto;
+}
+
+.sequence-name {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .examination-summary .card-body {
+    padding: 1.5rem;
+  }
+  
+  .examination-summary h5 {
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+  }
+  
+  .examination-sequence-preview h3 {
+    font-size: 1.4rem !important;
+  }
+  
+  .sequence-cards-container > div {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+  
+  .sequence-card {
+    min-width: 100px;
+    width: calc(33.333% - 10px); /* 移动端也保持每行3个 */
+    max-width: 130px;
+    flex: 0 0 calc(33.333% - 10px) !important;
+    margin: 5px 0;
+  }
+}
 </style>
 {% endblock %}
 
@@ -1044,6 +1735,13 @@
     timeSpent: {},
     startTime: new Date(),
     
+    // 眼底检查字幕控制
+    fundusSubtitleDismissed: false,
+    
+    // 缓存的数据选项
+    diagnosisOptions: [],
+    treatmentOptions: [],
+    
     // 教学反馈
     feedbackHistory: [],
     clinicalMistakes: [],
@@ -1051,6 +1749,39 @@
   };
 
   // ==================== 医学教育核心功能 ====================
+  
+  // 紧急修复：确保按钮可用的函数
+  function ensureButtonEnabled() {
+    var stage = clinicalSession.currentStage;
+    console.log('确保按钮可用 - 当前阶段:', stage);
+    
+    $('#btn-next').prop('disabled', false);
+    
+    switch(stage) {
+      case 'examination':
+        $('#btn-next').removeClass('btn-secondary btn-info btn-success').addClass('btn-warning').text('确认检查选择 →');
+        break;
+      case 'diagnosis':
+        $('#btn-next').removeClass('btn-warning btn-secondary btn-success').addClass('btn-info').text('提交诊断选择 →');
+        break;
+      case 'treatment':
+        $('#btn-next').removeClass('btn-warning btn-info btn-secondary').addClass('btn-success').text('提交治疗方案 →');
+        break;
+    }
+    
+    console.log('按钮状态已强制启用:', $('#btn-next').prop('disabled'));
+  }
+  
+  // 调试函数
+  function debugButtonStatus() {
+    console.log('=== 按钮状态调试 ===');
+    console.log('按钮是否禁用:', $('#btn-next').prop('disabled'));
+    console.log('按钮文本:', $('#btn-next').text());
+    console.log('按钮类名:', $('#btn-next').attr('class'));
+    console.log('当前阶段:', clinicalSession.currentStage);
+    console.log('已选择诊断:', clinicalSession.selectedDiagnosis);
+    console.log('====================');
+  }
   
   function updateClinicalProgress() {
     // 更新可视化进度指示器
@@ -1318,7 +2049,7 @@
     updateStageProgress();
     
     $('#btn-prev').prop('disabled', false);
-    $('#btn-next').text('提交检查选择 →').removeClass('btn-secondary').addClass('btn-warning');
+    $('#btn-next').prop('disabled', false).text('确认检查选择 →').removeClass('btn-secondary').addClass('btn-warning');
     updateStageCard('检查选择阶段', 'examination');
     
     $.getJSON('/api/clinical/case/' + clinicalSession.caseId + '/examinations/', function(resp) {
@@ -1326,6 +2057,11 @@
         renderExaminationOptions(resp.data.examination_options || []);
         addExaminationGuidance();
         showClinicalThinkingPrompt('examination');
+        
+        // 初始化检查选择顺序数组
+        clinicalSession.examinationOrder = [];
+        clinicalSession.isExaminationConfirmed = false;
+        clinicalSession.currentExaminationIndex = 0;
       } else {
         showErrorMessage('加载检查选项失败: ' + resp.message);
       }
@@ -1338,18 +2074,23 @@
     var html = '<div class="examination-selection">';
     
     // 检查选择说明
-    html += '<div class="alert alert-info" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: none; border-radius: 12px; padding: 20px;">';
+    html += '<div class="alert alert-info" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: none; border-radius: 12px; padding: 20px; margin-bottom: 15px;">';
     html += '<h4 class="mb-3" style="color: #1565c0; font-weight: 700; display: flex; align-items: center;">';
     html += '<i class="fas fa-lightbulb me-2" style="font-size: 1.2rem; color: #ffa726;"></i>检查选择指导';
     html += '</h4>';
-    html += '<p class="mb-0" style="font-size: 1rem; line-height: 1.6; color: #424242;">基于患者病史，选择最有价值的检查项目。考虑诊断价值、成本效益和患者安全。</p>';
+    html += '<p class="mb-2" style="font-size: 1rem; line-height: 1.6; color: #424242;">请选择您认为有助于诊断的检查项目，然后安排检查顺序。</p>';
+    html += '<p class="mb-0" style="font-size: 0.9rem; line-height: 1.6; color: #424242;"><strong>提示：</strong>选择检查项目后，可以拖拽调整检查顺序，系统将按顺序逐一展示检查结果。</p>';
     html += '</div>';
+    
+
+
+
     
     // 按类型分组显示检查选项
     var groupedOptions = groupExaminationsByType(options);
     
     Object.keys(groupedOptions).forEach(function(type) {
-  var typeOptions = groupedOptions[type];
+      var typeOptions = groupedOptions[type];
       var typeDisplayName = getExaminationTypeDisplay(type);
       var typeIcon = getExaminationTypeIcon(type);
       
@@ -1361,47 +2102,43 @@
       
       html += '<div class="row">';
       typeOptions.forEach(function(option) {
-        // encode images array as JSON string for data attribute
         var imagesAttr = (option.images && option.images.length) ? JSON.stringify(option.images) : '[]';
         var isRequiredAttr = option.is_required ? 1 : 0;
         var allowMultipleAttr = option.is_multiple_choice ? 1 : 0;
         html += '<div class="col-md-6 mb-3">';
-        html += '<div class="card examination-option h-100" data-exam-id="' + option.id + '" data-images=\'' + imagesAttr + '\' data-is-required="' + isRequiredAttr + '" data-allow-multiple="' + allowMultipleAttr + '">';
+        var cardClass = 'card examination-option h-100';
+        html += '<div class="' + cardClass + '" data-exam-id="' + option.id + '" data-images=\'' + imagesAttr + '\' data-is-required="' + isRequiredAttr + '" data-allow-multiple="' + allowMultipleAttr + '">';
         html += '<div class="card-body">';
         
-        html += '<div class="form-check d-flex align-items-start">';
-  // 若后端标注了多选允许或必选（后端 may not provide these—use defaults if absent）
-  var inputType = option.is_multiple_choice ? 'checkbox' : 'checkbox'; // frontend will validate single/multi via option.allow_multiple if provided
-  html += '<input class="form-check-input examination-checkbox me-3 mt-1" type="' + inputType + '" ';
-  html += 'value="' + option.id + '" id="exam_' + option.id + '" data-is-recommended="' + (option.is_recommended ? '1' : '0') + '" data-is-fundus="' + ((option.type && option.type.toLowerCase().indexOf('眼底') !== -1) ? '1' : '0') + '" data-is-required="' + isRequiredAttr + '" data-allow-multiple="' + allowMultipleAttr + '" style="width: 18px; height: 18px;">';
-        html += '<label class="form-check-label flex-grow-1" for="exam_' + option.id + '">';
-        html += '<div class="d-flex justify-content-between align-items-start mb-2">';
+        html += '<div class="form-check">';
+        html += '<div class="d-flex align-items-center mb-2">';
+        html += '<input class="form-check-input examination-checkbox me-3" type="checkbox" ';
+        html += 'value="' + option.id + '" id="exam_' + option.id + '" data-is-recommended="' + (option.is_recommended ? '1' : '0') + '" data-is-fundus="' + ((option.type && option.type.toLowerCase().indexOf('眼底') !== -1) ? '1' : '0') + '" data-is-required="' + isRequiredAttr + '" data-allow-multiple="' + allowMultipleAttr + '" style="width: 18px; height: 18px; flex-shrink: 0;">';
+        html += '<label class="form-check-label flex-grow-1 mb-0" for="exam_' + option.id + '">';
         html += '<strong style="font-size: 1.1rem; color: #2c3e50;">' + option.name + '</strong>';
-        
-        // 显示检查特性标签
-        html += '<div class="examination-badges">';
-        // 使用后端返回的字段展示标签
-        if (option.is_recommended) {
-          html += '<span class="badge badge-success">推荐</span>';
-        }
-        if (option.diagnostic_value && option.diagnostic_value.toLowerCase().indexOf('高') !== -1) {
-          html += '<span class="badge badge-success">高价值</span>';
-        }
+        html += '</label>';
         html += '</div>';
         
-        html += '</div>';
-        html += '<div class="text-muted small mt-2">' + (option.description || '') + '</div>';
+        // 移除检查特性标签，避免给学生隐性提示
+        // html += '<div class="examination-badges d-flex gap-1">';
+        // if (option.is_recommended) {
+        //   html += '<span class="badge bg-success text-white" style="font-size: 0.8rem;">推荐</span>';
+        // }
+        // if (option.diagnostic_value && option.diagnostic_value.toLowerCase().indexOf('高') !== -1) {
+        //   html += '<span class="badge bg-warning text-dark" style="font-size: 0.8rem;"><i class="fas fa-star me-1"></i>高价值</span>';
+        // }
+        // html += '</div>';
+        
+        html += '<div class="text-muted small mt-2 ms-0">' + (option.description || '') + '</div>';
         
         // 显示风险和成本信息
-  // 检查额外信息（后端可能没有风险/费用字段，作兼容处理）
-  html += '<div class="examination-info mt-2">';
-  html += '<div class="row small text-muted">';
-  html += '<div class="col-6">风险: ' + (option.risk_level || '未知') + '</div>';
-  html += '<div class="col-6">费用: ¥' + (option.cost || 0) + '</div>';
-  html += '</div>';
-  html += '</div>';
+        html += '<div class="examination-info mt-2 ms-0">';
+        html += '<div class="row small text-muted">';
+        html += '<div class="col-6">风险: ' + (option.risk_level || '低') + '</div>';
+        html += '<div class="col-6">费用: ¥' + (option.cost || 50) + '</div>';
+        html += '</div>';
+        html += '</div>';
         
-        html += '</label>';
         html += '</div>';
         html += '</div>';
         html += '</div>';
@@ -1411,30 +2148,47 @@
       html += '</div>';
     });
     
+    // 检查顺序安排区域
+    html += '<div class="examination-order-section mt-4" id="examination-order-section" style="display: none;">';
+    html += '<h5 class="mb-3" style="background: linear-gradient(135deg, #1976d2, #42a5f5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: bold; font-size: 1.3rem;"><i class="fas fa-sort" style="color: #1976d2; margin-right: 8px;"></i> 安排检查顺序</h5>';
+    html += '<div class="alert alert-info" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 2px solid #2196f3; border-radius: 10px;">';
+    html += '<i class="fas fa-hand-rock" style="color: #1976d2; margin-right: 8px;"></i> <strong>请拖拽下方的检查项目调整检查顺序</strong>，系统将按顺序逐一展示检查结果。';
+    html += '<br><small class="text-muted mt-1 d-block"><i class="fas fa-lightbulb"></i> 提示：抓住 <i class="fas fa-grip-vertical" style="color: #1976d2;"></i> 图标拖动项目来改变顺序</small>';
+    html += '</div>';
+    html += '<div id="examination-order-list" class="examination-order-list">';
+    html += '<!-- 检查项目排序区域 -->';
+    html += '</div>';
     html += '</div>';
     
-    // 添加选择统计
+    html += '</div>';
+    
+    // 添加选择统计 - 改进布局
     html += '<div class="examination-summary mt-4">';
     html += '<div class="card bg-light">';
-    html += '<div class="card-body">';
-    html += '<h6><i class="fas fa-calculator"></i> 选择统计</h6>';
-    html += '<div class="row text-center">';
-    html += '<div class="col-3">';
-    html += '<div class="h5 mb-0" id="selected-count">0</div>';
-    html += '<small class="text-muted">已选检查</small>';
+    html += '<div class="card-body text-center">';
+    
+    // 标题独立一行
+    html += '<h5 class="mb-4" style="color: #2c3e50; font-weight: 600;">';
+    html += '<i class="fas fa-calculator me-2"></i>选择统计';
+    html += '</h5>';
+    
+    // 统计项目：使用inline-block确保水平布局
+    html += '<div style="text-align: center;">';
+    
+    // 标签行
+    html += '<div style="margin-bottom: 10px;">';
+    html += '<span style="display: inline-block; width: 120px; text-align: center; font-size: 0.9rem; font-weight: 500;" class="text-muted">已选检查</span>';
+    html += '<span style="display: inline-block; width: 40px;"></span>'; // 间距
+    html += '<span style="display: inline-block; width: 120px; text-align: center; font-size: 0.9rem; font-weight: 500;" class="text-muted">总费用</span>';
     html += '</div>';
-    html += '<div class="col-3">';
-    html += '<div class="h5 mb-0" id="total-cost">¥0</div>';
-    html += '<small class="text-muted">总费用</small>';
+    
+    // 数值行
+    html += '<div>';
+    html += '<span style="display: inline-block; width: 120px; text-align: center;" class="h3 mb-0 text-primary fw-bold" id="selected-count">0</span>';
+    html += '<span style="display: inline-block; width: 40px;"></span>'; // 间距
+    html += '<span style="display: inline-block; width: 120px; text-align: center;" class="h3 mb-0 text-success fw-bold" id="total-cost">¥0</span>';
     html += '</div>';
-    html += '<div class="col-3">';
-    html += '<div class="h5 mb-0" id="high-value-count">0</div>';
-    html += '<small class="text-muted">高价值检查</small>';
-    html += '</div>';
-    html += '<div class="col-3">';
-    html += '<div class="h5 mb-0" id="risk-assessment">低</div>';
-    html += '<small class="text-muted">综合风险</small>';
-    html += '</div>';
+    
     html += '</div>';
     html += '</div>';
     html += '</div>';
@@ -1444,6 +2198,14 @@
     
     // 绑定检查选择事件
     bindExaminationEvents();
+    
+    // 初始化拖拽排序功能
+    initializeExaminationOrderSorting();
+    
+    // 确保按钮状态正确 - 检查阶段按钮应始终可用
+    setTimeout(function() {
+      ensureButtonEnabled();
+    }, 100);
   }
   
   function groupExaminationsByType(options) {
@@ -1488,31 +2250,18 @@
   }
   
   function bindExaminationEvents() {
-    $('.examination-checkbox').on('change', function() {
+    $('.examination-checkbox').off('change').on('change', function() {
       var $card = $(this).closest('.examination-option');
       var examId = parseInt($(this).val());
       var isChecked = $(this).is(':checked');
       var isFundus = $(this).data('is-fundus') == 1;
 
-      // 单选/多选控制（如果后端传回 is_multiple_choice 可使用；否则使用页面约束：同一类型限制单选示例）
-      var allowMultiple = $(this).data('allow-multiple') === 1;
-
-      if (!allowMultiple && isChecked) {
-        // 取消同一类型下其他已选项（保持单选行为）
-        var name = $(this).attr('name');
-        $('.examination-checkbox[name="' + name + '"]').not(this).prop('checked', false).trigger('change');
-      }
-
       if (isChecked) {
         $card.addClass('selected');
-        if (clinicalSession.selectedExaminations.indexOf(examId) === -1) clinicalSession.selectedExaminations.push(examId);
-        addToLearningTimeline('选择检查', $card.find('strong').text());
-
-        // 若为眼底检查，显示实操提示
-        var examName = $card.find('strong').text().toLowerCase();
-        if (isFundus || examName.includes('眼底') || examName.includes('fundus') || examName.includes('照片') || examName.includes('造影')) {
-          showFundusReminder();
+        if (clinicalSession.selectedExaminations.indexOf(examId) === -1) {
+          clinicalSession.selectedExaminations.push(examId);
         }
+        addToLearningTimeline('选择检查', $card.find('strong').text());
       } else {
         $card.removeClass('selected');
         var index = clinicalSession.selectedExaminations.indexOf(examId);
@@ -1522,14 +2271,8 @@
       }
 
       updateExaminationSummary();
+      updateExaminationOrderList();
       provideLiveExaminationFeedback();
-
-      // 如果该选项包含图片，点击查看图片则记录
-      var images = $card.data('images');
-      if (images && images.length > 0) {
-        // render images preview when selected
-        renderExaminationImagesForCard($card, images);
-      }
     });
     
     $('.examination-option').on('click', function(e) {
@@ -1539,64 +2282,483 @@
       }
     });
   }
-
-  function showFundusReminder() {
-    // 防止重复显示
-    if ($('#fundus-overlay').length > 0) return;
+  
+  function updateExaminationOrderList() {
+    var $orderSection = $('#examination-order-section');
+    var $orderList = $('#examination-order-list');
     
-    // 创建全屏覆盖层和字幕
-    var overlayHtml = '';
-    overlayHtml += '<div id="fundus-overlay" style="';
-    overlayHtml += 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;';
-    overlayHtml += 'background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center;';
-    overlayHtml += 'opacity: 0; transition: opacity 0.8s ease-in-out;';
-    overlayHtml += '">';
-    overlayHtml += '<div id="fundus-subtitle" style="';
-    overlayHtml += 'background: rgba(0, 0, 0, 0.8); color: white; padding: 20px 40px;';
-    overlayHtml += 'border-radius: 12px; font-size: 1.8rem; font-weight: 600;';
-    overlayHtml += 'text-align: center; max-width: 80%; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);';
-    overlayHtml += 'transform: translateY(20px); transition: all 0.8s ease-in-out;';
-    overlayHtml += '">';
-    overlayHtml += '请移步旁边，对眼底检查进行实操';
-    overlayHtml += '</div>';
-    overlayHtml += '</div>';
+    if (clinicalSession.selectedExaminations.length === 0) {
+      $orderSection.hide();
+      return;
+    }
     
-    // 添加到页面
-    $('body').append(overlayHtml);
+    $orderSection.show();
     
-    // 动画序列：淡入 → 停留 → 淡出 → 自动进入下一环节
-    setTimeout(function() {
-      // 淡入动画
-      $('#fundus-overlay').css('opacity', '1');
-      $('#fundus-subtitle').css('transform', 'translateY(0)');
-    }, 100);
-    
-    setTimeout(function() {
-      // 淡出动画
-      $('#fundus-overlay').css('opacity', '0');
-      $('#fundus-subtitle').css('transform', 'translateY(-20px)');
-    }, 4600); // 0.8s淡入 + 3s停留 + 0.8s准备淡出
-    
-    setTimeout(function() {
-      // 移除覆盖层
-      $('#fundus-overlay').remove();
+    var html = '';
+    clinicalSession.selectedExaminations.forEach(function(examId, index) {
+      var $examCard = $('.examination-option[data-exam-id="' + examId + '"]');
+      var examName = $examCard.find('strong').text();
+      var isRequired = $examCard.data('is-required');
       
-      // 自动进入下一环节（提交检查选择）
-      autoSubmitExaminations();
-    }, 5400); // 总计 5.4s 后完成
+      html += '<div class="examination-order-item" data-exam-id="' + examId + '" draggable="true">';
+      html += '<div class="d-flex align-items-center justify-content-between p-3 mb-2 border rounded position-relative">';
+      html += '<div class="d-flex align-items-center">';
+      html += '<i class="fas fa-grip-vertical me-3" style="cursor: grab;" title="拖拽调整顺序"></i>';
+      html += '<span class="order-number badge me-3" style="background: linear-gradient(135deg, #1976d2, #42a5f5); color: white; font-size: 0.9rem; padding: 8px 12px; border-radius: 50%; min-width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);">' + (index + 1) + '</span>';
+      html += '<div class="exam-info">';
+      html += '<span class="exam-name fw-bold d-block" style="color: #0d47a1; font-size: 1rem;">' + examName + '</span>';
+      html += '<small class="text-muted"><i class="fas fa-hand-rock"></i> 可拖拽排序</small>';
+      html += '</div>';
+
+      html += '</div>';
+      html += '<button class="btn btn-sm btn-outline-danger remove-exam-btn" data-exam-id="' + examId + '" title="移除此项检查">';
+      html += '<i class="fas fa-times"></i>';
+      html += '</button>';
+      html += '</div>';
+      html += '</div>';
+    });
+    
+    // 如果没有选中任何项目，显示空提示
+    if (clinicalSession.selectedExaminations.length === 0) {
+      html += '<div class="empty-drag-area text-center py-4" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 2px dashed #ced4da; border-radius: 10px; color: #6c757d;">';
+      html += '<i class="fas fa-mouse-pointer fa-2x mb-2" style="color: #adb5bd;"></i>';
+      html += '<p class="mb-0">选中的检查项目将在这里显示，可拖拽排序</p>';
+      html += '<small class="text-muted">请先从上方选择检查项目</small>';
+      html += '</div>';
+    }
+    
+    $orderList.html(html);
+    
+    // 绑定移除按钮事件
+    $('.remove-exam-btn').on('click', function() {
+      var examId = parseInt($(this).data('exam-id'));
+      var $checkbox = $('.examination-checkbox[value="' + examId + '"]');
+      $checkbox.prop('checked', false).trigger('change');
+    });
+    
+    // 重新初始化拖拽排序
+    initializeExaminationOrderSorting();
   }
   
-  function autoSubmitExaminations() {
-    // 检查是否有选中的检查项目
-    if (clinicalSession.selectedExaminations.length > 0) {
-      // 显示自动提交提示
-      showFeedbackMessage('眼底检查完成，正在进入下一环节...', 'info');
+  function initializeExaminationOrderSorting() {
+    var $orderList = $('#examination-order-list');
+    
+    if (!$orderList.length) return;
+    
+    // 简单的拖拽排序实现（不依赖外部库）
+    var draggedItem = null;
+    
+    $orderList.off('dragstart dragover drop dragend');
+    
+    $orderList.on('dragstart', '.examination-order-item', function(e) {
+      draggedItem = this;
+      $(this).addClass('dragging');
+      $('.examination-order-item').not(this).addClass('drop-target');
+      $('#examination-order-list').addClass('drag-active');
+      e.originalEvent.dataTransfer.effectAllowed = 'move';
+    });
+    
+    $orderList.on('dragover', '.examination-order-item', function(e) {
+      e.preventDefault();
+      e.originalEvent.dataTransfer.dropEffect = 'move';
       
-      // 延迟一秒后自动提交
-      setTimeout(function() {
-        submitExaminations();
-      }, 1000);
+      var $this = $(this);
+      $('.examination-order-item').removeClass('drag-hover');
+      
+      if (this !== draggedItem) {
+        $this.addClass('drag-hover');
+        var draggedRect = draggedItem.getBoundingClientRect();
+        var targetRect = this.getBoundingClientRect();
+        
+        if (e.originalEvent.clientY < targetRect.top + targetRect.height / 2) {
+          $this.before(draggedItem);
+        } else {
+          $this.after(draggedItem);
+        }
+      }
+    });
+    
+    $orderList.on('dragleave', '.examination-order-item', function(e) {
+      $(this).removeClass('drag-hover');
+    });
+    
+    $orderList.on('dragend', '.examination-order-item', function(e) {
+      $(this).removeClass('dragging');
+      $('.examination-order-item').removeClass('drop-target drag-hover');
+      $('#examination-order-list').removeClass('drag-active');
+      draggedItem = null;
+      
+      // 更新检查顺序
+      updateExaminationOrder();
+    });
+    
+    $orderList.on('drop', function(e) {
+      e.preventDefault();
+    });
+  }
+  
+  function updateExaminationOrder() {
+    var newOrder = [];
+    $('#examination-order-list .examination-order-item').each(function(index) {
+      var examId = parseInt($(this).data('exam-id'));
+      newOrder.push(examId);
+      
+      // 更新顺序号显示
+      $(this).find('.order-number').text(index + 1);
+    });
+    
+    clinicalSession.selectedExaminations = newOrder;
+    clinicalSession.examinationOrder = newOrder;
+  }
+
+  function confirmExaminationSelection() {
+    // 验证必选检查是否都被选择
+    var requiredMissing = [];
+    $('.examination-checkbox').each(function() {
+      var isRequired = $(this).data('is-required') === 1 || $(this).data('is-required') === true;
+      if (isRequired) {
+        var id = parseInt($(this).val());
+        if (clinicalSession.selectedExaminations.indexOf(id) === -1) {
+          requiredMissing.push(id);
+        }
+      }
+    });
+
+    if (requiredMissing.length > 0) {
+      showFeedbackMessage('存在重要检查项目未选择，建议完善检查后再继续', 'warning');
+      return;
     }
+
+    // 显示确认中状态
+    $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 确认中...');
+    showFeedbackMessage('正在确认检查选择...', 'info');
+
+    // 准备提交数据
+    var submitData = {
+      case_id: clinicalSession.caseId,
+      selected_examinations: clinicalSession.selectedExaminations,
+      examination_order: clinicalSession.examinationOrder || clinicalSession.selectedExaminations
+    };
+
+    $.ajax({
+      url: '/api/clinical/confirm-examination-selection/',
+      method: 'POST',
+      contentType: 'application/json',
+      headers: {
+        'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() || getCsrfToken()
+      },
+      data: JSON.stringify(submitData),
+      success: function(resp) {
+        if (resp.success) {
+          // 标记检查已确认
+          clinicalSession.isExaminationConfirmed = true;
+          clinicalSession.examinationOrder = resp.data.examination_order;
+          clinicalSession.currentExaminationIndex = 0;
+          
+          // 更新按钮状态
+          $('#btn-next').prop('disabled', false).html('查看检查结果 <i class="fas fa-arrow-right"></i>');
+          
+          // 显示确认成功界面
+          showExaminationConfirmedInterface();
+          showFeedbackMessage('检查选择已确认，准备查看检查结果', 'success');
+          
+          // 记录到时间线
+          addToLearningTimeline('确认检查选择', '共选择 ' + clinicalSession.selectedExaminations.length + ' 项检查');
+        } else {
+          $('#btn-next').prop('disabled', false).html('确认检查选择 →');
+          showFeedbackMessage('确认失败: ' + resp.message, 'danger');
+        }
+      },
+      error: function(xhr, status, error) {
+        $('#btn-next').prop('disabled', false).html('确认检查选择 →');
+        console.error('Confirm examination error:', error, xhr.responseText);
+        showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+      }
+    });
+  }
+  
+  function showExaminationConfirmedInterface() {
+    var html = '<div class="examination-confirmed">';
+    
+    // 确认状态提示
+    html += '<div class="alert alert-success" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border: none; border-radius: 12px; padding: 20px;">';
+    html += '<h4 class="mb-3" style="color: #155724; font-weight: 700; display: flex; align-items: center;">';
+    html += '<i class="fas fa-check-circle me-2" style="font-size: 1.2rem; color: #28a745;"></i>检查选择已确认';
+    html += '</h4>';
+    html += '<p class="mb-0" style="font-size: 1rem; line-height: 1.6; color: #155724;">您已选择 ' + clinicalSession.selectedExaminations.length + ' 项检查，系统将按顺序逐一展示检查结果。</p>';
+    html += '</div>';
+    
+    // 检查顺序预览 - 优化设计
+    html += '<div class="examination-sequence-preview mb-5">';
+    
+    // 大标题
+    html += '<div class="text-center mb-4">';
+    html += '<h3 class="text-primary fw-bold" style="font-size: 1.8rem; border-bottom: 3px solid #007bff; display: inline-block; padding-bottom: 10px;">';
+    html += '<i class="fas fa-list-ol me-3"></i>检查顺序预览';
+    html += '</h3>';
+    html += '</div>';
+    
+    // 检查项目卡片 - 强制水平排列
+    html += '<div class="sequence-cards-container mb-4">';
+    html += '<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start;">';
+    
+    clinicalSession.examinationOrder.forEach(function(examId, index) {
+      var $examCard = $('.examination-option[data-exam-id="' + examId + '"]');
+      var examName = $examCard.find('strong').text();
+      var isRequired = $examCard.data('is-required');
+      
+      // 小卡片样式 - 使用flex子项
+      html += '<div class="sequence-card" style="flex: 0 0 auto;">';
+      html += '<div class="sequence-number">' + (index + 1) + '</div>';
+      html += '<div class="sequence-name">' + examName + '</div>';
+      html += '</div>';
+    });
+    
+    html += '</div>';
+    html += '</div>';
+    
+    // 显示静态开始检查提示
+    $('#start-examination-hint').show();
+    
+    html += '</div>';
+    
+    $('#stage-content').html(html);
+  }
+  
+  function showNextExaminationResult() {
+    var currentIndex = clinicalSession.currentExaminationIndex;
+    var examId = clinicalSession.examinationOrder[currentIndex];
+    
+    // 隐藏静态提示并显示加载状态
+    $('#start-examination-hint').hide();
+    $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 加载中...');
+    
+    // 获取检查结果
+    $.getJSON('/api/clinical/case/' + clinicalSession.caseId + '/examination/' + examId + '/', function(resp) {
+      if (resp.success) {
+        renderSingleExaminationResult(resp.data, currentIndex);
+        
+        // 更新索引
+        clinicalSession.currentExaminationIndex++;
+        
+        // 更新按钮文本
+        if (clinicalSession.currentExaminationIndex < clinicalSession.examinationOrder.length) {
+          $('#btn-next').prop('disabled', false).html('查看下一项检查 <i class="fas fa-arrow-right"></i>');
+        } else {
+          $('#btn-next').prop('disabled', false).html('完成检查阶段 <i class="fas fa-check"></i>');
+        }
+        
+        // 记录到时间线
+        addToLearningTimeline('查看检查结果', resp.data.name);
+      } else {
+        $('#btn-next').prop('disabled', false).html('查看检查结果 <i class="fas fa-arrow-right"></i>');
+        showFeedbackMessage('获取检查结果失败: ' + resp.message, 'danger');
+      }
+    }).fail(function() {
+      $('#btn-next').prop('disabled', false).html('查看检查结果 <i class="fas fa-arrow-right"></i>');
+      showFeedbackMessage('网络错误，请检查连接后重试', 'danger');
+    });
+  }
+  
+  function renderSingleExaminationResult(resultData, examIndex) {
+    var html = '<div class="single-examination-result">';
+    
+    // 检查进度指示
+    var totalExams = clinicalSession.examinationOrder.length;
+    var progressPercent = Math.round(((examIndex + 1) / totalExams) * 100);
+    
+    html += '<div class="examination-progress mb-4">';
+    html += '<div class="d-flex justify-content-between align-items-center mb-2">';
+    html += '<h5 class="text-primary mb-0">检查进度</h5>';
+    html += '<span class="text-muted">' + (examIndex + 1) + ' / ' + totalExams + '</span>';
+    html += '</div>';
+    html += '<div class="progress" style="height: 8px;">';
+    html += '<div class="progress-bar bg-primary" style="width: ' + progressPercent + '%"></div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // 当前检查结果展示
+    html += '<div class="current-examination-result">';
+    html += '<div class="card border-primary">';
+    html += '<div class="card-header bg-primary text-white">';
+    html += '<h4 class="mb-0"><i class="fas fa-microscope me-2"></i>' + resultData.name + '</h4>';
+    html += '</div>';
+    html += '<div class="card-body">';
+    
+    // 检查描述 - 已隐藏，不再显示检查说明
+    // if (resultData.description) {
+    //   html += '<div class="examination-description mb-3">';
+    //   html += '<h6 class="text-muted">检查说明</h6>';
+    //   html += '<p class="text-muted">' + resultData.description + '</p>';
+    //   html += '</div>';
+    // }
+    
+    // 特殊处理：眼底检查 - 留白显示
+    var isFundusExam = resultData.is_fundus_exam || 
+                      (resultData.name && (
+                        resultData.name.toLowerCase().indexOf('眼底') !== -1 ||
+                        resultData.name.toLowerCase().indexOf('fundus') !== -1 ||
+                        resultData.name.toLowerCase().indexOf('眼底照片') !== -1 ||
+                        resultData.name.toLowerCase().indexOf('眼底镜') !== -1 ||
+                        resultData.name.toLowerCase().indexOf('眼底检查') !== -1
+                      )) ||
+                      (resultData.type && (
+                        resultData.type.toLowerCase().indexOf('眼底') !== -1 ||
+                        resultData.type.toLowerCase().indexOf('fundus') !== -1
+                      ));
+    
+    if (isFundusExam) {
+      // 眼底检查留白区域
+      html += '<div class="fundus-examination-blank">';
+      html += '<div class="icon">';
+      html += '<i class="fas fa-eye"></i>';
+      html += '</div>';
+      html += '<div class="message">请移步旁边进行观察</div>';
+      html += '<div class="submessage">眼底检查需要实际操作观察</div>';
+      html += '</div>';
+      
+      // 显示浮现字幕
+      setTimeout(function() {
+        showFundusSubtitle();
+      }, 500);
+    } else {
+      // 普通检查显示完整结果
+      // 检查描述 - 已隐藏，不再显示检查说明
+      // if (resultData.description) {
+      //   html += '<div class="examination-description mb-3">';
+      //   html += '<h6 class="text-muted">检查说明</h6>';
+      //   html += '<p class="text-muted">' + resultData.description + '</p>';
+      //   html += '</div>';
+      // }
+      
+      // 检查结果
+      html += '<div class="examination-result-content">';
+      html += '<h6 class="text-primary">检查结果</h6>';
+      html += '<div class="result-box p-3 bg-light rounded border-left-primary">';
+      html += '<p class="mb-0" style="font-size: 1.1rem; line-height: 1.6;">' + resultData.result + '</p>';
+      html += '</div>';
+      html += '</div>';
+      
+      // 检查数据（视力、眼压等）
+      if (resultData.examination_data && Object.keys(resultData.examination_data).length > 0) {
+        html += '<div class="examination-data mt-3">';
+        html += '<h6 class="text-primary">检查数据</h6>';
+        html += '<div class="row">';
+        
+        if (resultData.examination_data.left_eye_vision) {
+          html += '<div class="col-md-6">';
+          html += '<div class="data-item p-2 bg-light rounded">';
+          html += '<strong>左眼视力:</strong> ' + resultData.examination_data.left_eye_vision;
+          html += '</div>';
+          html += '</div>';
+        }
+        
+        if (resultData.examination_data.right_eye_vision) {
+          html += '<div class="col-md-6">';
+          html += '<div class="data-item p-2 bg-light rounded">';
+          html += '<strong>右眼视力:</strong> ' + resultData.examination_data.right_eye_vision;
+          html += '</div>';
+          html += '</div>';
+        }
+        
+        if (resultData.examination_data.left_eye_pressure) {
+          html += '<div class="col-md-6">';
+          html += '<div class="data-item p-2 bg-light rounded">';
+          html += '<strong>左眼眼压:</strong> ' + resultData.examination_data.left_eye_pressure + ' mmHg';
+          html += '</div>';
+          html += '</div>';
+        }
+        
+        if (resultData.examination_data.right_eye_pressure) {
+          html += '<div class="col-md-6">';
+          html += '<div class="data-item p-2 bg-light rounded">';
+          html += '<strong>右眼眼压:</strong> ' + resultData.examination_data.right_eye_pressure + ' mmHg';
+          html += '</div>';
+          html += '</div>';
+        }
+        
+        html += '</div>';
+        html += '</div>';
+      }
+      
+      // 检查图像 - 增强显示
+      console.log('检查结果数据:', resultData); // 调试信息
+      console.log('图像数据:', resultData.images); // 调试信息
+      
+      if (resultData.images && resultData.images.length > 0) {
+        html += '<div class="examination-images mt-3">';
+        html += '<h6 class="text-primary mb-3"><i class="fas fa-image me-2"></i>检查图像</h6>';
+        
+        // 检查是否为OCT检查
+        var isOctExam = resultData.is_oct_exam || 
+                       (resultData.name && (
+                         resultData.name.indexOf('OCT') !== -1 ||
+                         resultData.name.indexOf('光学相干断层扫描') !== -1 ||
+                         resultData.name.indexOf('光相干断层') !== -1
+                       ));
+        
+        console.log('是否OCT检查:', isOctExam); // 调试信息
+        
+        if (isOctExam) {
+          // OCT检查特殊显示
+          html += renderOctImages(resultData);
+        } else {
+          // 普通检查图像显示
+          html += renderStandardImages(resultData);
+        }
+        
+        html += '</div>';
+      } else {
+        // 添加调试信息显示没有图像的情况
+        html += '<div class="alert alert-warning mt-3">';
+        html += '<i class="fas fa-info-circle me-2"></i>';
+        html += '暂无检查图像数据';
+        if (resultData.is_oct_exam) {
+          html += ' (OCT检查)';
+        }
+        html += '</div>';
+        console.log('没有图像数据或图像数组为空'); // 调试信息
+      }
+    }
+    
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // 继续提示
+    html += '<div class="continue-prompt mt-4">';
+    html += '<div class="text-center p-3 bg-light rounded">';
+    if (examIndex + 1 < totalExams) {
+      html += '<p class="text-muted mb-0">请仔细查看检查结果，准备查看下一项检查</p>';
+    } else {
+      html += '<p class="text-muted mb-0">所有检查结果已展示完毕，准备进入诊断阶段</p>';
+    }
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    $('#stage-content').html(html);
+    
+    // 绑定图像点击事件
+    $('.examination-image').on('click', function() {
+      var imageSrc = $(this).data('image-src');
+      showImageModal(imageSrc);
+    });
+    
+    // 绑定OCT图像点击事件
+    $('.oct-image').on('click', function() {
+      var imageSrc = $(this).data('image-src') || $(this).attr('src');
+      var eye = $(this).data('eye') || 'unknown';
+      var measurements = $(this).data('measurements') || {};
+      
+      if (clinicalSession.examination_images_viewed.indexOf(imageSrc) === -1) {
+        clinicalSession.examination_images_viewed.push(imageSrc);
+        saveSessionData();
+      }
+      
+      showOctImageModal(imageSrc, eye, measurements);
+    });
   }
 
   function renderExaminationImagesForCard($card, images) {
@@ -1639,20 +2801,160 @@
     $('#examImageModal').modal('show');
   }
   
+  // OCT图像专用模态框
+  function showOctImageModal(src, eye, measurements) {
+    var modalHtml = '';
+    modalHtml += '<div class="modal fade" id="octImageModal" tabindex="-1" role="dialog">';
+    modalHtml += '<div class="modal-dialog modal-xl" role="document">';
+    modalHtml += '<div class="modal-content">';
+    
+    // 模态框头部
+    modalHtml += '<div class="modal-header bg-primary text-white">';
+    modalHtml += '<h5 class="modal-title">';
+    modalHtml += '<i class="fas fa-microscope me-2"></i>OCT检查图像 - ' + (eye === 'left' ? '左眼' : '右眼');
+    modalHtml += '</h5>';
+    modalHtml += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>';
+    modalHtml += '</div>';
+    
+    // 模态框内容
+    modalHtml += '<div class="modal-body">';
+    modalHtml += '<div class="row">';
+    
+    // 图像显示区域
+    modalHtml += '<div class="col-md-8">';
+    modalHtml += '<div class="oct-modal-image-container">';
+    modalHtml += '<img src="' + src + '" class="img-fluid oct-modal-image" ';
+    modalHtml += 'style="width: 100%; border-radius: 8px; border: 2px solid #dee2e6;">';
+    
+    // 图像工具栏
+    modalHtml += '<div class="image-toolbar mt-3">';
+    modalHtml += '<div class="btn-group" role="group">';
+    modalHtml += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="zoomImage(\'in\')">';
+    modalHtml += '<i class="fas fa-search-plus"></i> 放大</button>';
+    modalHtml += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="zoomImage(\'out\')">';
+    modalHtml += '<i class="fas fa-search-minus"></i> 缩小</button>';
+    modalHtml += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="resetImageZoom()">';
+    modalHtml += '<i class="fas fa-expand-arrows-alt"></i> 重置</button>';
+    modalHtml += '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleImageMeasurement()">';
+    modalHtml += '<i class="fas fa-ruler"></i> 测量</button>';
+    modalHtml += '</div>';
+    modalHtml += '</div>';
+    
+    modalHtml += '</div>';
+    modalHtml += '</div>';
+    
+    // 测量数据和分析面板
+    modalHtml += '<div class="col-md-4">';
+    modalHtml += '<div class="oct-analysis-panel">';
+    
+    modalHtml += '<h6 class="text-primary mb-3">';
+    modalHtml += '<i class="fas fa-chart-line me-2"></i>分析数据';
+    modalHtml += '</h6>';
+    
+    if (measurements && Object.keys(measurements).length > 0) {
+      modalHtml += '<div class="measurements-list">';
+      Object.keys(measurements).forEach(function(key) {
+        var value = measurements[key];
+        var displayName = getOctMeasurementDisplayName(key);
+        modalHtml += '<div class="measurement-item mb-3 p-3 bg-light rounded">';
+        modalHtml += '<div class="measurement-name small text-muted mb-1">' + displayName + '</div>';
+        modalHtml += '<div class="measurement-value h6 text-primary mb-0">' + value + '</div>';
+        modalHtml += '</div>';
+      });
+      modalHtml += '</div>';
+    } else {
+      modalHtml += '<div class="alert alert-light">';
+      modalHtml += '<small class="text-muted">暂无测量数据</small>';
+      modalHtml += '</div>';
+    }
+    
+    // 分析要点
+    modalHtml += '<div class="analysis-points mt-4">';
+    modalHtml += '<h6 class="text-secondary mb-3">';
+    modalHtml += '<i class="fas fa-eye me-2"></i>观察要点';
+    modalHtml += '</h6>';
+    modalHtml += '<ul class="list-unstyled small">';
+    modalHtml += '<li class="mb-2"><i class="fas fa-arrow-right text-primary me-2"></i>视网膜各层结构</li>';
+    modalHtml += '<li class="mb-2"><i class="fas fa-arrow-right text-primary me-2"></i>视网膜厚度变化</li>';
+    modalHtml += '<li class="mb-2"><i class="fas fa-arrow-right text-primary me-2"></i>病理性改变</li>';
+    modalHtml += '<li class="mb-2"><i class="fas fa-arrow-right text-primary me-2"></i>积液或出血</li>';
+    modalHtml += '</ul>';
+    modalHtml += '</div>';
+    
+    modalHtml += '</div>';
+    modalHtml += '</div>';
+    
+    modalHtml += '</div>';
+    modalHtml += '</div>';
+    
+    // 模态框底部
+    modalHtml += '<div class="modal-footer">';
+    modalHtml += '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">';
+    modalHtml += '<i class="fas fa-times me-2"></i>关闭';
+    modalHtml += '</button>';
+    modalHtml += '<button type="button" class="btn btn-primary" onclick="saveImageAnnotation()">';
+    modalHtml += '<i class="fas fa-save me-2"></i>保存标注';
+    modalHtml += '</button>';
+    modalHtml += '</div>';
+    
+    modalHtml += '</div></div></div>';
+
+    // 移除已存在的模态框并添加新的
+    $('#octImageModal').remove();
+    $('body').append(modalHtml);
+    
+    // 显示模态框
+    $('#octImageModal').modal('show');
+  }
+
+  // 显示眼底检查字幕
+  function showFundusSubtitle() {
+    // 创建字幕覆盖层
+    if (!$('#fundus-overlay').length) {
+      var overlayHtml = '<div id="fundus-overlay">';
+      overlayHtml += '<div id="fundus-subtitle">请移步旁边进行观察</div>';
+      overlayHtml += '</div>';
+      $('body').append(overlayHtml);
+    }
+    
+    var $overlay = $('#fundus-overlay');
+    var $subtitle = $('#fundus-subtitle');
+    
+    // 显示动画序列
+    $overlay.addClass('show');
+    
+    // 3秒后开始淡出，但保持显示直到用户操作
+    setTimeout(function() {
+      if (!clinicalSession.fundusSubtitleDismissed) {
+        // 添加轻微的脉冲提醒，但不完全消失
+        $subtitle.css('animation', 'pulse-glow 2s ease-in-out infinite');
+      }
+    }, 3000);
+  }
+  
+  // 隐藏眼底检查字幕
+  function hideFundusSubtitle() {
+    var $overlay = $('#fundus-overlay');
+    clinicalSession.fundusSubtitleDismissed = true;
+    
+    $overlay.removeClass('show');
+    setTimeout(function() {
+      $overlay.remove();
+    }, 800); // 等待淡出动画完成
+  }
+
   function updateExaminationSummary() {
     var selectedCount = clinicalSession.selectedExaminations.length;
     var totalCost = 0;
-    var highValueCount = 0;
     var riskLevels = [];
+    var efficiencyScore = 100; // 基础效率分
     
     $('.examination-checkbox:checked').each(function() {
       var $card = $(this).closest('.examination-option');
       var cost = parseInt($card.find('.examination-info').text().match(/¥(\d+)/)?.[1] || 0);
       totalCost += cost;
       
-      if ($card.find('.badge-success').length > 0) {
-        highValueCount++;
-      }
+      // 移除高价值检查统计，避免隐性提示
       
       var riskText = $card.find('.examination-info').text();
       if (riskText.includes('高')) riskLevels.push('high');
@@ -1661,16 +2963,78 @@
     });
     
     // 综合风险评估
-    var overallRisk = 'low';
-    if (riskLevels.includes('high')) overallRisk = 'high';
-    else if (riskLevels.includes('medium')) overallRisk = 'medium';
+    var overallRisk = '低';
+    if (riskLevels.includes('high')) overallRisk = '高';
+    else if (riskLevels.includes('medium')) overallRisk = '中';
+    
+    // 计算检查效率（基于选择数量的合理性）
+    if (selectedCount > 8) efficiencyScore -= (selectedCount - 8) * 10;
+    if (selectedCount < 2) efficiencyScore -= (2 - selectedCount) * 20;
     
     $('#selected-count').text(selectedCount);
     $('#total-cost').text('¥' + totalCost);
-    $('#high-value-count').text(highValueCount);
-    $('#risk-assessment').html(getRiskLevelDisplay(overallRisk));
   }
   
+  // 显示检查选择得分详情
+  function showExaminationScoreDetails(scoreDetails) {
+    var html = '<div class="alert alert-info score-details-alert" style="margin-top: 15px;">';
+    html += '<h6 class="mb-3"><i class="fas fa-chart-bar me-2"></i>检查选择得分详情</h6>';
+    html += '<div class="row text-center">';
+    
+    html += '<div class="col-md-3 col-6 mb-2">';
+    html += '<div class="score-item">';
+    html += '<div class="score-value text-primary fw-bold" style="font-size: 1.2rem;">' + scoreDetails.total_score + '</div>';
+    html += '<div class="score-label small text-muted">总分</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '<div class="col-md-3 col-6 mb-2">';
+    html += '<div class="score-item">';
+    html += '<div class="score-value text-danger fw-bold">' + scoreDetails.required_score + '</div>';
+    html += '<div class="score-label small text-muted">必选检查 (60%)</div>';
+    html += '<div class="score-stats small text-muted">(' + scoreDetails.required_stats + ')</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '<div class="col-md-4 col-6 mb-2">';
+    html += '<div class="score-item">';
+    html += '<div class="score-value text-info fw-bold">' + scoreDetails.required_score + '</div>';
+    html += '<div class="score-label small text-muted">必选检查 (70%)</div>';
+    html += '<div class="score-stats small text-muted">(' + scoreDetails.required_stats + ')</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '<div class="col-md-4 col-6 mb-2">';
+    html += '<div class="score-item">';
+    html += '<div class="score-value text-warning fw-bold">' + scoreDetails.efficiency_score + '</div>';
+    html += '<div class="score-label small text-muted">检查效率 (30%)</div>';
+    html += '<div class="score-stats small text-muted">(' + scoreDetails.efficiency_stats + ')</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    // 添加得分说明
+    html += '<div class="mt-3 p-2 bg-light rounded">';
+    html += '<small class="text-muted">';
+    html += '<i class="fas fa-info-circle me-1"></i>';
+    html += '<strong>评分说明：</strong> ';
+    html += '必选检查占70%（临床诊断必需），检查效率占30%（避免不必要的重复检查，提高诊断效率）';
+    html += '</small>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    // 显示得分详情，8秒后自动隐藏
+    $('#feedback-panel').append(html);
+    
+    setTimeout(function() {
+      $('.score-details-alert').fadeOut(800, function() {
+        $(this).remove();
+      });
+    }, 8000);
+  }
+
   function provideLiveExaminationFeedback() {
     var selectedCount = clinicalSession.selectedExaminations.length;
     var feedback = '';
@@ -1702,7 +3066,7 @@
     });
 
     if (requiredMissing.length > 0) {
-      showFeedbackMessage('存在必选检查未选择，请先完成必选检查', 'danger');
+      showFeedbackMessage('存在重要检查项目未选择，建议完善检查后再继续', 'warning');
       return;
     }
 
@@ -1736,6 +3100,11 @@
           if (resp.data.examination_score !== undefined) {
             clinicalSession.scores.examination = resp.data.examination_score;
             $('#current-score').text(resp.data.examination_score.toFixed(1));
+            
+            // 显示得分详情
+            if (resp.data.score_details) {
+              showExaminationScoreDetails(resp.data.score_details);
+            }
           }
 
           // 进入诊断阶段
@@ -1773,7 +3142,7 @@
     updateClinicalProgress();
     updateStageProgress();
     
-    $('#btn-next').text('提交诊断选择 →').removeClass('btn-warning').addClass('btn-info');
+    $('#btn-next').prop('disabled', false).text('提交诊断选择 →').removeClass('btn-warning').addClass('btn-info');
     updateStageCard('诊断推理阶段', 'diagnosis');
     
     var html = '<div class="diagnosis-stage">';
@@ -1795,9 +3164,10 @@
         html += '<i class="fas fa-eye text-primary me-2"></i>';
         html += '<span class="fw-bold text-dark">' + result.name + '</span>';
         html += '</div>';
-        if (result.is_recommended) {
-          html += '<span class="badge bg-success">推荐检查</span>';
-        }
+        // 移除推荐检查标签，避免隐性提示
+        // if (result.is_recommended) {
+        //   html += '<span class="badge bg-success">推荐检查</span>';
+        // }
         html += '</div>';
         html += '</div>';
         
@@ -1879,15 +3249,18 @@
       ];
     }
     
+    // 缓存诊断选项数据
+    clinicalSession.diagnosisOptions = diagnosisOptions;
+    
     if (diagnosisOptions && diagnosisOptions.length > 0) {
       html += '<form id="diagnosis-form">';
       diagnosisOptions.forEach(function(option) {
         html += '<div class="card diagnosis-option mb-3" data-diagnosis-id="' + option.id + '" style="border: 2px solid transparent; transition: all 0.3s ease;">';
         html += '<div class="card-body">';
-        html += '<div class="form-check">';
-        html += '<input class="form-check-input diagnosis-radio" type="radio" name="diagnosis" ';
-        html += 'value="' + option.id + '" id="diag_' + option.id + '">';
-        html += '<label class="form-check-label w-100" for="diag_' + option.id + '">';
+        html += '<div class="d-flex align-items-start">';
+        html += '<input class="form-check-input diagnosis-radio me-3 mt-1" type="radio" name="diagnosis" ';
+        html += 'value="' + option.id + '" id="diag_' + option.id + '" style="flex-shrink: 0;">';
+        html += '<label class="form-check-label flex-grow-1" for="diag_' + option.id + '">';
         html += '<div class="d-flex justify-content-between align-items-start">';
         html += '<div class="flex-grow-1">';
         html += '<h6 class="mb-1" style="color: #2c3e50; font-weight: 600;">' + option.name + '</h6>';
@@ -1921,15 +3294,30 @@
     
     $('#stage-content').html(html);
     
+    // 恢复之前的选择状态（如果有的话）
+    if (clinicalSession.selectedDiagnosis) {
+      $('input[name="diagnosis"][value="' + clinicalSession.selectedDiagnosis + '"]').prop('checked', true);
+      $('.diagnosis-option[data-diagnosis-id="' + clinicalSession.selectedDiagnosis + '"]').addClass('selected');
+    }
+    
     // 绑定诊断选择事件
     bindDiagnosisEvents();
     showClinicalThinkingPrompt('diagnosis');
+    
+    // 确保按钮状态正确 - 诊断阶段按钮应始终可用
+    setTimeout(function() {
+      ensureButtonEnabled();
+    }, 100);
   }
   
   function bindDiagnosisEvents() {
-    $('.diagnosis-radio').on('change', function() {
+    $('.diagnosis-radio').off('change').on('change', function() {
       var diagnosisId = parseInt($(this).val());
       var $card = $(this).closest('.diagnosis-option');
+      
+      console.log('=== 诊断选择事件触发 ===');
+      console.log('选中的诊断ID:', diagnosisId);
+      console.log('诊断选项卡:', $card);
       
       // 移除其他选中状态
       $('.diagnosis-option').removeClass('selected');
@@ -1938,20 +3326,260 @@
       $card.addClass('selected');
       clinicalSession.selectedDiagnosis = diagnosisId;
       
+      console.log('clinicalSession.selectedDiagnosis已设置为:', clinicalSession.selectedDiagnosis);
+      
+      // 验证选择是否成功
+      setTimeout(function() {
+        console.log('延时验证 - selectedDiagnosis:', clinicalSession.selectedDiagnosis);
+        if (clinicalSession.selectedDiagnosis) {
+          console.log('✅ 诊断选择成功！');
+        } else {
+          console.log('❌ 诊断选择失败！');
+        }
+      }, 100);
+      
       // 记录选择
       var diagnosisName = $(this).siblings('label').find('h6').text();
       addToLearningTimeline('选择诊断', diagnosisName);
       
       // 提供即时反馈
-      showFeedbackMessage('已选择诊断：' + diagnosisName, 'info');
+      showFeedbackMessage('已选择诊断：' + diagnosisName + '，可以点击提交按钮继续', 'success');
+      
+      // 按钮始终保持可用状态
+      ensureButtonEnabled();
+      console.log('诊断已选择，按钮保持可用:', clinicalSession.selectedDiagnosis);
     });
     
-    $('.diagnosis-option').on('click', function(e) {
+    $('.diagnosis-option').off('click').on('click', function(e) {
+      console.log('诊断选项卡片被点击:', $(this));
       if (e.target.type !== 'radio') {
         var radio = $(this).find('.diagnosis-radio');
+        console.log('找到的radio按钮:', radio);
         radio.prop('checked', true).trigger('change');
       }
     });
+  }
+  
+  // ==================== 影像检查渲染函数 ====================
+  
+  // OCT检查图像渲染
+  function renderOctImages(resultData) {
+    var html = '';
+    
+    html += '<div class="oct-examination-display">';
+    html += '<div class="oct-header mb-3">';
+    html += '<div class="alert alert-info border-0" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);">';
+    html += '<div class="d-flex align-items-center">';
+    html += '<i class="fas fa-microscope text-primary me-3" style="font-size: 1.5rem;"></i>';
+    html += '<div>';
+    html += '<h6 class="mb-1" style="color: #1565c0;">OCT光学相干断层扫描</h6>';
+    html += '<small class="text-muted">请仔细观察视网膜各层结构和病理改变</small>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    
+    // OCT测量数据显示（如果有）
+    if (resultData.oct_measurement_data) {
+      html += '<div class="oct-measurements mb-4">';
+      html += '<h6 class="text-primary mb-3"><i class="fas fa-ruler me-2"></i>测量数据</h6>';
+      html += '<div class="row g-3">';
+      
+      Object.keys(resultData.oct_measurement_data).forEach(function(key) {
+        var value = resultData.oct_measurement_data[key];
+        var displayName = getOctMeasurementDisplayName(key);
+        html += '<div class="col-md-4 col-6">';
+        html += '<div class="measurement-card p-3 bg-light rounded border">';
+        html += '<div class="measurement-label small text-muted mb-1">' + displayName + '</div>';
+        html += '<div class="measurement-value h6 mb-0 text-primary">' + value + '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    // 双眼对比显示
+    html += '<div class="oct-images-display">';
+    html += '<div class="row g-4">';
+    
+    // 处理图像数组
+    var leftEyeImages = [];
+    var rightEyeImages = [];
+    
+    resultData.images.forEach(function(image) {
+      var imageObj = typeof image === 'string' ? {url: image} : image;
+      
+      if (imageObj.eye === 'left' || imageObj.label === '左眼' || 
+          (imageObj.description && imageObj.description.indexOf('左眼') !== -1)) {
+        leftEyeImages.push(imageObj);
+      } else if (imageObj.eye === 'right' || imageObj.label === '右眼' || 
+                (imageObj.description && imageObj.description.indexOf('右眼') !== -1)) {
+        rightEyeImages.push(imageObj);
+      } else {
+        // 如果无法确定，默认按顺序分配
+        if (leftEyeImages.length <= rightEyeImages.length) {
+          leftEyeImages.push(imageObj);
+        } else {
+          rightEyeImages.push(imageObj);
+        }
+      }
+    });
+    
+    // 左眼显示
+    if (leftEyeImages.length > 0) {
+      html += '<div class="col-md-6">';
+      html += '<div class="eye-section">';
+      html += '<h6 class="text-center mb-3 p-2 bg-primary text-white rounded">';
+      html += '<i class="fas fa-eye me-2"></i>左眼 OCT</h6>';
+      
+      leftEyeImages.forEach(function(image) {
+        html += '<div class="oct-image-container mb-3">';
+        html += '<div class="position-relative">';
+        html += '<img src="' + (image.url || image) + '" class="img-fluid rounded oct-image" ';
+        html += 'style="width: 100%; cursor: zoom-in; border: 2px solid #dee2e6;" ';
+        html += 'data-bs-toggle="modal" data-bs-target="#octImageModal" ';
+        html += 'data-image-src="' + (image.url || image) + '" ';
+        html += 'data-eye="left">';
+        
+        // 图像标注层
+        html += '<div class="image-overlay d-none">';
+        html += '<div class="overlay-controls">';
+        html += '<button class="btn btn-sm btn-light me-2" onclick="toggleImageAnnotations(this)">';
+        html += '<i class="fas fa-tags"></i> 标注</button>';
+        html += '<button class="btn btn-sm btn-light" onclick="toggleImageMeasurement(this)">';
+        html += '<i class="fas fa-ruler"></i> 测量</button>';
+        html += '</div>';
+        html += '</div>';
+        
+        html += '</div>';
+        
+        if (image.description) {
+          html += '<p class="text-muted small mt-2 text-center">' + image.description + '</p>';
+        }
+        html += '</div>';
+      });
+      
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    // 右眼显示
+    if (rightEyeImages.length > 0) {
+      html += '<div class="col-md-6">';
+      html += '<div class="eye-section">';
+      html += '<h6 class="text-center mb-3 p-2 bg-success text-white rounded">';
+      html += '<i class="fas fa-eye me-2"></i>右眼 OCT</h6>';
+      
+      rightEyeImages.forEach(function(image) {
+        html += '<div class="oct-image-container mb-3">';
+        html += '<div class="position-relative">';
+        html += '<img src="' + (image.url || image) + '" class="img-fluid rounded oct-image" ';
+        html += 'style="width: 100%; cursor: zoom-in; border: 2px solid #dee2e6;" ';
+        html += 'data-bs-toggle="modal" data-bs-target="#octImageModal" ';
+        html += 'data-image-src="' + (image.url || image) + '" ';
+        html += 'data-eye="right">';
+        
+        // 图像标注层
+        html += '<div class="image-overlay d-none">';
+        html += '<div class="overlay-controls">';
+        html += '<button class="btn btn-sm btn-light me-2" onclick="toggleImageAnnotations(this)">';
+        html += '<i class="fas fa-tags"></i> 标注</button>';
+        html += '<button class="btn btn-sm btn-light" onclick="toggleImageMeasurement(this)">';
+        html += '<i class="fas fa-ruler"></i> 测量</button>';
+        html += '</div>';
+        html += '</div>';
+        
+        html += '</div>';
+        
+        if (image.description) {
+          html += '<p class="text-muted small mt-2 text-center">' + image.description + '</p>';
+        }
+        html += '</div>';
+      });
+      
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    html += '</div>';
+    html += '</div>';
+    
+    // OCT报告文字（如果有）
+    if (resultData.oct_report_text) {
+      html += '<div class="oct-report mt-4">';
+      html += '<h6 class="text-primary mb-3"><i class="fas fa-file-medical-alt me-2"></i>OCT报告</h6>';
+      html += '<div class="report-content p-4 bg-light rounded border-start border-primary border-4">';
+      html += '<div class="report-text" style="line-height: 1.8; font-size: 0.95rem;">';
+      html += resultData.oct_report_text.replace(/\n/g, '<br>');
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    html += '</div>';
+    
+    return html;
+  }
+  
+  // 标准检查图像渲染
+  function renderStandardImages(resultData) {
+    var html = '';
+    
+    html += '<div class="standard-images-display">';
+    html += '<div class="row g-3">';
+    
+    resultData.images.forEach(function(image, index) {
+      var imageObj = typeof image === 'string' ? {url: image} : image;
+      var colClass = resultData.images.length === 1 ? 'col-12' : 
+                    resultData.images.length === 2 ? 'col-md-6' : 'col-md-4';
+      
+      html += '<div class="' + colClass + ' mb-3">';
+      html += '<div class="standard-image-container">';
+      html += '<div class="position-relative">';
+      html += '<img src="' + (imageObj.url || imageObj) + '" class="img-fluid rounded examination-image" ';
+      html += 'style="max-height: 400px; width: 100%; object-fit: contain; cursor: zoom-in; border: 1px solid #dee2e6;" ';
+      html += 'data-bs-toggle="modal" data-bs-target="#imageModal" ';
+      html += 'data-image-src="' + (imageObj.url || imageObj) + '" ';
+      html += 'data-image-index="' + index + '">';
+      html += '</div>';
+      
+      if (imageObj.description) {
+        html += '<p class="text-muted small mt-2 text-center">' + imageObj.description + '</p>';
+      }
+      
+      // 图像所见（如果有）
+      if (imageObj.findings) {
+        html += '<div class="image-findings mt-2 p-2 bg-light rounded">';
+        html += '<small class="text-muted"><strong>影像所见：</strong>' + imageObj.findings + '</small>';
+        html += '</div>';
+      }
+      
+      html += '</div>';
+      html += '</div>';
+    });
+    
+    html += '</div>';
+    html += '</div>';
+    
+    return html;
+  }
+  
+  // OCT测量数据显示名称转换
+  function getOctMeasurementDisplayName(key) {
+    var displayNames = {
+      'central_thickness': '中心凹厚度',
+      'average_thickness': '平均厚度',
+      'volume': '黄斑体积',
+      'rnfl_superior': '上方RNFL厚度',
+      'rnfl_inferior': '下方RNFL厚度',
+      'rnfl_nasal': '鼻侧RNFL厚度',
+      'rnfl_temporal': '颞侧RNFL厚度',
+      'cup_disc_ratio': '杯盘比',
+      'rim_area': '视盘缘面积'
+    };
+    return displayNames[key] || key;
   }
   
   // ==================== 工具函数 ====================
@@ -1973,6 +3601,10 @@
   }
 
   function submitDiagnosis() {
+    console.log('=== 开始提交诊断 ===');
+    console.log('当前选中诊断ID:', clinicalSession.selectedDiagnosis);
+    console.log('案例ID:', clinicalSession.caseId);
+    
     // 显示提交中状态
     $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 提交中...');
     showFeedbackMessage('正在提交诊断选择...', 'info');
@@ -1984,6 +3616,8 @@
       reasoning: $('#clinical-notes').val() || ''
     };
     
+    console.log('提交数据:', submitData);
+    
     $.ajax({
       url: '/api/clinical/submit-diagnosis/',
       method: 'POST',
@@ -1993,6 +3627,7 @@
       },
       data: JSON.stringify(submitData),
       success: function(resp) {
+        console.log('诊断提交成功响应:', resp);
         $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
         
         if (resp.success) {
@@ -2017,21 +3652,30 @@
           flashCard($('#feedback-panel'), 'success');
           launchConfetti(20);
         } else {
-          showFeedbackMessage('提交失败: ' + resp.message, 'danger');
+          showFeedbackMessage('提交失败: ' + resp.message + '。请重新选择诊断', 'danger');
+          // 恢复按钮状态，允许用户重新选择
+          $('#btn-next').prop('disabled', false).html('提交诊断选择 →').removeClass('btn-primary').addClass('btn-info');
         }
       },
       error: function(xhr, status, error) {
-        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+        console.log('=== 诊断提交失败 ===');
+        console.log('错误状态:', status);
+        console.log('错误信息:', error);
+        console.log('响应状态码:', xhr.status);
+        console.log('响应内容:', xhr.responseText);
+        console.log('====================');
+        
+        $('#btn-next').prop('disabled', false).html('提交诊断选择 →').removeClass('btn-primary').addClass('btn-info');
         console.error('Submit diagnosis error:', error, xhr.responseText);
         
         if (xhr.status === 404) {
-          showFeedbackMessage('API接口未找到，请检查后端配置', 'danger');
+          showFeedbackMessage('API接口未找到，请检查后端配置。请重新选择诊断', 'danger');
         } else if (xhr.status === 403) {
-          showFeedbackMessage('权限不足，请重新登录', 'danger');
+          showFeedbackMessage('权限不足，请重新登录。请重新选择诊断', 'danger');
         } else if (xhr.status === 500) {
-          showFeedbackMessage('服务器内部错误，请联系管理员', 'danger');
+          showFeedbackMessage('服务器内部错误，请联系管理员。请重新选择诊断', 'danger');
         } else {
-          showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+          showFeedbackMessage('网络错误，请检查连接: ' + error + '。请重新选择诊断', 'danger');
         }
       }
     });
@@ -2043,13 +3687,16 @@
   function renderTreatmentStage(data) {
     clinicalSession.currentStage = 'treatment';
     
-    // 清空治疗选择数据，避免历史数据污染
-    clinicalSession.selectedTreatments = [];
+    // 如果这是从其他阶段导航回来的，不要清空选择数据
+    // 只有在首次进入治疗阶段时才清空
+    if (!clinicalSession.treatmentOptions || clinicalSession.treatmentOptions.length === 0) {
+      clinicalSession.selectedTreatments = [];
+    }
     
     updateClinicalProgress();
     updateStageProgress();
     
-    $('#btn-next').text('提交治疗方案 →').removeClass('btn-info').addClass('btn-success');
+    $('#btn-next').prop('disabled', false).text('提交治疗方案 →').removeClass('btn-info').addClass('btn-success');
     updateStageCard('治疗决策阶段', 'treatment');
     
     var html = '<div class="treatment-stage">';
@@ -2082,11 +3729,16 @@
     html += '<p class="mb-0">基于确定的诊断，选择合适的治疗方案。考虑治疗的有效性、安全性、成本效益和患者个体情况。</p>';
     html += '</div>';
     
-    if (data.treatment_options && data.treatment_options.length > 0) {
+    // 缓存治疗选项数据
+    if (data.treatment_options) {
+      clinicalSession.treatmentOptions = data.treatment_options;
+    }
+    
+    if (clinicalSession.treatmentOptions && clinicalSession.treatmentOptions.length > 0) {
       html += '<form id="treatment-form">';
       
       // 按治疗类型分组
-      var groupedTreatments = groupTreatmentsByType(data.treatment_options);
+      var groupedTreatments = groupTreatmentsByType(clinicalSession.treatmentOptions);
       
       Object.keys(groupedTreatments).forEach(function(type) {
         var typeOptions = groupedTreatments[type];
@@ -2221,9 +3873,26 @@
     
     $('#stage-content').html(html);
     
+    // 恢复之前的选择状态（如果有的话）
+    if (clinicalSession.selectedTreatments && clinicalSession.selectedTreatments.length > 0) {
+      clinicalSession.selectedTreatments.forEach(function(treatmentId) {
+        var checkbox = $('#treat_' + treatmentId);
+        if (checkbox.length) {
+          checkbox.prop('checked', true);
+          checkbox.closest('.treatment-option').addClass('selected');
+        }
+      });
+      updateTreatmentSummary();
+    }
+    
     // 绑定治疗选择事件
     bindTreatmentEvents();
     showClinicalThinkingPrompt('treatment');
+    
+    // 确保按钮状态正确 - 治疗阶段按钮应始终可用
+    setTimeout(function() {
+      ensureButtonEnabled();
+    }, 100);
   }
   
   function groupTreatmentsByType(options) {
@@ -2261,7 +3930,7 @@
   }
   
   function bindTreatmentEvents() {
-    $('.treatment-checkbox').on('change', function() {
+    $('.treatment-checkbox').off('change').on('change', function() {
       var $card = $(this).closest('.treatment-option');
       var treatmentId = parseInt($(this).val());
       
@@ -2398,21 +4067,23 @@
           flashCard($('#stage-content'), 'success');
           launchConfetti(40);
         } else {
-          showFeedbackMessage('提交失败: ' + resp.message, 'danger');
+          showFeedbackMessage('提交失败: ' + resp.message + '。请重新选择治疗方案', 'danger');
+          // 恢复按钮状态，允许用户重新选择
+          $('#btn-next').prop('disabled', false).html('提交治疗方案 →').removeClass('btn-primary').addClass('btn-success');
         }
       },
       error: function(xhr, status, error) {
-        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+        $('#btn-next').prop('disabled', false).html('提交治疗方案 →').removeClass('btn-primary').addClass('btn-success');
         console.error('Submit treatment error:', error, xhr.responseText);
         
         if (xhr.status === 404) {
-          showFeedbackMessage('API接口未找到，请检查后端配置', 'danger');
+          showFeedbackMessage('API接口未找到，请检查后端配置。请重新选择治疗方案', 'danger');
         } else if (xhr.status === 403) {
-          showFeedbackMessage('权限不足，请重新登录', 'danger');
+          showFeedbackMessage('权限不足，请重新登录。请重新选择治疗方案', 'danger');
         } else if (xhr.status === 500) {
-          showFeedbackMessage('服务器内部错误，请联系管理员', 'danger');
+          showFeedbackMessage('服务器内部错误，请联系管理员。请重新选择治疗方案', 'danger');
         } else {
-          showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+          showFeedbackMessage('网络错误，请检查连接: ' + error + '。请重新选择治疗方案', 'danger');
         }
       }
     });
@@ -2893,8 +4564,21 @@
     // 初始化进度显示
     updateNavigationProgress();
     
+    // 紧急修复：强制确保按钮可用
+    setTimeout(function() {
+      ensureButtonEnabled();
+    }, 500);
+    
     // 绑定导航按钮事件
     $('#btn-next').on('click', function() {
+      debugButtonStatus();
+      
+      if ($(this).prop('disabled')) {
+        console.log('按钮被禁用，强制启用!');
+        ensureButtonEnabled();
+        return false;
+      }
+      
       handleNextStage();
     });
 
@@ -2925,24 +4609,56 @@
         break;
         
       case 'examination':
-        if (clinicalSession.selectedExaminations.length === 0) {
-          showFeedbackMessage('请至少选择一项检查', 'warning');
-          return;
+        if (!clinicalSession.isExaminationConfirmed) {
+          // 第一次点击：确认检查选择
+          if (clinicalSession.selectedExaminations.length === 0) {
+            showFeedbackMessage('请至少选择一项检查', 'warning');
+            return;
+          }
+          confirmExaminationSelection();
+        } else {
+          // 检查已确认，显示检查结果
+          if (clinicalSession.currentExaminationIndex < clinicalSession.examinationOrder.length) {
+            // 隐藏眼底字幕（如果存在）
+            if ($('#fundus-overlay').length) {
+              hideFundusSubtitle();
+            }
+            showNextExaminationResult();
+          } else {
+            // 所有检查结果已查看完毕，进入诊断阶段
+            // 隐藏眼底字幕（如果存在）
+            if ($('#fundus-overlay').length) {
+              hideFundusSubtitle();
+            }
+            submitExaminations();
+          }
         }
-        submitExaminations();
         break;
         
       case 'diagnosis':
+        console.log('=== handleNextStage - 诊断阶段 ===');
+        console.log('当前选中诊断ID:', clinicalSession.selectedDiagnosis);
+        
+        // 隐藏眼底字幕（如果存在）
+        if ($('#fundus-overlay').length) {
+          hideFundusSubtitle();
+        }
         if (!clinicalSession.selectedDiagnosis) {
-          showFeedbackMessage('请选择一个诊断', 'warning');
+          console.log('没有选择诊断，显示警告');
+          showFeedbackMessage('请先选择一个诊断选项，然后再提交', 'warning');
           return;
         }
+        console.log('开始调用submitDiagnosis()');
         submitDiagnosis();
         break;
         
       case 'treatment':
+        // 隐藏眼底字幕（如果存在）
+        if ($('#fundus-overlay').length) {
+          hideFundusSubtitle();
+        }
         if (clinicalSession.selectedTreatments.length === 0) {
-          showFeedbackMessage('请选择至少一种治疗方案', 'warning');
+          showFeedbackMessage('请先选择至少一种治疗方案，然后再提交', 'warning');
           return;
         }
         submitTreatments();
@@ -2964,17 +4680,323 @@
     if (currentIndex > 0) {
       var previousStage = stages[currentIndex - 1];
       
-      // 简单的返回逻辑 - 实际应用中可能需要更复杂的状态恢复
-      if (previousStage === 'history') {
-        initializeHistoryStage();
-      } else if (previousStage === 'examination') {
-        loadExaminationStage();
+      // 隐藏眼底字幕（如果存在）
+      if ($('#fundus-overlay').length) {
+        hideFundusSubtitle();
       }
-      // 可以继续添加其他阶段的返回逻辑
+      
+      // 更新当前阶段
+      clinicalSession.currentStage = previousStage;
+      
+      // 根据目标阶段执行相应的加载逻辑
+      switch (previousStage) {
+        case 'history':
+          initializeHistoryStage();
+          break;
+          
+        case 'examination':
+          loadExaminationStage();
+          // 恢复检查选择状态
+          if (clinicalSession.selectedExaminations.length > 0) {
+            // 如果之前已经选择了检查，恢复到选择确认状态
+            setTimeout(function() {
+              updateExaminationOrderList();
+              clinicalSession.selectedExaminations.forEach(function(examId) {
+                $('.examination-checkbox[value="' + examId + '"]').prop('checked', true);
+              });
+              updateExaminationSummary();
+            }, 100);
+          }
+          break;
+          
+        case 'diagnosis':
+          // 重新加载诊断阶段，需要从后端获取诊断选项
+          loadDiagnosisStage();
+          break;
+          
+        case 'treatment':
+          // 重新加载治疗阶段
+          loadTreatmentStage();
+          break;
+          
+        default:
+          showFeedbackMessage('无法返回到指定阶段', 'warning');
+          return;
+      }
+      
+      // 提供用户反馈
+      showFeedbackMessage('已返回到' + getStageDisplayName(previousStage) + '阶段', 'info');
+      
+      // 记录到学习时间线
+      addToLearningTimeline('返回上一阶段', '从' + getStageDisplayName(currentStage) + '返回到' + getStageDisplayName(previousStage));
+    } else {
+      showFeedbackMessage('已经是第一个阶段，无法返回', 'warning');
     }
     
-    // 更新导航进度
+    // 更新导航进度和按钮状态
     updateNavigationProgress();
+  }
+  
+  // 获取阶段显示名称
+  function getStageDisplayName(stage) {
+    var stageNames = {
+      'history': '病史采集',
+      'examination': '临床检查',
+      'diagnosis': '诊断分析',
+      'treatment': '治疗方案',
+      'feedback': '学习反馈'
+    };
+    return stageNames[stage] || stage;
+  }
+  
+  // 加载诊断阶段
+  function loadDiagnosisStage() {
+    // 如果有缓存的诊断选项，直接使用；否则重新获取
+    if (clinicalSession.diagnosisOptions && clinicalSession.diagnosisOptions.length > 0) {
+      renderDiagnosisStage({
+        diagnosis_options: clinicalSession.diagnosisOptions,
+        examination_score: clinicalSession.scores.examination
+      });
+    } else {
+      // 重新获取诊断选项
+      $.getJSON('/api/clinical/case/' + clinicalSession.caseId + '/diagnoses/', function(resp) {
+        if (resp.success) {
+          clinicalSession.diagnosisOptions = resp.data.diagnosis_options;
+          renderDiagnosisStage(resp.data);
+        } else {
+          showErrorMessage('加载诊断选项失败: ' + resp.message);
+        }
+      }).fail(function() {
+        showErrorMessage('网络错误，请检查连接后重试');
+      });
+    }
+  }
+  
+  // 加载治疗阶段
+  function loadTreatmentStage() {
+    // 如果有缓存的治疗选项，直接使用；否则重新获取
+    if (clinicalSession.treatmentOptions && clinicalSession.treatmentOptions.length > 0) {
+      renderTreatmentStage({
+        treatment_options: clinicalSession.treatmentOptions,
+        diagnosis_score: clinicalSession.scores.diagnosis
+      });
+    } else {
+      // 重新获取治疗选项
+      $.getJSON('/api/clinical/case/' + clinicalSession.caseId + '/treatments/', function(resp) {
+        if (resp.success) {
+          clinicalSession.treatmentOptions = resp.data.treatment_options;
+          renderTreatmentStage(resp.data);
+        } else {
+          showErrorMessage('加载治疗选项失败: ' + resp.message);
+        }
+      }).fail(function() {
+        showErrorMessage('网络错误，请检查连接后重试');
+      });
+    }
+  }
+  
+  // ==================== OCT图像交互功能 ====================
+  
+  // 图像缩放功能
+  var currentZoom = 1;
+  
+  function zoomImage(direction) {
+    var $image = $('.oct-modal-image');
+    if ($image.length === 0) return;
+    
+    if (direction === 'in') {
+      currentZoom = Math.min(currentZoom * 1.2, 5); // 最大5倍
+    } else if (direction === 'out') {
+      currentZoom = Math.max(currentZoom / 1.2, 0.5); // 最小0.5倍
+    }
+    
+    $image.css('transform', 'scale(' + currentZoom + ')');
+    
+    // 显示缩放级别
+    showZoomLevel(currentZoom);
+  }
+  
+  function resetImageZoom() {
+    currentZoom = 1;
+    $('.oct-modal-image').css('transform', 'scale(1)');
+    showZoomLevel(1);
+  }
+  
+  function showZoomLevel(level) {
+    var percentage = Math.round(level * 100);
+    
+    // 移除已存在的缩放指示器
+    $('.zoom-indicator').remove();
+    
+    // 创建新的缩放指示器
+    var indicator = $('<div class="zoom-indicator">' + percentage + '%</div>');
+    indicator.css({
+      position: 'absolute',
+      top: '10px',
+      left: '10px',
+      background: 'rgba(0,0,0,0.7)',
+      color: 'white',
+      padding: '5px 10px',
+      borderRadius: '4px',
+      fontSize: '12px',
+      zIndex: '1000'
+    });
+    
+    $('.oct-modal-image-container').css('position', 'relative').append(indicator);
+    
+    // 2秒后自动隐藏
+    setTimeout(function() {
+      indicator.fadeOut(300, function() {
+        $(this).remove();
+      });
+    }, 2000);
+  }
+  
+  // 图像测量功能
+  var measurementMode = false;
+  var measurementPoints = [];
+  
+  function toggleImageMeasurement() {
+    measurementMode = !measurementMode;
+    var $button = $('button[onclick="toggleImageMeasurement()"]');
+    
+    if (measurementMode) {
+      $button.removeClass('btn-outline-secondary').addClass('btn-warning');
+      $button.html('<i class="fas fa-ruler"></i> 退出测量');
+      enableMeasurementMode();
+    } else {
+      $button.removeClass('btn-warning').addClass('btn-outline-secondary');
+      $button.html('<i class="fas fa-ruler"></i> 测量');
+      disableMeasurementMode();
+    }
+  }
+  
+  function enableMeasurementMode() {
+    $('.oct-modal-image').css('cursor', 'crosshair');
+    
+    // 添加点击事件监听
+    $('.oct-modal-image').off('click.measurement').on('click.measurement', function(e) {
+      if (!measurementMode) return;
+      
+      var rect = this.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      
+      addMeasurementPoint(x, y);
+    });
+  }
+  
+  function disableMeasurementMode() {
+    $('.oct-modal-image').css('cursor', 'zoom-in');
+    $('.oct-modal-image').off('click.measurement');
+    clearMeasurementPoints();
+  }
+  
+  function addMeasurementPoint(x, y) {
+    measurementPoints.push({x: x, y: y});
+    
+    // 创建测量点标记
+    var $marker = $('<div class="measurement-point"></div>');
+    $marker.css({
+      position: 'absolute',
+      left: x + 'px',
+      top: y + 'px',
+      width: '8px',
+      height: '8px',
+      background: '#ff6b6b',
+      borderRadius: '50%',
+      border: '2px solid white',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000
+    });
+    
+    $('.oct-modal-image-container').append($marker);
+    
+    // 如果有两个点，绘制测量线
+    if (measurementPoints.length === 2) {
+      drawMeasurementLine();
+      measurementPoints = []; // 重置测量点
+    }
+  }
+  
+  function drawMeasurementLine() {
+    var point1 = measurementPoints[0];
+    var point2 = measurementPoints[1];
+    
+    var distance = Math.sqrt(Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2));
+    var angle = Math.atan2(point2.y - point1.y, point2.x - point1.x) * 180 / Math.PI;
+    
+    // 创建测量线
+    var $line = $('<div class="measurement-line"></div>');
+    $line.css({
+      position: 'absolute',
+      left: point1.x + 'px',
+      top: point1.y + 'px',
+      width: distance + 'px',
+      height: '2px',
+      background: '#ff6b6b',
+      transformOrigin: '0 50%',
+      transform: 'rotate(' + angle + 'deg)',
+      zIndex: 999
+    });
+    
+    $('.oct-modal-image-container').append($line);
+    
+    // 显示距离标签（像素单位）
+    var $label = $('<div class="measurement-label">' + Math.round(distance) + 'px</div>');
+    $label.css({
+      position: 'absolute',
+      left: ((point1.x + point2.x) / 2) + 'px',
+      top: ((point1.y + point2.y) / 2 - 15) + 'px',
+      background: 'rgba(0,0,0,0.8)',
+      color: 'white',
+      padding: '2px 6px',
+      borderRadius: '3px',
+      fontSize: '12px',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1001
+    });
+    
+    $('.oct-modal-image-container').append($label);
+  }
+  
+  function clearMeasurementPoints() {
+    $('.measurement-point, .measurement-line, .measurement-label').remove();
+    measurementPoints = [];
+  }
+  
+  // 保存图像标注
+  function saveImageAnnotation() {
+    // 收集当前的标注数据
+    var annotations = [];
+    
+    $('.measurement-point').each(function() {
+      var $point = $(this);
+      annotations.push({
+        type: 'point',
+        x: parseFloat($point.css('left')),
+        y: parseFloat($point.css('top'))
+      });
+    });
+    
+    $('.measurement-line').each(function() {
+      var $line = $(this);
+      annotations.push({
+        type: 'line',
+        x: parseFloat($line.css('left')),
+        y: parseFloat($line.css('top')),
+        width: parseFloat($line.css('width')),
+        rotation: $line.css('transform')
+      });
+    });
+    
+    if (annotations.length > 0) {
+      // 这里可以保存到服务器或本地存储
+      console.log('保存标注数据:', annotations);
+      showFeedbackMessage('标注已保存', 'success');
+    } else {
+      showFeedbackMessage('没有标注数据需要保存', 'info');
+    }
   }
   
   // 这里省略了submitExaminationChoices, submitDiagnosisChoice, submitTreatmentChoices等函数

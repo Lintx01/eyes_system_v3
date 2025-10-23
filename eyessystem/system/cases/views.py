@@ -333,24 +333,66 @@ def submit_examination_choices(request):
         
         # 计算检查选择得分
         examination_options = ExaminationOption.objects.filter(clinical_case=clinical_case)
-        total_recommended = examination_options.filter(is_recommended=True).count()
-        selected_recommended = examination_options.filter(
-            id__in=selected_examinations, 
-            is_recommended=True
-        ).count()
         
-        # 简单评分逻辑：推荐检查选择率 × 0.8 + 避免不必要检查奖励 × 0.2
-        if total_recommended > 0:
-            recommendation_score = selected_recommended / total_recommended
+        # 1. 必选检查评分（60%权重）
+        required_options = examination_options.filter(is_required=True)
+        total_required = required_options.count()
+        selected_required = required_options.filter(id__in=selected_examinations).count()
+        
+        if total_required > 0:
+            required_score = selected_required / total_required
         else:
-            recommendation_score = 1.0
-            
-        unnecessary_count = len([exam_id for exam_id in selected_examinations 
-                               if not examination_options.filter(id=exam_id, is_recommended=True).exists()])
-        unnecessary_penalty = min(unnecessary_count * 0.1, 0.5)  # 最多扣0.5分
+            required_score = 1.0  # 如果没有必选检查，给满分
         
-        session.examination_score = max(0, (recommendation_score * 0.8 + (1 - unnecessary_penalty) * 0.2) * 100)
+        # 2. 检查效率评分（30%权重）- 基于检查数量和质量的合理性
+        total_selected = len(selected_examinations)
+        efficiency_score = 1.0
+        
+        # 效率评分逻辑：
+        # - 选择过多检查（超过8项）会降低效率分
+        # - 选择过少检查（少于2项）也会降低效率分
+        # - 最优范围：2-6项检查
+        if total_selected > 8:
+            # 每多选一项检查扣5%
+            efficiency_score -= (total_selected - 8) * 0.05
+        elif total_selected < 2:
+            # 检查太少扣分更重
+            efficiency_score -= (2 - total_selected) * 0.2
+        
+        # 确保效率分不为负
+        efficiency_score = max(0, efficiency_score)
+        
+        # 3. 统计不必要检查数量（仅用于反馈，不影响评分）
+        unnecessary_examinations = []
+        for exam_id in selected_examinations:
+            if not examination_options.filter(
+                Q(id=exam_id) & Q(is_required=True)
+            ).exists():
+                # 检查是否为高价值检查（诊断价值高的检查）
+                exam_option = examination_options.filter(id=exam_id).first()
+                if exam_option and exam_option.diagnostic_value < 2:  # 低价值检查视为不必要
+                    unnecessary_examinations.append(exam_id)
+        unnecessary_count = len(unnecessary_examinations)
+        
+        # 综合得分计算：必选检查70% + 检查效率30%
+        examination_score = (
+            required_score * 0.7 + 
+            efficiency_score * 0.3
+        ) * 100
+        
+        session.examination_score = max(0, min(100, examination_score))
         session.save()
+        
+        # 准备得分详情用于调试和反馈
+        score_details = {
+            'total_score': round(session.examination_score, 1),
+            'required_score': round(required_score * 70, 1),
+            'efficiency_score': round(efficiency_score * 30, 1),
+            'required_stats': f"{selected_required}/{total_required}",
+            'efficiency_stats': f"选择了{total_selected}项检查",
+            'unnecessary_count': unnecessary_count,
+            'total_selected': total_selected
+        }
         
         # 获取选择的检查结果
         selected_examination_results = []
@@ -387,11 +429,12 @@ def submit_examination_choices(request):
             'data': {
                 'examination_results': selected_examination_results,
                 'examination_score': session.examination_score,
+                'score_details': score_details,
                 'diagnosis_options': diagnosis_data,
                 'current_stage': 'diagnosis',
                 'next_stage': 'treatment'
             },
-            'message': '检查结果获取成功，请进行诊断选择'
+            'message': f'检查结果获取成功，检查选择得分：{session.examination_score:.1f}分'
         })
         
     except Exception as e:
@@ -725,6 +768,182 @@ def get_examination_options(request, case_id):
         return JsonResponse({
             'success': False,
             'message': f'获取检查选项失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def get_examination_result(request, case_id, exam_id):
+    """获取单个检查项目的详细结果"""
+    try:
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        examination = get_object_or_404(ExaminationOption, 
+                                       id=exam_id, 
+                                       clinical_case=clinical_case)
+        
+        # 构建检查结果数据
+        result_data = {
+            'id': examination.id,
+            'name': examination.examination_name,
+            'type': examination.get_examination_type_display(),
+            'description': examination.examination_description,
+            'result': examination.actual_result,
+            'normal_result': examination.normal_result,
+            'abnormal_result': examination.abnormal_result,
+            'diagnostic_value': examination.get_diagnostic_value_display(),
+            'is_recommended': examination.is_recommended,
+            'is_fundus_exam': examination.is_fundus_exam,
+            'fundus_reminder_text': examination.fundus_reminder_text,
+            # OCT检查相关字段
+            'is_oct_exam': examination.is_oct_exam,
+            'oct_report_text': examination.oct_report_text,
+            'oct_measurement_data': examination.oct_measurement_data,
+            'image_display_mode': examination.image_display_mode,
+            'image_findings': examination.image_findings,
+            'images': [],
+            'examination_data': {}
+        }
+        
+        # 添加图像数据
+        images = []
+        
+        # 处理result_images字段
+        if examination.result_images:
+            images.extend(examination.result_images)
+        
+        # 处理左右眼图像
+        if examination.left_eye_image:
+            image_data = {
+                'url': examination.left_eye_image.url,
+                'description': '左眼检查图片',
+                'eye': 'left'
+            }
+            # 如果是OCT检查，添加测量数据
+            if examination.is_oct_exam and examination.oct_measurement_data:
+                image_data['measurements'] = examination.oct_measurement_data
+                image_data['findings'] = examination.image_findings
+            images.append(image_data)
+        
+        if examination.right_eye_image:
+            image_data = {
+                'url': examination.right_eye_image.url,
+                'description': '右眼检查图片', 
+                'eye': 'right'
+            }
+            # 如果是OCT检查，添加测量数据
+            if examination.is_oct_exam and examination.oct_measurement_data:
+                image_data['measurements'] = examination.oct_measurement_data
+                image_data['findings'] = examination.image_findings
+            images.append(image_data)
+        
+        # 处理additional_images字段（多张图像）
+        if examination.additional_images:
+            for idx, additional_img in enumerate(examination.additional_images):
+                if isinstance(additional_img, dict):
+                    images.append(additional_img)
+                else:
+                    images.append({
+                        'url': additional_img,
+                        'description': f'附加图像 {idx + 1}',
+                        'eye': 'unknown'
+                    })
+        
+        result_data['images'] = images
+        
+        # 添加眼科检查数据
+        examination_data = {}
+        if examination.left_eye_vision:
+            examination_data['left_eye_vision'] = examination.left_eye_vision
+        if examination.right_eye_vision:
+            examination_data['right_eye_vision'] = examination.right_eye_vision
+        if examination.left_eye_pressure:
+            examination_data['left_eye_pressure'] = str(examination.left_eye_pressure)
+        if examination.right_eye_pressure:
+            examination_data['right_eye_pressure'] = str(examination.right_eye_pressure)
+        
+        result_data['examination_data'] = examination_data
+        
+        return JsonResponse({
+            'success': True,
+            'data': result_data,
+            'message': '检查结果获取成功'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'获取检查结果失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+@require_POST
+def confirm_examination_selection(request):
+    """确认检查选择并获取检查顺序"""
+    try:
+        data = json.loads(request.body)
+        case_id = data.get('case_id')
+        selected_examinations = data.get('selected_examinations', [])
+        examination_order = data.get('examination_order', [])
+        
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        session = get_object_or_404(StudentClinicalSession, 
+                                  student=request.user, 
+                                  clinical_case=clinical_case)
+        
+        # 验证选择的检查项目
+        examination_options = ExaminationOption.objects.filter(
+            clinical_case=clinical_case,
+            id__in=selected_examinations
+        )
+        
+        if len(examination_options) != len(selected_examinations):
+            return JsonResponse({
+                'success': False,
+                'message': '选择的检查项目不存在'
+            }, status=400)
+        
+        # 验证必选检查是否都被选择
+        required_exams = ExaminationOption.objects.filter(
+            clinical_case=clinical_case,
+            is_required=True
+        )
+        required_exam_ids = list(required_exams.values_list('id', flat=True))
+        missing_required = [exam_id for exam_id in required_exam_ids 
+                           if exam_id not in selected_examinations]
+        
+        if missing_required:
+            missing_names = required_exams.filter(id__in=missing_required).values_list('examination_name', flat=True)
+            return JsonResponse({
+                'success': False,
+                'message': f'必选检查未选择：{", ".join(missing_names)}'
+            }, status=400)
+        
+        # 保存选择的检查项目和顺序
+        session.selected_examinations = selected_examinations
+        # 将检查顺序保存在会话数据中
+        if not hasattr(session, 'session_data') or session.session_data is None:
+            session.session_data = {}
+        
+        session.session_data['examination_order'] = examination_order
+        session.session_data['current_examination_index'] = 0
+        session.save()
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'selected_count': len(selected_examinations),
+                'examination_order': examination_order,
+                'message': '检查选择已确认，准备开始检查'
+            },
+            'message': '检查选择确认成功'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'确认检查选择失败：{str(e)}'
         }, status=500)
 
 
@@ -1184,6 +1403,7 @@ def teacher_examination_create(request, case_id):
     
     if request.method == 'POST':
         try:
+            # 创建检查选项基本信息
             examination = ExaminationOption.objects.create(
                 clinical_case=case,
                 examination_type=request.POST.get('examination_type'),
@@ -1199,6 +1419,70 @@ def teacher_examination_create(request, case_id):
                 is_fundus_exam=request.POST.get('is_fundus_exam') == 'on',
                 display_order=int(request.POST.get('display_order', 0))
             )
+            
+            # 处理基础眼科检查数据
+            if examination.examination_type == 'basic':
+                examination.left_eye_vision = request.POST.get('left_eye_vision', '')
+                examination.right_eye_vision = request.POST.get('right_eye_vision', '')
+                if request.POST.get('left_eye_pressure'):
+                    examination.left_eye_pressure = float(request.POST.get('left_eye_pressure'))
+                if request.POST.get('right_eye_pressure'):
+                    examination.right_eye_pressure = float(request.POST.get('right_eye_pressure'))
+            
+            # 处理OCT检查特殊字段
+            if examination.examination_type == 'oct':
+                examination.is_oct_exam = True
+                examination.oct_report_text = request.POST.get('oct_report_text', '')
+                
+                # 处理OCT测量数据（JSON格式）
+                oct_measurement_str = request.POST.get('oct_measurement_data', '')
+                if oct_measurement_str:
+                    try:
+                        import json
+                        examination.oct_measurement_data = json.loads(oct_measurement_str)
+                    except json.JSONDecodeError:
+                        pass  # 如果JSON格式错误，保持为空
+            
+            # 处理图像上传（OCT和眼底检查）
+            if examination.examination_type in ['oct', 'fundus']:
+                # 处理左眼图像
+                if 'left_eye_image' in request.FILES:
+                    examination.left_eye_image = request.FILES['left_eye_image']
+                
+                # 处理右眼图像  
+                if 'right_eye_image' in request.FILES:
+                    examination.right_eye_image = request.FILES['right_eye_image']
+                
+                # 先保存对象以获得ID
+                examination.save()
+                
+                # 处理附加图像（多文件上传）
+                additional_files = request.FILES.getlist('additional_images')
+                if additional_files:
+                    import os
+                    from django.conf import settings
+                    from django.core.files.storage import default_storage
+                    
+                    additional_images = []
+                    for i, file in enumerate(additional_files):
+                        # 生成文件路径
+                        file_extension = os.path.splitext(file.name)[1]
+                        filename = f'additional_{examination.id}_{i}{file_extension}'
+                        file_path = f'examination_images/{filename}'
+                        
+                        # 保存文件
+                        saved_path = default_storage.save(file_path, file)
+                        
+                        # 记录图像信息
+                        additional_images.append({
+                            'url': f'/media/{saved_path}',
+                            'description': f'附加图像 {i+1}',
+                            'filename': file.name,
+                            'eye': 'unknown'
+                        })
+                    examination.additional_images = additional_images
+            
+            examination.save()
             
             messages.success(request, f'检查选项 "{examination.examination_name}" 创建成功！')
             return redirect('teacher_examination_options', case_id=case_id)
@@ -1223,6 +1507,7 @@ def teacher_examination_edit(request, exam_id):
     
     if request.method == 'POST':
         try:
+            # 更新基本信息
             examination.examination_type = request.POST.get('examination_type')
             examination.examination_name = request.POST.get('examination_name')
             examination.examination_description = request.POST.get('examination_description')
@@ -1236,6 +1521,73 @@ def teacher_examination_edit(request, exam_id):
             examination.is_fundus_exam = request.POST.get('is_fundus_exam') == 'on'
             examination.display_order = int(request.POST.get('display_order', 0))
             
+            # 处理基础眼科检查数据
+            if examination.examination_type == 'basic':
+                examination.left_eye_vision = request.POST.get('left_eye_vision', '')
+                examination.right_eye_vision = request.POST.get('right_eye_vision', '')
+                if request.POST.get('left_eye_pressure'):
+                    examination.left_eye_pressure = float(request.POST.get('left_eye_pressure'))
+                if request.POST.get('right_eye_pressure'):
+                    examination.right_eye_pressure = float(request.POST.get('right_eye_pressure'))
+            
+            # 处理OCT检查特殊字段
+            if examination.examination_type == 'oct':
+                examination.is_oct_exam = True
+                examination.oct_report_text = request.POST.get('oct_report_text', '')
+                
+                # 处理OCT测量数据（JSON格式）
+                oct_measurement_str = request.POST.get('oct_measurement_data', '')
+                if oct_measurement_str:
+                    try:
+                        import json
+                        examination.oct_measurement_data = json.loads(oct_measurement_str)
+                    except json.JSONDecodeError:
+                        pass  # 如果JSON格式错误，保持原值
+            else:
+                # 如果不是OCT检查，清除OCT相关字段
+                examination.is_oct_exam = False
+                examination.oct_report_text = ''
+                examination.oct_measurement_data = None
+            
+            # 处理图像上传（OCT和眼底检查）
+            if examination.examination_type in ['oct', 'fundus']:
+                # 处理左眼图像更新
+                if 'left_eye_image' in request.FILES:
+                    examination.left_eye_image = request.FILES['left_eye_image']
+                
+                # 处理右眼图像更新
+                if 'right_eye_image' in request.FILES:
+                    examination.right_eye_image = request.FILES['right_eye_image']
+                
+                # 处理附加图像更新（多文件上传）
+                additional_files = request.FILES.getlist('additional_images')
+                if additional_files:
+                    import os
+                    from django.conf import settings
+                    from django.core.files.storage import default_storage
+                    
+                    additional_images = []
+                    for i, file in enumerate(additional_files):
+                        # 生成文件路径
+                        file_extension = os.path.splitext(file.name)[1]
+                        filename = f'additional_{examination.id}_{i}{file_extension}'
+                        file_path = f'examination_images/{filename}'
+                        
+                        # 保存文件
+                        saved_path = default_storage.save(file_path, file)
+                        
+                        # 记录图像信息
+                        additional_images.append({
+                            'url': f'/media/{saved_path}',
+                            'description': f'附加图像 {i+1}',
+                            'filename': file.name,
+                            'eye': 'unknown'
+                        })
+                    examination.additional_images = additional_images
+            else:
+                # 如果不是影像检查，清除图像字段（但保留已有图像，除非明确删除）
+                pass  # 保留现有图像，让用户明确选择是否删除
+            
             examination.save()
             
             messages.success(request, f'检查选项 "{examination.examination_name}" 更新成功！')
@@ -1244,10 +1596,20 @@ def teacher_examination_edit(request, exam_id):
         except Exception as e:
             messages.error(request, f'更新失败：{str(e)}')
     
+    # 格式化OCT测量数据为JSON字符串
+    oct_measurement_json = ""
+    if examination.oct_measurement_data:
+        import json
+        try:
+            oct_measurement_json = json.dumps(examination.oct_measurement_data, indent=2, ensure_ascii=False)
+        except:
+            oct_measurement_json = ""
+    
     context = {
         'examination': examination,
         'case': examination.clinical_case,
         'examination_type_choices': ExaminationOption._meta.get_field('examination_type').choices,
+        'oct_measurement_json': oct_measurement_json,
         'is_edit': True,
     }
     
