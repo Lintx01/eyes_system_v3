@@ -15,6 +15,220 @@ import json
 from datetime import datetime, timedelta
 
 
+# ==================== 检查选择验证辅助函数 ====================
+
+def validate_examination_selection(required_exam_ids, selected_exam_ids, required_exams, session):
+    """
+    验证学生的检查选择是否符合要求
+    要求：必须完全选中所有必选项，不能多选不能少选
+    """
+    missing_required = required_exam_ids - selected_exam_ids
+    extra_selected = selected_exam_ids - required_exam_ids
+    
+    # 获取当前会话的提交次数（不是基于历史错误数量，而是实际提交次数）
+    if not hasattr(session, 'session_data') or session.session_data is None:
+        session.session_data = {}
+    
+    # 获取本次会话的提交尝试计数器
+    current_attempt_count = session.session_data.get('examination_current_attempt_count', 0) + 1
+    session.session_data['examination_current_attempt_count'] = current_attempt_count
+    session.save()
+    
+    examination_errors = session.session_data.get('examination_selection_errors', [])
+    attempt_count = current_attempt_count  # 使用当前会话的实际提交次数
+    
+    # 检查是否完全匹配
+    is_valid = len(missing_required) == 0 and len(extra_selected) == 0
+    
+    error_message = ""
+    if not is_valid:
+        error_parts = []
+        
+        if missing_required:
+            missing_names = required_exams.filter(id__in=missing_required).values_list('examination_name', flat=True)
+            error_parts.append(f"缺少必选检查项目：{', '.join(missing_names)}")
+        
+        if extra_selected:
+            # 这里需要查询所有检查项来获取额外选择的名称
+            from .models import ExaminationOption
+            extra_exams = ExaminationOption.objects.filter(id__in=extra_selected)
+            extra_names = extra_exams.values_list('examination_name', flat=True)
+            error_parts.append(f"不应选择的检查项目：{', '.join(extra_names)}")
+        
+        error_message = "选择有误，请检查后重新选择。" + "; ".join(error_parts)
+        
+        # 根据尝试次数调整提示消息
+        if attempt_count == 1:
+            error_message += "\n提示：请仔细阅读案例，选择最必要的检查项目。"
+        elif attempt_count == 2:
+            error_message += f"\n这是您第{attempt_count}次尝试，请更加仔细地分析案例需求。"
+        elif attempt_count >= 3:
+            error_message += f"\n这是您第{attempt_count}次尝试，建议重新阅读案例详情和检查项目描述。"
+    
+    # 计算惩罚分数
+    penalty_applied = calculate_examination_penalty(attempt_count, len(missing_required), len(extra_selected))
+    
+    return {
+        'is_valid': is_valid,
+        'error_message': error_message,
+        'missing_required': list(missing_required),
+        'extra_selected': list(extra_selected),
+        'attempt_count': attempt_count,
+        'penalty_applied': penalty_applied
+    }
+
+
+def calculate_examination_penalty(attempt_count, missing_count, extra_count):
+    """
+    计算检查选择错误的惩罚分数
+    
+    Args:
+        attempt_count: 错误尝试次数
+        missing_count: 缺少的必选项数量
+        extra_count: 多选的项目数量
+    
+    Returns:
+        float: 惩罚分数（从总分中扣除）
+    """
+    base_penalty = 0
+    
+    # 基础惩罚：每次错误尝试
+    if attempt_count == 1:
+        base_penalty = 5  # 第一次错误扣5分
+    elif attempt_count == 2:
+        base_penalty = 10  # 第二次错误扣10分
+    elif attempt_count == 3:
+        base_penalty = 15  # 第三次错误扣15分
+    else:
+        base_penalty = 20  # 第四次及以上扣20分
+    
+    # 严重度惩罚：根据错误类型和数量
+    severity_penalty = 0
+    
+    # 缺少必选项的惩罚（更严重）
+    severity_penalty += missing_count * 3
+    
+    # 多选不必要项目的惩罚
+    severity_penalty += extra_count * 2
+    
+    total_penalty = base_penalty + severity_penalty
+    
+    # 限制最大惩罚分数，避免过度惩罚
+    max_penalty = min(30, total_penalty)  # 单次最多扣30分
+    
+    return max_penalty
+
+
+def record_examination_error(session, validation_result):
+    """
+    记录学生检查选择的错误操作
+    
+    Args:
+        session: StudentClinicalSession实例
+        validation_result: 验证结果字典
+    """
+    if not hasattr(session, 'session_data') or session.session_data is None:
+        session.session_data = {}
+    
+    if 'examination_selection_errors' not in session.session_data:
+        session.session_data['examination_selection_errors'] = []
+    
+    # 记录错误详情
+    error_record = {
+        'timestamp': timezone.now().isoformat(),
+        'attempt_number': validation_result['attempt_count'],
+        'missing_required_count': len(validation_result['missing_required']),
+        'extra_selected_count': len(validation_result['extra_selected']),
+        'missing_required_ids': validation_result['missing_required'],
+        'extra_selected_ids': validation_result['extra_selected'],
+        'penalty_applied': validation_result['penalty_applied'],
+        'error_message': validation_result['error_message']
+    }
+    
+    session.session_data['examination_selection_errors'].append(error_record)
+    
+    # 应用惩罚到检查选择得分
+    current_penalty = session.session_data.get('examination_selection_penalty', 0)
+    new_penalty = current_penalty + validation_result['penalty_applied']
+    session.session_data['examination_selection_penalty'] = new_penalty
+    
+    # 标记检查选择为无效
+    session.examination_selection_valid = False
+    session.required_examinations_completed = False
+    
+    # 保存会话
+    session.save()
+    
+    # 记录到step_completion_status中
+    if 'examination_selection' not in session.step_completion_status:
+        session.step_completion_status['examination_selection'] = {}
+    
+    session.step_completion_status['examination_selection'].update({
+        'error_count': len(session.session_data['examination_selection_errors']),
+        'total_penalty': new_penalty,
+        'last_error_time': timezone.now().isoformat()
+    })
+    
+    session.save()
+
+
+def record_examination_success(session, final_attempt_count):
+    """
+    记录学生成功完成检查选择
+    
+    Args:
+        session: StudentClinicalSession实例
+        final_attempt_count: 最终成功时的尝试次数
+    """
+    if not hasattr(session, 'session_data') or session.session_data is None:
+        session.session_data = {}
+    
+    # 记录成功信息
+    success_record = {
+        'timestamp': timezone.now().isoformat(),
+        'final_attempt': final_attempt_count,
+        'total_errors': len(session.session_data.get('examination_selection_errors', [])),
+        'total_penalty': session.session_data.get('examination_selection_penalty', 0)
+    }
+    
+    session.session_data['examination_selection_success'] = success_record
+    
+    # 重置当前会话的尝试计数器（成功后重新开始计数）
+    session.session_data['examination_current_attempt_count'] = 0
+    
+    # 更新步骤完成状态
+    if 'examination_selection' not in session.step_completion_status:
+        session.step_completion_status['examination_selection'] = {}
+    
+    session.step_completion_status['examination_selection'].update({
+        'completed': True,
+        'success_time': timezone.now().isoformat(),
+        'attempts_needed': final_attempt_count,
+        'performance_rating': calculate_performance_rating(final_attempt_count)
+    })
+    
+    session.save()
+
+
+def calculate_performance_rating(attempt_count):
+    """
+    根据尝试次数计算表现评级
+    
+    Args:
+        attempt_count: 尝试次数
+        
+    Returns:
+        str: 表现评级
+    """
+    if attempt_count == 1:
+        return "优秀"  # 一次成功
+    elif attempt_count == 2:
+        return "良好"  # 两次成功
+    elif attempt_count == 3:
+        return "及格"  # 三次成功
+    else:
+        return "需要改进"  # 四次及以上
+
 
 # 权限检查函数
 def is_teacher(user):
@@ -374,24 +588,54 @@ def submit_examination_choices(request):
                     unnecessary_examinations.append(exam_id)
         unnecessary_count = len(unnecessary_examinations)
         
-        # 综合得分计算：必选检查70% + 检查效率30%
-        examination_score = (
+        # 基础得分计算：必选检查70% + 检查效率30%
+        base_examination_score = (
             required_score * 0.7 + 
             efficiency_score * 0.3
         ) * 100
         
-        session.examination_score = max(0, min(100, examination_score))
+        # 根据检查选择的最终尝试次数计算惩罚
+        selection_penalty = 0
+        if hasattr(session, 'session_data') and session.session_data:
+            # 从成功记录中获取最终尝试次数，如果没有则从步骤完成状态中获取
+            final_attempt_count = 1
+            
+            if 'examination_selection_success' in session.session_data:
+                final_attempt_count = session.session_data['examination_selection_success'].get('final_attempt', 1)
+            elif 'examination_selection' in session.step_completion_status:
+                final_attempt_count = session.step_completion_status['examination_selection'].get('final_attempt', 1)
+            
+            # 只有当尝试次数大于1时才应用惩罚
+            if final_attempt_count > 1:
+                # 基于最终尝试次数计算惩罚：第2次尝试扣5分，第3次扣10分，第4次及以后扣20分
+                if final_attempt_count == 2:
+                    selection_penalty = 5
+                elif final_attempt_count == 3:
+                    selection_penalty = 10
+                else:
+                    selection_penalty = 20
+        
+        # 最终得分 = 基础得分 - 基于尝试次数的惩罚
+        final_examination_score = max(0, base_examination_score - selection_penalty)
+        
+        session.examination_score = max(0, min(100, final_examination_score))
         session.save()
         
         # 准备得分详情用于调试和反馈
         score_details = {
             'total_score': round(session.examination_score, 1),
+            'base_score': round(base_examination_score, 1),
+            'selection_penalty': round(selection_penalty, 1),
             'required_score': round(required_score * 70, 1),
             'efficiency_score': round(efficiency_score * 30, 1),
             'required_stats': f"{selected_required}/{total_required}",
             'efficiency_stats': f"选择了{total_selected}项检查",
             'unnecessary_count': unnecessary_count,
-            'total_selected': total_selected
+            'total_selected': total_selected,
+            'penalty_info': {
+                'error_attempts': len(session.session_data.get('examination_selection_errors', [])) if hasattr(session, 'session_data') and session.session_data else 0,
+                'penalty_applied': selection_penalty
+            }
         }
         
         # 获取选择的检查结果
@@ -981,7 +1225,7 @@ def get_examination_result(request, case_id, exam_id):
 @user_passes_test(is_student, login_url='login')
 @require_POST
 def confirm_examination_selection(request):
-    """确认检查选择并获取检查顺序"""
+    """确认检查选择并获取检查顺序 - 严格验证必选项"""
     try:
         data = json.loads(request.body)
         case_id = data.get('case_id')
@@ -993,7 +1237,7 @@ def confirm_examination_selection(request):
                                   student=request.user, 
                                   clinical_case=clinical_case)
         
-        # 验证选择的检查项目
+        # 验证选择的检查项目是否存在
         examination_options = ExaminationOption.objects.filter(
             clinical_case=clinical_case,
             id__in=selected_examinations
@@ -1005,40 +1249,84 @@ def confirm_examination_selection(request):
                 'message': '选择的检查项目不存在'
             }, status=400)
         
-        # 验证必选检查是否都被选择
+        # 获取所有必选检查项目
         required_exams = ExaminationOption.objects.filter(
             clinical_case=clinical_case,
             is_required=True
         )
-        required_exam_ids = list(required_exams.values_list('id', flat=True))
-        missing_required = [exam_id for exam_id in required_exam_ids 
-                           if exam_id not in selected_examinations]
+        required_exam_ids = set(required_exams.values_list('id', flat=True))
+        selected_exam_ids = set(selected_examinations)
         
-        if missing_required:
-            missing_names = required_exams.filter(id__in=missing_required).values_list('examination_name', flat=True)
+        # 严格验证：学生选择必须与必选项完全一致
+        validation_result = validate_examination_selection(
+            required_exam_ids, selected_exam_ids, required_exams, session
+        )
+        
+        if not validation_result['is_valid']:
+            # 记录错误操作并应用评分惩罚
+            record_examination_error(session, validation_result)
+            
             return JsonResponse({
                 'success': False,
-                'message': f'必选检查未选择：{", ".join(missing_names)}'
+                'message': validation_result['error_message'],
+                'error_details': {
+                    'missing_required': validation_result.get('missing_required', []),
+                    'extra_selected': validation_result.get('extra_selected', []),
+                    'attempt_count': validation_result.get('attempt_count', 0),
+                    'penalty_applied': validation_result.get('penalty_applied', 0)
+                }
             }, status=400)
+        
+        # 验证通过 - 记录成功状态并保存选择
+        record_examination_success(session, validation_result['attempt_count'])
         
         # 保存选择的检查项目和顺序
         session.selected_examinations = selected_examinations
+        session.examination_selection_valid = True
+        session.required_examinations_completed = True
+        
         # 将检查顺序保存在会话数据中
         if not hasattr(session, 'session_data') or session.session_data is None:
             session.session_data = {}
         
         session.session_data['examination_order'] = examination_order
         session.session_data['current_examination_index'] = 0
+        
+        # 记录成功完成时间
+        session.step_completion_status['examination_selection'] = session.step_completion_status.get('examination_selection', {})
+        session.step_completion_status['examination_selection'].update({
+            'completed': True,
+            'completion_time': timezone.now().isoformat(),
+            'final_attempt': validation_result['attempt_count'],
+            'validation_success': True
+        })
+        
         session.save()
         
+        # 计算当前应用的惩罚（用于显示）
+        total_penalty = session.session_data.get('examination_selection_penalty', 0)
+        error_count = len(session.session_data.get('examination_selection_errors', []))
+        
+        # 构建成功消息
+        if validation_result['attempt_count'] == 1:
+            success_message = '检查选择已确认，准备开始检查 - 首次选择正确！'
+        elif error_count > 0:
+            success_message = f'检查选择已确认，准备开始检查 - 经过{validation_result["attempt_count"]}次尝试成功完成'
+        else:
+            success_message = '检查选择已确认，准备开始检查'
+
         return JsonResponse({
             'success': True,
             'data': {
                 'selected_count': len(selected_examinations),
                 'examination_order': examination_order,
-                'message': '检查选择已确认，准备开始检查'
-            },
-            'message': '检查选择确认成功'
+                'message': success_message,
+                'validation_info': {
+                    'attempt_count': validation_result['attempt_count'],
+                    'penalty_applied': total_penalty if error_count > 0 else 0,  # 只有错误时才返回扣分
+                    'error_count': error_count
+                }
+            }
         })
         
     except Exception as e:
@@ -1487,12 +1775,58 @@ def teacher_examination_options(request, case_id):
     case = get_object_or_404(ClinicalCase, case_id=case_id)
     examinations = ExaminationOption.objects.filter(clinical_case=case).order_by('examination_type', 'display_order')
     
+    # 计算统计信息
+    required_count = examinations.filter(is_required=True).count()
+    optional_count = examinations.filter(is_required=False).count()
+    
     context = {
         'case': case,
         'examinations': examinations,
+        'required_count': required_count,
+        'optional_count': optional_count,
     }
     
     return render(request, 'teacher/examination_options.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def teacher_batch_set_required(request, case_id):
+    """教师端 - 批量设置必选检查项目"""
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': '仅支持POST请求'}, status=405)
+    
+    try:
+        case = get_object_or_404(ClinicalCase, case_id=case_id)
+        
+        # 获取选中的检查项目ID列表
+        required_examination_ids = request.POST.getlist('required_examinations')
+        
+        # 重置所有检查项目为非必选
+        ExaminationOption.objects.filter(clinical_case=case).update(is_required=False)
+        
+        # 设置选中的检查项目为必选
+        if required_examination_ids:
+            ExaminationOption.objects.filter(
+                clinical_case=case, 
+                id__in=required_examination_ids
+            ).update(is_required=True)
+        
+        required_count = len(required_examination_ids)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'成功设置 {required_count} 个必选检查项目',
+            'required_count': required_count,
+            'case_id': case_id
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'设置失败：{str(e)}'
+        }, status=500)
 
 
 @login_required

@@ -4,6 +4,9 @@
 {% block title %}临床推理 - {{ clinical_case.title }}{% endblock %}
 
 {% block content %}
+<!-- Bootstrap 4.6 CSS (如果base.html中没有的话) -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 {% csrf_token %}
 <div class="container-fluid mt-4">
   <!-- 临床推理系统标题 -->
@@ -1388,17 +1391,29 @@
 }
 
 .diagnosis-option .d-flex {
-  align-items: flex-start !important;
+  align-items: center !important;
 }
 
 .diagnosis-option .form-check-input {
-  margin-top: 2px !important;
+  margin-top: 0 !important;
   flex-shrink: 0 !important;
+  vertical-align: middle !important;
 }
 
 .diagnosis-option .form-check-label {
   cursor: pointer;
   margin-bottom: 0 !important;
+  width: 100%;
+}
+
+.diagnosis-option h6 {
+  line-height: 1.2 !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.diagnosis-option .text-muted.small {
+  margin-left: 0;
+  display: block;
 }
 
 .diagnosis-option:hover {
@@ -1415,19 +1430,48 @@
 .treatment-option {
   border-left: 4px solid #dee2e6;
   transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.treatment-option:hover {
+  border-left-color: #007bff;
+  background-color: #f8f9ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,123,255,0.15);
 }
 
 .treatment-option.optimal {
   border-left-color: #28a745;
 }
 
+.treatment-option.optimal:hover {
+  background-color: #f8fff9;
+}
+
 .treatment-option.acceptable {
   border-left-color: #ffc107;
+}
+
+.treatment-option.acceptable:hover {
+  background-color: #fffef8;
 }
 
 .treatment-option.contraindicated {
   border-left-color: #dc3545;
   background-color: #fff5f5;
+}
+
+.treatment-option.contraindicated:hover {
+  background-color: #ffebeb;
+}
+
+.treatment-option .form-check-input {
+  margin-top: 0 !important;
+  vertical-align: middle !important;
+}
+
+.treatment-option .treatment-badges .badge {
+  margin-left: 0.25rem;
 }
 
 /* 学习统计面板 */
@@ -1550,6 +1594,95 @@
   0% { transform: scale(1); box-shadow: 0 0 0 rgba(0,123,255,0); }
   50% { transform: scale(1.08); box-shadow: 0 10px 30px rgba(0,123,255,0.22); }
   100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,123,255,0); }
+}
+
+/* 检查选择验证错误样式 */
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+  20%, 40%, 60%, 80% { transform: translateX(8px); }
+}
+
+@keyframes pulseError {
+  0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+  70% { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+@keyframes pulseWarning {
+  0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+  70% { box-shadow: 0 0 0 8px rgba(255, 193, 7, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+}
+
+/* 检查项目错误状态 */
+.examination-option.error-missing {
+  border: 2px solid #dc3545 !important;
+  background: linear-gradient(135deg, #f8d7da, #f1b0b7) !important;
+  animation: pulseError 1.5s infinite;
+}
+
+.examination-option.error-missing .card-body {
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.examination-option.error-missing::before {
+  content: "必选";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #dc3545;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  z-index: 10;
+}
+
+.examination-option.error-extra {
+  border: 2px solid #ffc107 !important;
+  background: linear-gradient(135deg, #fff3cd, #ffeaa7) !important;
+  animation: pulseWarning 1.5s infinite;
+}
+
+.examination-option.error-extra .card-body {
+  background: rgba(255, 193, 7, 0.05);
+}
+
+.examination-option.error-extra::before {
+  content: "多选";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ffc107;
+  color: #212529;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  z-index: 10;
+}
+
+/* 验证错误提示样式 */
+.validation-error-alert {
+  border-left: 5px solid #dc3545;
+  box-shadow: 0 4px 20px rgba(220, 53, 69, 0.3);
+}
+
+.examination-validation-error .error-section {
+  padding: 10px 15px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.examination-validation-error .penalty-info {
+  border-left: 4px solid #ffc107;
+  font-weight: 600;
+}
+
+.examination-validation-error .action-hint {
+  border-left: 4px solid #17a2b8;
 }
 
 /* 检查选项布局优化 */
@@ -2054,14 +2187,27 @@
     
     $.getJSON('/api/clinical/case/' + clinicalSession.caseId + '/examinations/', function(resp) {
       if (resp.success) {
+        // 存储检查选项统计信息
+        clinicalSession.examinationStats = {
+          totalCount: resp.data.total_count || 0,
+          requiredCount: resp.data.required_count || 0,
+          distractorCount: resp.data.distractor_count || 0,
+          mode: resp.data.mode || 'standard'
+        };
+        
         renderExaminationOptions(resp.data.examination_options || []);
         addExaminationGuidance();
         showClinicalThinkingPrompt('examination');
+        
+        // 显示检查选项统计信息
+        showExaminationStats();
         
         // 初始化检查选择顺序数组
         clinicalSession.examinationOrder = [];
         clinicalSession.isExaminationConfirmed = false;
         clinicalSession.currentExaminationIndex = 0;
+        
+        console.log('检查选项加载成功:', clinicalSession.examinationStats);
       } else {
         showErrorMessage('加载检查选项失败: ' + resp.message);
       }
@@ -2070,7 +2216,24 @@
     });
   }
   
+  function clearExaminationErrors() {
+    /**
+     * 清除检查选择的错误状态和高亮
+     */
+    // 清除错误高亮
+    $('.examination-option').removeClass('error-missing error-extra');
+    
+    // 清除反馈面板中的错误信息
+    const feedbackPanel = $('#feedback-panel');
+    if (feedbackPanel.find('.examination-validation-error').length > 0) {
+      feedbackPanel.html('<div class="alert alert-secondary"><i class="fas fa-info-circle me-2"></i>等待检查选择...</div>');
+    }
+  }
+  
   function renderExaminationOptions(options) {
+    // 清除之前的错误状态
+    clearExaminationErrors();
+    
     var html = '<div class="examination-selection">';
     
     // 检查选择说明
@@ -2081,6 +2244,16 @@
     html += '<p class="mb-2" style="font-size: 1rem; line-height: 1.6; color: #424242;">请选择您认为有助于诊断的检查项目，然后安排检查顺序。</p>';
     html += '<p class="mb-0" style="font-size: 0.9rem; line-height: 1.6; color: #424242;"><strong>提示：</strong>选择检查项目后，可以拖拽调整检查顺序，系统将按顺序逐一展示检查结果。</p>';
     html += '</div>';
+    
+    // 检查选项统计信息（仅在混合模式下显示）
+    if (clinicalSession.examinationStats && clinicalSession.examinationStats.mode === 'mixed') {
+      html += '<div id="examination-stats" class="alert alert-secondary" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: none; border-radius: 10px; padding: 15px; margin-bottom: 15px;">';
+      html += '<div class="d-flex align-items-center justify-content-center">';
+      html += '<i class="fas fa-info-circle me-2" style="color: #6c757d; font-size: 1.1rem;"></i>';
+      html += '<span style="font-size: 0.95rem; color: #495057; font-weight: 500;">本次共提供 <strong>' + clinicalSession.examinationStats.totalCount + '</strong> 项检查选择，包含教学重点和辅助选项</span>';
+      html += '</div>';
+      html += '</div>';
+    }
     
 
 
@@ -2412,22 +2585,14 @@
   }
 
   function confirmExaminationSelection() {
-    // 验证必选检查是否都被选择
-    var requiredMissing = [];
-    $('.examination-checkbox').each(function() {
-      var isRequired = $(this).data('is-required') === 1 || $(this).data('is-required') === true;
-      if (isRequired) {
-        var id = parseInt($(this).val());
-        if (clinicalSession.selectedExaminations.indexOf(id) === -1) {
-          requiredMissing.push(id);
-        }
-      }
-    });
-
-    if (requiredMissing.length > 0) {
-      showFeedbackMessage('存在重要检查项目未选择，建议完善检查后再继续', 'warning');
+    // 基础验证：确保至少选择了一项检查
+    if (clinicalSession.selectedExaminations.length === 0) {
+      showFeedbackMessage('请至少选择一项检查', 'warning');
       return;
     }
+    
+    // 清除之前的错误状态
+    clearExaminationErrors();
 
     // 显示确认中状态
     $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 确认中...');
@@ -2460,7 +2625,14 @@
           
           // 显示确认成功界面
           showExaminationConfirmedInterface();
-          showFeedbackMessage('检查选择已确认，准备查看检查结果', 'success');
+          
+          // 显示成功消息，包含尝试次数信息
+          var successMessage = resp.data.message || resp.message;
+          
+          // 不再在成功消息中显示扣分信息，因为容易造成误解
+          // 扣分信息应该只在错误时显示，成功时只显示鼓励信息
+          
+          showFeedbackMessage(successMessage, 'success');
           
           // 记录到时间线
           addToLearningTimeline('确认检查选择', '共选择 ' + clinicalSession.selectedExaminations.length + ' 项检查');
@@ -2471,10 +2643,249 @@
       },
       error: function(xhr, status, error) {
         $('#btn-next').prop('disabled', false).html('确认检查选择 →');
-        console.error('Confirm examination error:', error, xhr.responseText);
-        showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+        
+        // 处理验证错误（400状态码）
+        if (xhr.status === 400) {
+          try {
+            var errorResp = JSON.parse(xhr.responseText);
+            if (errorResp.error_details) {
+              showExaminationValidationError(errorResp);
+            } else {
+              showFeedbackMessage('验证失败: ' + errorResp.message, 'warning');
+            }
+          } catch (e) {
+            showFeedbackMessage('请求失败，请重试', 'danger');
+          }
+        } else {
+          console.error('Confirm examination error:', error, xhr.responseText);
+          showFeedbackMessage('网络错误，请检查连接: ' + error, 'danger');
+        }
       }
     });
+  }
+  
+  function showExaminationValidationError(errorResponse) {
+    var details = errorResponse.error_details;
+    var message = errorResponse.message;
+    
+    // 创建详细的错误提示界面
+    var html = '<div class="examination-validation-error">';
+    
+    // 主要错误提示
+    html += '<div class="alert alert-danger" style="background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); border: none; border-radius: 12px; padding: 20px; margin-bottom: 20px;">';
+    html += '<h4 class="mb-3" style="color: #721c24; font-weight: 700; display: flex; align-items: center;">';
+    html += '<i class="fas fa-exclamation-triangle me-2" style="font-size: 1.2rem; color: #dc3545;"></i>检查选择验证失败';
+    html += '</h4>';
+    html += '<p class="mb-2" style="font-size: 1rem; line-height: 1.6; color: #721c24;">' + message + '</p>';
+    
+    // 显示尝试次数和惩罚信息
+    if (details.attempt_count) {
+      html += '<div class="mt-3 p-3" style="background: rgba(220, 53, 69, 0.1); border-radius: 8px;">';
+      html += '<small class="text-danger"><strong>第 ' + details.attempt_count + ' 次尝试失败</strong></small>';
+      if (details.penalty_applied > 0) {
+        html += '<br><small class="text-danger">本次错误将扣除 ' + details.penalty_applied + ' 分</small>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    
+    // 错误详情卡片
+    if (details.missing_required && details.missing_required.length > 0) {
+      html += '<div class="card mb-3" style="border: 2px solid #dc3545; border-radius: 10px;">';
+      html += '<div class="card-header bg-danger text-white" style="border-radius: 8px 8px 0 0;">';
+      html += '<h6 class="mb-0"><i class="fas fa-times-circle me-2"></i>缺少必选检查项目</h6>';
+      html += '</div>';
+      html += '<div class="card-body">';
+      html += '<p class="text-danger mb-2">以下检查项目是必须选择的，请重新选择：</p>';
+      html += '<div class="missing-required-list">';
+      // 这里需要通过检查选项列表来显示缺少的项目名称
+      details.missing_required.forEach(function(examId) {
+        // 从当前页面的检查选项中找到对应名称
+        var examElement = $('.examination-option[data-exam-id="' + examId + '"]');
+        if (examElement.length > 0) {
+          var examName = examElement.find('.form-check-label strong').text();
+          html += '<div class="alert alert-warning py-2 mb-2">';
+          html += '<i class="fas fa-star text-warning me-2"></i>' + examName;
+          html += '</div>';
+        }
+      });
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    if (details.extra_selected && details.extra_selected.length > 0) {
+      html += '<div class="card mb-3" style="border: 2px solid #fd7e14; border-radius: 10px;">';
+      html += '<div class="card-header bg-warning text-dark" style="border-radius: 8px 8px 0 0;">';
+      html += '<h6 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>不应选择的检查项目</h6>';
+      html += '</div>';
+      html += '<div class="card-body">';
+      html += '<p class="text-warning mb-2">以下检查项目不是必选的，请取消选择：</p>';
+      html += '<div class="extra-selected-list">';
+      details.extra_selected.forEach(function(examId) {
+        var examElement = $('.examination-option[data-exam-id="' + examId + '"]');
+        if (examElement.length > 0) {
+          var examName = examElement.find('.form-check-label strong').text();
+          html += '<div class="alert alert-info py-2 mb-2">';
+          html += '<i class="fas fa-info-circle text-info me-2"></i>' + examName;
+          html += '</div>';
+        }
+      });
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    
+    // 重新选择指导
+    html += '<div class="card" style="border: 2px solid #17a2b8; border-radius: 10px;">';
+    html += '<div class="card-header bg-info text-white" style="border-radius: 8px 8px 0 0;">';
+    html += '<h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>重新选择指导</h6>';
+    html += '</div>';
+    html += '<div class="card-body">';
+    html += '<ol class="mb-0">';
+    html += '<li>仔细阅读病例描述，理解患者的症状和体征</li>';
+    html += '<li>选择所有<strong>必选的检查项目</strong>（通常是诊断最关键的检查）</li>';
+    html += '<li>不要选择额外的非必选项目</li>';
+    html += '<li>确认选择后，点击"确认检查选择"按钮</li>';
+    html += '</ol>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    // 更新主要内容区域
+    $('#main-content').html(html);
+    
+    // 高亮显示相关的检查选项
+    if (details.missing_required) {
+      details.missing_required.forEach(function(examId) {
+        $('.examination-option[data-exam-id="' + examId + '"]').addClass('border-danger').css('animation', 'pulse 1s infinite');
+      });
+    }
+    
+    if (details.extra_selected) {
+      details.extra_selected.forEach(function(examId) {
+        $('.examination-option[data-exam-id="' + examId + '"]').addClass('border-warning');
+      });
+    }
+    
+    // 滚动到顶部
+    $('html, body').animate({ scrollTop: 0 }, 300);
+  }
+  
+  function showExaminationValidationError(errorResponse) {
+    /**
+     * 显示检查选择验证错误的详细信息
+     */
+    const details = errorResponse.error_details || {};
+    const message = errorResponse.message || '选择验证失败';
+    
+    // 构建详细的错误提示
+    let errorHtml = '<div class="examination-validation-error">';
+    
+    // 主要错误信息
+    errorHtml += '<div class="alert alert-danger validation-error-alert" style="background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%); border: none; border-radius: 10px; margin-bottom: 15px; animation: shakeError 0.6s ease-in-out;">';
+    errorHtml += '<div class="d-flex align-items-center mb-3">';
+    errorHtml += '<i class="fas fa-exclamation-triangle text-danger me-3" style="font-size: 1.5rem;"></i>';
+    errorHtml += '<div>';
+    errorHtml += `<h6 class="mb-1 text-danger font-weight-bold">第${details.attempt_count || 1}次尝试失败</h6>`;
+    errorHtml += `<p class="mb-0 text-danger">${message}</p>`;
+    errorHtml += '</div>';
+    errorHtml += '</div>';
+    
+    // 详细错误分析
+    if (details.missing_required && details.missing_required.length > 0) {
+      errorHtml += '<div class="error-section mb-3">';
+      errorHtml += '<h6 class="text-danger mb-2"><i class="fas fa-minus-circle me-2"></i>缺少必选检查项：</h6>';
+      errorHtml += '<ul class="text-danger mb-0">';
+      details.missing_required.forEach(function(examId) {
+        const examName = getExaminationNameById(examId);
+        errorHtml += `<li>${examName || '检查项目ID: ' + examId}</li>`;
+      });
+      errorHtml += '</ul>';
+      errorHtml += '</div>';
+    }
+    
+    if (details.extra_selected && details.extra_selected.length > 0) {
+      errorHtml += '<div class="error-section mb-3">';
+      errorHtml += '<h6 class="text-warning mb-2"><i class="fas fa-plus-circle me-2"></i>不应选择的检查项：</h6>';
+      errorHtml += '<ul class="text-warning mb-0">';
+      details.extra_selected.forEach(function(examId) {
+        const examName = getExaminationNameById(examId);
+        errorHtml += `<li>${examName || '检查项目ID: ' + examId}</li>`;
+      });
+      errorHtml += '</ul>';
+      errorHtml += '</div>';
+    }
+    
+    // 惩罚信息
+    if (details.penalty_applied && details.penalty_applied > 0) {
+      errorHtml += '<div class="penalty-info alert alert-warning" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border: none; border-radius: 8px; padding: 12px;">';
+      errorHtml += `<i class="fas fa-exclamation-triangle me-2"></i>本次错误将扣除 <strong>${details.penalty_applied}分</strong>`;
+      errorHtml += '</div>';
+    }
+    
+    // 操作提示
+    errorHtml += '<div class="action-hint alert alert-info" style="background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%); border: none; border-radius: 8px; padding: 12px;">';
+    errorHtml += '<i class="fas fa-lightbulb me-2"></i>';
+    if (details.attempt_count === 1) {
+      errorHtml += '请仔细阅读案例信息，重新选择必要的检查项目。';
+    } else if (details.attempt_count === 2) {
+      errorHtml += '这是您第二次尝试，请更加仔细地分析案例需求。';
+    } else {
+      errorHtml += '多次尝试失败，建议重新阅读案例详情和检查项目描述。';
+    }
+    errorHtml += '</div>';
+    
+    errorHtml += '</div>';
+    
+    // 显示错误信息到反馈面板
+    $('#feedback-panel').html(errorHtml);
+    
+    // 高亮显示错误的检查项
+    highlightErrorExaminations(details);
+    
+    // 滚动到反馈面板
+    $('#feedback-panel')[0].scrollIntoView({ behavior: 'smooth' });
+    
+    // 记录错误到时间线
+    addToLearningTimeline(
+      `检查选择错误 (第${details.attempt_count}次)`, 
+      `惩罚: -${details.penalty_applied || 0}分`
+    );
+  }
+  
+  function getExaminationNameById(examId) {
+    /**
+     * 根据检查项目ID获取名称
+     */
+    const examCheckbox = $(`input[value="${examId}"]`);
+    if (examCheckbox.length > 0) {
+      return examCheckbox.closest('.examination-option').find('strong').first().text();
+    }
+    return null;
+  }
+  
+  function highlightErrorExaminations(errorDetails) {
+    /**
+     * 高亮显示错误的检查项目
+     */
+    // 清除之前的高亮
+    $('.examination-option').removeClass('error-missing error-extra');
+    
+    // 高亮缺少的必选项
+    if (errorDetails.missing_required) {
+      errorDetails.missing_required.forEach(function(examId) {
+        $(`.examination-option[data-exam-id="${examId}"]`).addClass('error-missing');
+      });
+    }
+    
+    // 高亮多选的项目
+    if (errorDetails.extra_selected) {
+      errorDetails.extra_selected.forEach(function(examId) {
+        $(`.examination-option[data-exam-id="${examId}"]`).addClass('error-extra');
+      });
+    }
   }
   
   function showExaminationConfirmedInterface() {
@@ -3189,7 +3600,8 @@
     }
     html += '</div>';
     
-    // 诊断选项
+    // 诊断选项 - Layout Version 2.0
+    console.log('Rendering diagnosis options - Layout Updated at ' + new Date().toLocaleString());
     html += '<div class="diagnosis-options">';
     html += '<h4 class="text-info mb-4" style="font-weight: 700; display: flex; align-items: center;">';
     html += '<i class="fas fa-user-md me-2" style="font-size: 1.3rem; color: #17a2b8;"></i>鉴别诊断';
@@ -3255,31 +3667,27 @@
     if (diagnosisOptions && diagnosisOptions.length > 0) {
       html += '<form id="diagnosis-form">';
       diagnosisOptions.forEach(function(option) {
-        html += '<div class="card diagnosis-option mb-3" data-diagnosis-id="' + option.id + '" style="border: 2px solid transparent; transition: all 0.3s ease;">';
+        // Layout Version 2.0 - Updated structure for better alignment
+        html += '<div class="card diagnosis-option mb-3" data-diagnosis-id="' + option.id + '" data-layout-version="2.0" style="border: 2px solid transparent; transition: all 0.3s ease;">';
         html += '<div class="card-body">';
-        html += '<div class="d-flex align-items-start">';
-        html += '<input class="form-check-input diagnosis-radio me-3 mt-1" type="radio" name="diagnosis" ';
-        html += 'value="' + option.id + '" id="diag_' + option.id + '" style="flex-shrink: 0;">';
-        html += '<label class="form-check-label flex-grow-1" for="diag_' + option.id + '">';
-        html += '<div class="d-flex justify-content-between align-items-start">';
-        html += '<div class="flex-grow-1">';
-        html += '<h6 class="mb-1" style="color: #2c3e50; font-weight: 600;">' + option.name + '</h6>';
-        if (option.code) {
-          html += '<small class="text-muted d-block mb-2"><i class="fas fa-code me-1"></i>ICD编码: ' + option.code + '</small>';
-        }
-        if (option.description) {
-          html += '<p class="text-muted small mb-0" style="line-height: 1.4;">' + option.description + '</p>';
-        }
-        html += '</div>';
+        html += '<div class="d-flex align-items-center mb-2">';
+        html += '<input class="form-check-input diagnosis-radio me-3" type="radio" name="diagnosis" ';
+        html += 'value="' + option.id + '" id="diag_' + option.id + '" style="flex-shrink: 0; margin-top: 0;">';
+        html += '<label class="form-check-label me-3" for="diag_' + option.id + '" style="cursor: pointer; flex-grow: 1;">';
+        html += '<h6 class="mb-0" style="color: #2c3e50; font-weight: 600;">' + option.name + '</h6>';
+        html += '</label>';
         if (option.probability_score !== undefined) {
-          html += '<div class="diagnosis-probability ms-3">';
           var percentage = (option.probability_score * 100).toFixed(0);
           var badgeClass = percentage >= 80 ? 'badge-success' : percentage >= 60 ? 'badge-warning' : 'badge-secondary';
-          html += '<span class="badge ' + badgeClass + '">符合度: ' + percentage + '%</span>';
-          html += '</div>';
+          html += '<span class="badge ' + badgeClass + '" style="flex-shrink: 0;">符合度: ' + percentage + '%</span>';
         }
         html += '</div>';
-        html += '</label>';
+        if (option.code) {
+          html += '<div class="text-muted small mb-1" style="margin-left: 2.5rem;"><i class="fas fa-code me-1"></i>ICD: ' + option.code + '</div>';
+        }
+        if (option.description) {
+          html += '<div class="text-muted small" style="line-height: 1.4; margin-left: 2.5rem;">' + option.description + '</div>';
+        }
         html += '</div>';
         html += '</div>';
         html += '</div>';
@@ -3723,10 +4131,10 @@
     
     // 治疗方案选择
     html += '<div class="treatment-options">';
-    html += '<h5 class="text-success"><i class="fas fa-prescription-bottle-alt"></i> 治疗方案选择</h5>';
-    html += '<div class="alert alert-success">';
-    html += '<h6><i class="fas fa-medkit"></i> 治疗决策指导</h6>';
-    html += '<p class="mb-0">基于确定的诊断，选择合适的治疗方案。考虑治疗的有效性、安全性、成本效益和患者个体情况。</p>';
+    html += '<h4 class="text-success mb-4" style="font-weight: 700; font-size: 1.5rem;"><i class="fas fa-prescription-bottle-alt mr-2"></i>治疗方案选择</h4>';
+    html += '<div class="alert alert-success" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border: none; border-radius: 12px; padding: 20px;">';
+    html += '<h5 class="mb-3" style="color: #155724; font-weight: 700; font-size: 1.2rem;"><i class="fas fa-medkit mr-2" style="color: #28a745;"></i>治疗决策指导</h5>';
+    html += '<p class="mb-0" style="font-size: 1rem; line-height: 1.6; color: #155724;">基于确定的诊断，选择合适的治疗方案。考虑治疗的有效性、安全性、成本效益和患者个体情况。</p>';
     html += '</div>';
     
     // 缓存治疗选项数据
@@ -3746,10 +4154,10 @@
         var typeIcon = getTreatmentTypeIcon(type);
         
         html += '<div class="treatment-group mb-4">';
-        html += '<h6 class="text-primary mb-3">';
-        html += '<i class="' + typeIcon + '"></i> ' + typeDisplayName;
-        html += '<small class="text-muted ml-2">(' + typeOptions.length + '项)</small>';
-        html += '</h6>';
+        html += '<h5 class="text-primary mb-3" style="font-weight: 600; font-size: 1.1rem; border-bottom: 2px solid #007bff; padding-bottom: 8px;">';
+        html += '<i class="' + typeIcon + ' mr-2" style="font-size: 1.2rem;"></i>' + typeDisplayName;
+        html += '<small class="text-muted ml-2" style="font-size: 0.875rem;">(' + typeOptions.length + '项)</small>';
+        html += '</h5>';
         
         html += '<div class="row">';
         typeOptions.forEach(function(option) {
@@ -3768,12 +4176,12 @@
           html += '" data-treatment-id="' + option.id + '">';
           html += '<div class="card-body">';
           
-          html += '<div class="form-check">';
-          html += '<input class="form-check-input treatment-checkbox" type="checkbox" ';
-          html += 'value="' + option.id + '" id="treat_' + option.id + '">';
-          html += '<label class="form-check-label w-100" for="treat_' + option.id + '">';
-          html += '<div class="d-flex justify-content-between align-items-start">';
-          html += '<strong>' + option.name + '</strong>';
+          html += '<div class="d-flex align-items-center mb-2">';
+          html += '<input class="form-check-input treatment-checkbox mr-3" type="checkbox" ';
+          html += 'value="' + option.id + '" id="treat_' + option.id + '" style="flex-shrink: 0; margin-top: 0;">';
+          html += '<label class="form-check-label flex-grow-1" for="treat_' + option.id + '" style="cursor: pointer;">';
+          html += '<div class="d-flex justify-content-between align-items-center">';
+          html += '<strong style="font-size: 1.1rem; color: #2c3e50;">' + option.name + '</strong>';
           
           // 显示治疗特性标签
           html += '<div class="treatment-badges">';
@@ -3789,25 +4197,27 @@
           html += '</div>';
           
           html += '</div>';
-          html += '<div class="text-muted small mt-2">' + (option.description || '') + '</div>';
+          html += '</label>';
+          html += '</div>';
+          if (option.description) {
+            html += '<div class="text-muted small mb-2" style="margin-left: 2.5rem; font-size: 0.9rem; line-height: 1.4;">' + option.description + '</div>';
+          }
           
           // 显示疗效和安全性信息
-          html += '<div class="treatment-info mt-2">';
-          html += '<div class="row small text-muted">';
-          html += '<div class="col-4">疗效: ' + (option.efficacy_score || '中') + '</div>';
-          html += '<div class="col-4">安全: ' + (option.safety_score || '中') + '</div>';
-          html += '<div class="col-4">成本: ' + (option.cost_score || '中') + '</div>';
+          html += '<div class="treatment-info" style="margin-left: 2.5rem;">';
+          html += '<div class="row small text-muted" style="font-size: 0.875rem;">';
+          html += '<div class="col-4"><i class="fas fa-chart-line mr-1 text-primary"></i>疗效: <span class="font-weight-bold">' + (option.efficacy_score || '中') + '</span></div>';
+          html += '<div class="col-4"><i class="fas fa-shield-alt mr-1 text-success"></i>安全: <span class="font-weight-bold">' + (option.safety_score || '中') + '</span></div>';
+          html += '<div class="col-4"><i class="fas fa-dollar-sign mr-1 text-warning"></i>成本: <span class="font-weight-bold">' + (option.cost_score || '中') + '</span></div>';
           html += '</div>';
           html += '</div>';
           
           // 预期结果
           if (option.expected_outcome) {
-            html += '<div class="expected-outcome mt-2">';
-            html += '<small class="text-info"><i class="fas fa-bullseye"></i> ' + option.expected_outcome + '</small>';
+            html += '<div class="expected-outcome mt-2" style="margin-left: 2.5rem;">';
+            html += '<small class="text-info" style="font-size: 0.875rem;"><i class="fas fa-bullseye mr-1"></i>预期结果: ' + option.expected_outcome + '</small>';
+            html += '</div>';
           }
-          
-          html += '</label>';
-          html += '</div>';
           html += '</div>';
           html += '</div>';
           html += '</div>';
@@ -4292,6 +4702,23 @@
 
 
   
+  // ==================== 检查选项统计功能 ====================
+  
+  function showExaminationStats() {
+    if (!clinicalSession.examinationStats) return;
+    
+    var stats = clinicalSession.examinationStats;
+    var message = '';
+    
+    if (stats.mode === 'mixed') {
+      message = '🎯 检查项目已为您智能组合，包含重点项目和辅助选项，请仔细评估每项检查的价值';
+      showFeedbackMessage(message, 'examination-stats');
+    } else {
+      message = '📋 已为您加载该案例的所有检查选项，共 ' + stats.totalCount + ' 项';
+      showFeedbackMessage(message, 'info');
+    }
+  }
+  
   // ==================== 通用功能函数 ====================
   
   function showClinicalThinkingPrompt(stage) {
@@ -4314,7 +4741,8 @@
       'success': 'alert-success feedback-positive',
       'warning': 'alert-warning feedback-corrective', 
       'danger': 'alert-danger',
-      'guidance': 'alert-info feedback-guidance'
+      'guidance': 'alert-info feedback-guidance',
+      'examination-stats': 'alert-secondary'
     }[type] || 'alert-info';
     
     var icon = {
@@ -4322,7 +4750,8 @@
       'success': 'fas fa-check-circle',
       'warning': 'fas fa-exclamation-triangle',
       'danger': 'fas fa-times-circle',
-      'guidance': 'fas fa-lightbulb'
+      'guidance': 'fas fa-lightbulb',
+      'examination-stats': 'fas fa-chart-bar'
     }[type] || 'fas fa-info-circle';
     
     var html = '<div class="alert ' + alertClass + ' feedback-animation">';

@@ -30,6 +30,7 @@ urlpatterns = [
     path('teacher/examinations/create/<str:case_id>/', views.teacher_examination_create, name='teacher_examination_create'),
     path('teacher/examinations/<int:exam_id>/edit/', views.teacher_examination_edit, name='teacher_examination_edit'),
     path('teacher/examinations/<int:exam_id>/delete/', views.teacher_examination_delete, name='teacher_examination_delete'),
+    path('teacher/clinical-cases/<str:case_id>/batch-set-required/', views.teacher_batch_set_required, name='teacher_batch_set_required'),
     
     # 教师端 - 诊断选项管理
     path('teacher/clinical-cases/<str:case_id>/diagnosis/', views.teacher_diagnosis_options, name='teacher_diagnosis_options'),

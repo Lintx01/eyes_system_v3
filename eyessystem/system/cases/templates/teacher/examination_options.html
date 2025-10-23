@@ -295,14 +295,29 @@
     <!-- 检查选项管理 -->
     <div class="examinations-container">
         <div class="section-header">
-            <h4 class="mb-0">
-                <i class="fas fa-list-ul text-primary me-2"></i>
-                检查选项管理
-                <span class="badge bg-primary ms-2">{{ examinations.count }} 个选项</span>
-            </h4>
-            <a href="{% url 'teacher_examination_create' case.case_id %}" class="btn btn-success-custom">
-                <i class="fas fa-plus me-2"></i>添加检查选项
-            </a>
+            <div>
+                <h4 class="mb-0">
+                    <i class="fas fa-list-ul text-primary me-2"></i>
+                    检查选项管理
+                    <span class="badge bg-primary ms-2">{{ examinations.count }} 个选项</span>
+                </h4>
+                <!-- 新增：检查选项统计 -->
+                <div class="mt-2">
+                    <small class="text-muted">
+                        必选项: <span class="text-success fw-bold" id="required-count">{{ required_count|default:0 }}</span> | 
+                        可选项: <span class="text-info fw-bold" id="optional-count">{{ optional_count|default:0 }}</span> |
+                        <span class="text-warning">💡 必选项将与随机干扰项混合展示给学生</span>
+                    </small>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-warning btn-sm" onclick="openBatchRequiredModal()">
+                    <i class="fas fa-star me-1"></i>批量设置必选项
+                </button>
+                <a href="{% url 'teacher_examination_create' case.case_id %}" class="btn btn-success-custom">
+                    <i class="fas fa-plus me-2"></i>添加检查选项
+                </a>
+            </div>
         </div>
 
         {% if examinations %}
@@ -474,6 +489,67 @@
         </div>
     </div>
 </div>
+<!-- 批量设置必选项模态框 -->
+<div class="modal fade" id="batchRequiredModal" tabindex="-1" aria-labelledby="batchRequiredModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="batchRequiredModalLabel">
+                    <i class="fas fa-star me-2"></i>批量设置必选检查项目
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>功能说明：</strong>必选项目将作为标准答案，学生在检查选择时会看到这些必选项与随机干扰项混合显示，增加诊断难度。
+                </div>
+                
+                <form id="batchRequiredForm" method="post" action="{% url 'teacher_batch_set_required' case.case_id %}">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <h6>当前检查选项：</h6>
+                        <div class="examination-checklist" style="max-height: 400px; overflow-y: auto;">
+                            {% for examination in examinations %}
+                                <div class="form-check d-flex align-items-center p-2 border rounded mb-2">
+                                    <input class="form-check-input me-3" 
+                                           type="checkbox" 
+                                           name="required_examinations" 
+                                           value="{{ examination.id }}" 
+                                           id="req_{{ examination.id }}"
+                                           {% if examination.is_required %}checked{% endif %}>
+                                    <label class="form-check-label flex-grow-1" for="req_{{ examination.id }}">
+                                        <strong>{{ examination.examination_name }}</strong>
+                                        <br>
+                                        <small class="text-muted">{{ examination.examination_description|truncatewords:15 }}</small>
+                                        <br>
+                                        <span class="badge bg-secondary">{{ examination.get_examination_type_display }}</span>
+                                        {% if examination.is_required %}
+                                            <span class="badge bg-success">当前必选</span>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>提示：</strong>建议选择2-6个最关键的检查项目作为必选项，过多或过少都会影响教学效果。
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="submitBatchRequired()">
+                    <i class="fas fa-save me-2"></i>保存设置
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -511,6 +587,95 @@ $(document).ready(function() {
     
     // 工具提示
     $('[title]').tooltip();
+    
+    // 更新统计数字
+    updateRequiredStats();
+});
+
+// 打开批量设置模态框
+function openBatchRequiredModal() {
+    $('#batchRequiredModal').modal('show');
+}
+
+// 提交批量设置
+function submitBatchRequired() {
+    const form = document.getElementById('batchRequiredForm');
+    const formData = new FormData(form);
+    
+    // 显示加载状态
+    const submitBtn = document.querySelector('#batchRequiredModal .btn-warning');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>保存中...';
+    submitBtn.disabled = true;
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 成功提示
+            Swal.fire({
+                title: '设置成功！',
+                text: `已设置 ${data.required_count} 个必选检查项目`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                // 刷新页面
+                location.reload();
+            });
+        } else {
+            throw new Error(data.message || '设置失败');
+        }
+    })
+    .catch(error => {
+        Swal.fire({
+            title: '设置失败',
+            text: error.message,
+            icon: 'error'
+        });
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+// 更新必选项统计
+function updateRequiredStats() {
+    const checkboxes = document.querySelectorAll('input[name="required_examinations"]');
+    let requiredCount = 0;
+    let optionalCount = 0;
+    
+    checkboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            requiredCount++;
+        } else {
+            optionalCount++;
+        }
+    });
+    
+    // 实时更新显示（如果在模态框中）
+    const requiredCountEl = document.getElementById('required-count');
+    const optionalCountEl = document.getElementById('optional-count');
+    
+    if (requiredCountEl) requiredCountEl.textContent = requiredCount;
+    if (optionalCountEl) optionalCountEl.textContent = optionalCount;
+    
+    return { requiredCount, optionalCount };
+}
+
+// 监听复选框变化
+document.addEventListener('change', function(e) {
+    if (e.target.name === 'required_examinations') {
+        updateRequiredStats();
+    }
 });
 </script>
 {% endblock %}
