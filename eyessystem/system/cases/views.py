@@ -734,14 +734,109 @@ def get_clinical_learning_progress(request, case_id):
 @login_required
 @user_passes_test(is_student, login_url='login')
 def get_examination_options(request, case_id):
-    """获取案例的检查选项列表"""
+    """获取案例的检查选项列表 - 包含必选项和随机干扰项"""
     try:
+        import random
+        
         clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
         
-        examination_options = ExaminationOption.objects.filter(
-            clinical_case=clinical_case
+        # 获取该案例的必选检查项目（教师设置的标准答案）
+        required_examinations = ExaminationOption.objects.filter(
+            clinical_case=clinical_case,
+            is_required=True
         ).order_by('display_order', 'examination_type')
         
+        # 获取该案例的可选检查项目
+        optional_examinations = ExaminationOption.objects.filter(
+            clinical_case=clinical_case,
+            is_required=False
+        )
+        
+        # 如果没有必选项，返回该案例的所有检查项
+        if not required_examinations.exists():
+            all_case_examinations = ExaminationOption.objects.filter(
+                clinical_case=clinical_case
+            ).order_by('display_order', 'examination_type')
+            
+            options_data = [{
+                'id': option.id,
+                'type': option.get_examination_type_display(),
+                'name': option.examination_name,
+                'description': option.examination_description,
+                'diagnostic_value': option.get_diagnostic_value_display(),
+                'cost_effectiveness': option.get_cost_effectiveness_display(),
+                'is_recommended': option.is_recommended,
+                'is_required': option.is_required,
+                'is_multiple_choice': option.is_multiple_choice,
+                'images': option.result_images or [],
+                'is_case_required': False,  # 没有设置必选项
+                'is_distractor': False
+            } for option in all_case_examinations]
+            
+            return JsonResponse({
+                'success': True,
+                'data': {
+                    'examination_options': options_data,
+                    'total_count': len(options_data),
+                    'required_count': 0,
+                    'distractor_count': 0,
+                    'mode': 'standard'  # 标准模式，显示所有案例检查项
+                },
+                'message': '检查选项获取成功（标准模式）'
+            })
+        
+        # 有必选项的情况：混合必选项和干扰项
+        # 获取其他案例的检查项目作为干扰项池
+        distractor_pool = ExaminationOption.objects.exclude(
+            clinical_case=clinical_case
+        )
+        
+        # 如果干扰项池不够，使用当前案例的可选项作为补充
+        if distractor_pool.count() < 3:
+            distractor_pool = optional_examinations
+        
+        # 按检查类型分组，确保干扰项类型多样性
+        distractor_by_type = {}
+        for exam in distractor_pool:
+            exam_type = exam.examination_type
+            if exam_type not in distractor_by_type:
+                distractor_by_type[exam_type] = []
+            distractor_by_type[exam_type].append(exam)
+        
+        # 计算需要添加的干扰项数量（根据必选项数量动态调整）
+        required_count = required_examinations.count()
+        if required_count <= 2:
+            distractor_count = 5  # 必选项很少时多加干扰项
+        elif required_count <= 4:
+            distractor_count = 3  # 中等数量
+        else:
+            distractor_count = 2  # 必选项多时少加干扰项
+        
+        # 从各类型中随机选择干扰项
+        selected_distractors = []
+        
+        # 优先从不同类型中选择
+        for exam_type, exams in distractor_by_type.items():
+            if len(selected_distractors) < distractor_count and exams:
+                # 从每个类型中随机选1个
+                selected_distractors.extend(random.sample(exams, min(1, len(exams))))
+        
+        # 如果还需要更多干扰项，随机选择剩余的
+        if len(selected_distractors) < distractor_count:
+            remaining_pool = [exam for exam in distractor_pool 
+                            if exam not in selected_distractors]
+            if remaining_pool:
+                additional_count = min(distractor_count - len(selected_distractors), 
+                                     len(remaining_pool))
+                selected_distractors.extend(random.sample(remaining_pool, additional_count))
+        
+        # 合并必选项和干扰项
+        all_examinations = list(required_examinations) + selected_distractors[:distractor_count]
+        
+        # 随机打乱顺序
+        random.shuffle(all_examinations)
+        
+        # 构建返回数据
         options_data = [{
             'id': option.id,
             'type': option.get_examination_type_display(),
@@ -752,16 +847,22 @@ def get_examination_options(request, case_id):
             'is_recommended': option.is_recommended,
             'is_required': option.is_required,
             'is_multiple_choice': option.is_multiple_choice,
-            'images': option.result_images or []
-        } for option in examination_options]
+            'images': option.result_images or [],
+            # 标识是否为该案例的必选项
+            'is_case_required': option.clinical_case_id == clinical_case.id and option.is_required,
+            'is_distractor': option.clinical_case_id != clinical_case.id
+        } for option in all_examinations]
         
         return JsonResponse({
             'success': True,
             'data': {
                 'examination_options': options_data,
-                'total_count': len(options_data)
+                'total_count': len(options_data),
+                'required_count': required_count,
+                'distractor_count': len(selected_distractors),
+                'mode': 'mixed'  # 混合模式，包含必选项和干扰项
             },
-            'message': '检查选项获取成功'
+            'message': '检查选项获取成功（含必选项和干扰项）'
         })
         
     except Exception as e:
