@@ -320,13 +320,26 @@ def student_dashboard(request):
             total_study_time += duration.total_seconds() / 60  # 转换为分钟
     total_study_time = round(total_study_time)
     
+    # 格式化学习时长为小时和分钟
+    hours = total_study_time // 60
+    minutes = total_study_time % 60
+    
+    if hours > 0:
+        if minutes > 0:
+            formatted_study_time = f"{hours}h {minutes}min"
+        else:
+            formatted_study_time = f"{hours}h"
+    else:
+        formatted_study_time = f"{minutes}min"
+
     # 最近学习记录
     recent_sessions = user_sessions.order_by('-started_at')[:5]
-    
+
     # 模拟进度对象结构
     progress = {
         'progress_percentage': progress_percentage,
         'total_study_time': total_study_time,
+        'formatted_study_time': formatted_study_time,
     }
     
     context = {

@@ -23,8 +23,8 @@
                 <div class="stat-label">总病例数</div>
             </div>
             <div class="stat-card" role="status" aria-label="总学习时长">
-                <div class="stat-number">{{ progress.total_study_time|default:0 }}</div>
-                <div class="stat-label">学习时长（分钟）</div>
+                <div class="stat-number">{{ progress.formatted_study_time|default:"0min" }}</div>
+                <div class="stat-label">学习时长</div>
             </div>
         </div>
 
