@@ -23,6 +23,11 @@ urlpatterns = [
     path('frontend-test/', views.frontend_delete_test, name='frontend_test'),
     path('simple-delete-test/', views.simple_delete_test, name='simple_delete_test'),
     
+    # 系统管理
+    path('system/', views.system_management, name='system_management'),
+    path('system/users/', views.user_management, name='user_management'),
+    path('system/users/<int:user_id>/', views.user_detail, name='user_detail'),
+    
     # 教师端 - 临床推理病例管理
     path('teacher/clinical-cases/', views.teacher_clinical_case_list, name='teacher_clinical_case_list'),
     path('teacher/clinical-cases/create/', views.teacher_clinical_case_create, name='teacher_clinical_case_create'),

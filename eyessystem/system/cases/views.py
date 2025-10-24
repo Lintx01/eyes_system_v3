@@ -1903,6 +1903,154 @@ def simple_delete_test(request):
     return render(request, 'simple_delete_test.html')
 
 
+# ==================== 系统管理功能 ====================
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def system_management(request):
+    """系统管理主页面"""
+    from django.contrib.auth.models import User, Group
+    
+    # 统计数据
+    total_users = User.objects.count()
+    teachers_count = User.objects.filter(groups__name='Teachers').count()
+    students_count = User.objects.filter(groups__name='Students').count()
+    superusers_count = User.objects.filter(is_superuser=True).count()
+    
+    # 最近注册的用户
+    recent_users = User.objects.order_by('-date_joined')[:10]
+    
+    # 活跃用户统计
+    from datetime import datetime, timedelta
+    last_30_days = datetime.now() - timedelta(days=30)
+    active_users = User.objects.filter(last_login__gte=last_30_days).count()
+    
+    context = {
+        'total_users': total_users,
+        'teachers_count': teachers_count,
+        'students_count': students_count,
+        'superusers_count': superusers_count,
+        'active_users': active_users,
+        'recent_users': recent_users,
+    }
+    
+    return render(request, 'teacher/system_management.html', context)
+
+
+@login_required  
+@user_passes_test(is_teacher, login_url='login')
+def user_management(request):
+    """用户管理页面"""
+    from django.contrib.auth.models import User, Group
+    from django.db.models import Q
+    
+    # 获取搜索和筛选参数
+    search_query = request.GET.get('search', '')
+    role_filter = request.GET.get('role', '')
+    status_filter = request.GET.get('status', '')
+    
+    # 基础查询
+    users = User.objects.all().order_by('-date_joined')
+    
+    # 搜索
+    if search_query:
+        users = users.filter(
+            Q(username__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query)
+        )
+    
+    # 角色筛选
+    if role_filter == 'teacher':
+        users = users.filter(groups__name='Teachers')
+    elif role_filter == 'student':
+        users = users.filter(groups__name='Students')
+    elif role_filter == 'admin':
+        users = users.filter(is_superuser=True)
+    
+    # 状态筛选
+    if status_filter == 'active':
+        users = users.filter(is_active=True)
+    elif status_filter == 'inactive':
+        users = users.filter(is_active=False)
+    
+    # 分页
+    from django.core.paginator import Paginator
+    paginator = Paginator(users, 20)  # 每页20个用户
+    page = request.GET.get('page')
+    users = paginator.get_page(page)
+    
+    # 获取所有组
+    groups = Group.objects.all()
+    
+    context = {
+        'users': users,
+        'groups': groups,
+        'search_query': search_query,
+        'role_filter': role_filter,
+        'status_filter': status_filter,
+    }
+    
+    return render(request, 'teacher/user_management.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def user_detail(request, user_id):
+    """用户详情和编辑"""
+    from django.contrib.auth.models import User, Group
+    
+    user_obj = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        # 更新用户信息
+        user_obj.first_name = request.POST.get('first_name', '')
+        user_obj.last_name = request.POST.get('last_name', '')
+        user_obj.email = request.POST.get('email', '')
+        user_obj.is_active = request.POST.get('is_active') == 'on'
+        
+        # 更新用户组
+        selected_groups = request.POST.getlist('groups')
+        user_obj.groups.clear()
+        for group_id in selected_groups:
+            try:
+                group = Group.objects.get(id=group_id)
+                user_obj.groups.add(group)
+            except Group.DoesNotExist:
+                pass
+        
+        user_obj.save()
+        messages.success(request, f'用户 {user_obj.username} 的信息已更新')
+        return redirect('user_detail', user_id=user_id)
+    
+    # 获取用户的学习统计
+    user_sessions = StudentClinicalSession.objects.filter(student=user_obj)
+    completed_sessions = user_sessions.filter(completed_at__isnull=False).count()
+    total_study_time = 0
+    
+    for session in user_sessions.filter(completed_at__isnull=False):
+        if session.completed_at and session.started_at:
+            duration = session.completed_at - session.started_at
+            total_study_time += duration.total_seconds() / 60
+    
+    # 格式化学习时长
+    hours = int(total_study_time // 60)
+    minutes = int(total_study_time % 60)
+    formatted_study_time = f"{hours}h {minutes}min" if hours > 0 else f"{minutes}min"
+    
+    context = {
+        'user_obj': user_obj,
+        'groups': Group.objects.all(),
+        'user_groups': user_obj.groups.all(),
+        'completed_sessions': completed_sessions,
+        'formatted_study_time': formatted_study_time,
+        'recent_sessions': user_sessions.order_by('-started_at')[:5],
+    }
+    
+    return render(request, 'teacher/user_detail.html', context)
+
+
 @login_required
 @user_passes_test(is_teacher, login_url='login')
 def teacher_clinical_case_preview(request, case_id):

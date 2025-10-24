@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+
+{% block title %}用户详情 - {{ user_obj.username }} - 眼科教学系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-user me-3"></i>用户详情</h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'teacher_dashboard' %}">仪表板</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'system_management' %}">系统管理</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'user_management' %}">人员管理</a></li>
+                <li class="breadcrumb-item active">{{ user_obj.username }}</li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="row">
+        <!-- 用户基本信息 -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">基本信息</h6>
+                    <div>
+                        <a href="/admin/auth/user/{{ user_obj.id }}/change/" class="btn btn-outline-secondary btn-sm" target="_blank">
+                            <i class="fas fa-external-link-alt me-2"></i>高级编辑
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">用户名</label>
+                                <input type="text" class="form-control" value="{{ user_obj.username }}" disabled>
+                                <small class="form-text text-muted">用户名不可更改</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">邮箱</label>
+                                <input type="email" class="form-control" name="email" value="{{ user_obj.email }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">姓</label>
+                                <input type="text" class="form-control" name="last_name" value="{{ user_obj.last_name }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">名</label>
+                                <input type="text" class="form-control" name="first_name" value="{{ user_obj.first_name }}">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">用户组</label>
+                                {% for group in groups %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="groups" value="{{ group.id }}" 
+                                           id="group_{{ group.id }}" 
+                                           {% if group in user_groups %}checked{% endif %}>
+                                    <label class="form-check-label" for="group_{{ group.id }}">
+                                        {{ group.name }}
+                                        {% if group.name == 'Teachers' %}
+                                            <small class="text-muted">(教师权限)</small>
+                                        {% elif group.name == 'Students' %}
+                                            <small class="text-muted">(学生权限)</small>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">账户状态</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="is_active" id="is_active" 
+                                           {% if user_obj.is_active %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_active">
+                                        账户启用
+                                    </label>
+                                </div>
+                                {% if user_obj.is_superuser %}
+                                <div class="mt-2">
+                                    <span class="badge bg-danger">超级管理员</span>
+                                    <small class="text-muted d-block">此账户具有系统最高权限</small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>保存更改
+                            </button>
+                            <a href="{% url 'user_management' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>返回用户列表
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 用户统计和活动 -->
+        <div class="col-lg-4">
+            <!-- 用户头像和基本统计 -->
+            <div class="card shadow mb-4">
+                <div class="card-body text-center">
+                    <div class="avatar-circle bg-primary text-white mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                        {{ user_obj.username|first|upper }}
+                    </div>
+                    <h5>{{ user_obj.get_full_name|default:user_obj.username }}</h5>
+                    <p class="text-muted">
+                        {% for group in user_groups %}
+                            {% if group.name == 'Teachers' %}
+                                <span class="badge bg-success">教师</span>
+                            {% elif group.name == 'Students' %}
+                                <span class="badge bg-info">学生</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ group.name }}</span>
+                            {% endif %}
+                        {% endfor %}
+                    </p>
+                    
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h4 class="text-primary">{{ completed_sessions }}</h4>
+                                <small class="text-muted">完成病例</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h4 class="text-success">{{ formatted_study_time }}</h4>
+                            <small class="text-muted">学习时长</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 账户信息 -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">账户信息</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <strong>注册时间：</strong>
+                        <span class="text-muted">{{ user_obj.date_joined|date:"Y年m月d日 H:i" }}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>最后登录：</strong>
+                        {% if user_obj.last_login %}
+                            <span class="text-muted">{{ user_obj.last_login|date:"Y年m月d日 H:i" }}</span>
+                        {% else %}
+                            <span class="text-warning">从未登录</span>
+                        {% endif %}
+                    </div>
+                    <div class="mb-2">
+                        <strong>账户状态：</strong>
+                        {% if user_obj.is_active %}
+                            <span class="badge bg-success">启用</span>
+                        {% else %}
+                            <span class="badge bg-danger">停用</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 最近学习记录 -->
+            {% if recent_sessions %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">最近学习记录</h6>
+                </div>
+                <div class="card-body">
+                    {% for session in recent_sessions %}
+                    <div class="d-flex align-items-center mb-3 pb-2 border-bottom">
+                        <div class="me-3">
+                            {% if session.completed_at %}
+                                <i class="fas fa-check-circle text-success"></i>
+                            {% else %}
+                                <i class="fas fa-clock text-warning"></i>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">{{ session.clinical_case.title }}</h6>
+                            <small class="text-muted">
+                                {{ session.started_at|date:"m月d日 H:i" }}
+                                {% if session.completed_at %}
+                                    - 已完成
+                                {% else %}
+                                    - 学习中
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar-circle {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
