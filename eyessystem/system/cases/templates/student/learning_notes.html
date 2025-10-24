@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}我的学习笔记 - 眼科临床训练系统{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2><i class="fas fa-sticky-note"></i> 我的学习笔记</h2>
+        <p class="text-muted mb-0">查看您在各个病例中记录的学习心得和临床思考</p>
+    </div>
+    <div class="card-body">
+        {% if sessions_with_notes %}
+            <div class="notes-stats mb-4">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ total_notes_count }}</div>
+                            <div class="stat-label">有笔记的病例</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ sessions_with_notes|length }}</div>
+                            <div class="stat-label">学习记录</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-chars">-</div>
+                            <div class="stat-label">总字数</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-list">
+                {% for session in sessions_with_notes %}
+                <div class="note-item card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-medical text-primary"></i>
+                            {{ session.clinical_case.title }}
+                        </h5>
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i>
+                            {{ session.last_activity|date:"Y-m-d H:i" }}
+                        </small>
+                    </div>
+                    <div class="card-body">
+                        <div class="note-content">
+                            <pre class="notes-text">{{ session.learning_notes }}</pre>
+                        </div>
+                        <div class="note-meta mt-3 pt-3 border-top">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <small class="text-muted">
+                                        <i class="fas fa-eye"></i>
+                                        病例ID: {{ session.clinical_case.case_id }}
+                                    </small>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <small class="text-muted char-count">
+                                        <i class="fas fa-text-width"></i>
+                                        {{ session.learning_notes|length }} 字
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="note-actions mt-2">
+                            <a href="{% url 'student_clinical_view' session.clinical_case.case_id %}" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-external-link-alt"></i> 回到病例
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-sticky-note" style="font-size: 4rem; color: #dee2e6;"></i>
+                </div>
+                <h4 class="text-muted">还没有学习笔记</h4>
+                <p class="text-muted mb-4">
+                    开始临床推理学习，并在"临床记录"中记录您的学习心得和思考过程
+                </p>
+                <a href="{% url 'clinical_case_list' %}" class="btn btn-primary">
+                    <i class="fas fa-stethoscope"></i> 开始学习
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.notes-stats .stat-card {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.notes-stats .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #007bff;
+    margin-bottom: 8px;
+}
+
+.stat-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.note-item {
+    border-left: 4px solid #007bff;
+    transition: box-shadow 0.2s ease;
+}
+
+.note-item:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.notes-text {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    color: #495057;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.empty-state {
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.note-actions .btn {
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .notes-stats {
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        margin-bottom: 10px;
+    }
+    
+    .card-header .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .card-header small {
+        margin-top: 8px;
+    }
+    
+    .note-meta .row {
+        flex-direction: column;
+    }
+    
+    .note-meta .text-end {
+        text-align: start !important;
+        margin-top: 5px;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 计算总字数
+    let totalChars = 0;
+    document.querySelectorAll('.char-count').forEach(function(element) {
+        const text = element.textContent || element.innerText;
+        const match = text.match(/(\d+)\s*字/);
+        if (match) {
+            totalChars += parseInt(match[1]);
+        }
+    });
+    
+    document.getElementById('total-chars').textContent = totalChars.toLocaleString();
+    
+    // 添加动画效果
+    const statCards = document.querySelectorAll('.stat-card');
+    statCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'all 0.5s ease';
+        
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 100 + index * 100);
+    });
+    
+    // 笔记项动画
+    const noteItems = document.querySelectorAll('.note-item');
+    noteItems.forEach((item, index) => {
+        item.style.opacity = '0';
+        item.style.transform = 'translateX(-20px)';
+        item.style.transition = 'all 0.5s ease';
+        
+        setTimeout(() => {
+            item.style.opacity = '1';
+            item.style.transform = 'translateX(0)';
+        }, 300 + index * 100);
+    });
+});
+</script>
+{% endblock %}

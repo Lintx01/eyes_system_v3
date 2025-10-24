@@ -529,6 +529,66 @@ def clinical_case_detail(request, case_id):
 @login_required
 @user_passes_test(is_student, login_url='login')
 @require_POST
+def save_clinical_notes(request):
+    """保存临床笔记到数据库"""
+    try:
+        data = json.loads(request.body)
+        case_id = data.get('case_id')
+        notes = data.get('notes', '')
+        
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        session = get_object_or_404(StudentClinicalSession, 
+                                  student=request.user, 
+                                  clinical_case=clinical_case)
+        
+        # 保存笔记到数据库
+        session.learning_notes = notes
+        session.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': '笔记已保存',
+            'data': {
+                'notes_length': len(notes),
+                'save_time': timezone.now().strftime('%H:%M:%S')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'保存笔记失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def get_clinical_notes(request, case_id):
+    """获取临床笔记"""
+    try:
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
+        session = get_object_or_404(StudentClinicalSession, 
+                                  student=request.user, 
+                                  clinical_case=clinical_case)
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'notes': session.learning_notes or '',
+                'last_updated': session.last_activity.strftime('%Y-%m-%d %H:%M:%S') if session.learning_notes else None
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'获取笔记失败：{str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+@require_POST
 def submit_examination_choices(request):
     """提交检查选择 - 检查阶段"""
     try:
@@ -2317,3 +2377,22 @@ def teacher_treatment_delete(request, treatment_id):
     }
     
     return render(request, 'teacher/treatment_delete.html', context)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+def student_learning_notes(request):
+    """学生端 - 查看学习笔记"""
+    
+    # 获取该学生的所有临床会话及其笔记
+    sessions_with_notes = StudentClinicalSession.objects.filter(
+        student=request.user,
+        learning_notes__isnull=False
+    ).exclude(learning_notes='').select_related('clinical_case').order_by('-last_activity')
+    
+    context = {
+        'sessions_with_notes': sessions_with_notes,
+        'total_notes_count': sessions_with_notes.count(),
+    }
+    
+    return render(request, 'student/learning_notes.html', context)

@@ -58,6 +58,13 @@ urlpatterns = [
     
     # 学习进度管理API
     path('api/clinical/save-progress/', views.save_clinical_progress, name='save_clinical_progress'),
+    
+    # 临床笔记API
+    path('api/clinical/notes/save/', views.save_clinical_notes, name='save_clinical_notes'),
+    path('api/clinical/notes/<str:case_id>/', views.get_clinical_notes, name='get_clinical_notes'),
+    
+    # 学习笔记查看页面
+    path('student/learning-notes/', views.student_learning_notes, name='student_learning_notes'),
     path('api/clinical/get-progress/<str:case_id>/', views.get_clinical_progress, name='get_clinical_progress'),
     path('api/clinical/reset-progress/', views.reset_clinical_progress, name='reset_clinical_progress'),
 

@@ -166,10 +166,24 @@
           </div>
           <div class="tab-content">
             <div class="tab-pane fade show active" id="notes-panel">
-              <textarea id="clinical-notes" class="form-control" rows="5" placeholder="记录临床思考过程、鉴别诊断要点..."></textarea>
-              <small class="text-muted mt-2 d-block">
-                <i class="fas fa-lightbulb"></i> 记录思维过程有助于临床能力提升
-              </small>
+              <div class="notes-container">
+                <div class="notes-header d-flex justify-content-between align-items-center mb-2">
+                  <small class="text-muted">临床学习笔记</small>
+                  <div class="notes-info">
+                    <small id="notes-char-count" class="text-muted me-2">0 字</small>
+                    <small id="notes-save-status" class="text-muted"></small>
+                  </div>
+                </div>
+                <textarea id="clinical-notes" class="form-control" rows="5" placeholder="记录临床思考过程、鉴别诊断要点、学习心得等...&#10;&#10;💡 提示：笔记会自动保存"></textarea>
+                <div class="notes-footer mt-2">
+                  <small class="text-muted">
+                    <i class="fas fa-info-circle"></i> 笔记将自动保存到数据库，可在
+                    <a href="{% url 'student_learning_notes' %}" target="_blank" class="text-primary">
+                      <i class="fas fa-external-link-alt"></i> 学习笔记
+                    </a> 页面查看所有笔记
+                  </small>
+                </div>
+              </div>
             </div>
             <div class="tab-pane fade" id="timeline-panel">
               <div id="learning-timeline">
@@ -1504,6 +1518,38 @@
   border-radius: 50%;
 }
 
+/* 临床记录标签样式 */
+.nav-pills .nav-link {
+  cursor: pointer;
+  border-radius: 20px;
+  padding: 8px 16px;
+  margin-right: 5px;
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+  transition: all 0.3s ease;
+}
+
+.nav-pills .nav-link:hover {
+  background-color: #e9ecef;
+  color: #495057;
+  text-decoration: none;
+}
+
+.nav-pills .nav-link.active {
+  background-color: #007bff;
+  color: #ffffff;
+  border-color: #007bff;
+}
+
+.tab-pane {
+  display: none;
+}
+
+.tab-pane.show.active {
+  display: block;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .stepper-items {
@@ -1825,6 +1871,78 @@
     flex: 0 0 calc(33.333% - 10px) !important;
     margin: 5px 0;
   }
+}
+
+/* 临床笔记样式增强 */
+.notes-container {
+  position: relative;
+}
+
+.notes-header {
+  border-bottom: 1px solid #e9ecef;
+  padding-bottom: 8px;
+}
+
+.notes-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#clinical-notes {
+  resize: vertical;
+  min-height: 120px;
+  border: 2px solid #dee2e6;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+#clinical-notes:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 笔记保存成功闪烁效果 */
+.notes-saved-flash {
+  border-color: #28a745 !important;
+  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
+  animation: notesSavedPulse 1s ease-in-out;
+}
+
+@keyframes notesSavedPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+/* 字数统计样式 */
+#notes-char-count {
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+/* 保存状态样式 */
+#notes-save-status {
+  font-weight: 500;
+  transition: opacity 0.3s ease;
+}
+
+#notes-save-status i {
+  margin-right: 4px;
+}
+
+/* 笔记底部提示样式 */
+.notes-footer {
+  border-top: 1px solid #e9ecef;
+  padding-top: 8px;
+}
+
+.notes-footer .text-muted {
+  font-size: 0.875rem;
+}
+
+.notes-footer i {
+  color: #007bff;
+  margin-right: 6px;
 }
 </style>
 {% endblock %}
@@ -4792,6 +4910,45 @@
     }
   }
   
+  function initializeClinicalRecordTabs() {
+    // 手动实现标签切换功能（替代Bootstrap的pill功能）
+    console.log('初始化临床记录标签...');
+    
+    // 确保初始状态正确
+    $('#notes-tab').addClass('active');
+    $('#notes-panel').addClass('show active');
+    $('#timeline-panel').removeClass('show active');
+    
+    // 绑定点击事件
+    $('#clinical-tabs a').off('click').on('click', function(e) {
+      e.preventDefault();
+      console.log('点击标签:', $(this).text());
+      
+      var $this = $(this);
+      var targetPanel = $this.attr('href');
+      
+      // 如果点击的是当前激活的标签，不做任何操作
+      if ($this.hasClass('active')) {
+        return;
+      }
+      
+      // 移除所有标签的active状态
+      $('#clinical-tabs a').removeClass('active');
+      // 添加当前标签的active状态
+      $this.addClass('active');
+      
+      // 隐藏所有面板
+      $('.tab-pane').removeClass('show active').hide();
+      
+      // 显示目标面板
+      $(targetPanel).addClass('show active').fadeIn(300);
+      
+      console.log('成功切换到标签:', targetPanel);
+    });
+    
+    console.log('标签初始化完成');
+  }
+  
   function updateTimeSpent() {
     var now = new Date();
     var elapsed = Math.floor((now - clinicalSession.startTime) / 1000); // 秒
@@ -4824,7 +4981,7 @@
   }
   
   function saveCurrentProgress() {
-    // 保存当前学习进度到本地存储
+    // 保存当前学习进度到本地存储（保持兼容性）
     var progressData = {
       caseId: clinicalSession.caseId,
       stage: clinicalSession.currentStage,
@@ -4836,6 +4993,145 @@
     };
     
     localStorage.setItem('clinical_progress_' + clinicalSession.caseId, JSON.stringify(progressData));
+  }
+  
+  function saveClinicalNotesToDB() {
+    // 保存临床笔记到数据库
+    var notes = $('#clinical-notes').val();
+    
+    // 显示保存中状态
+    showNotesSaveStatus('<i class="fas fa-spinner fa-spin"></i> 保存中...', 'info');
+    
+    $.ajax({
+      url: '/api/clinical/notes/save/',
+      method: 'POST',
+      contentType: 'application/json',
+      headers: {
+        'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() || getCsrfToken()
+      },
+      data: JSON.stringify({
+        case_id: clinicalSession.caseId,
+        notes: notes
+      }),
+      success: function(resp) {
+        if (resp.success) {
+          // 显示保存成功提示
+          showNotesSaveStatus('<i class="fas fa-check-circle"></i> 已保存 (' + resp.data.save_time + ')', 'success');
+          
+          // 更新字数统计
+          updateNotesCharCount();
+          
+          // 添加视觉反馈 - 文本框短暂高亮
+          $('#clinical-notes').addClass('notes-saved-flash');
+          setTimeout(function() {
+            $('#clinical-notes').removeClass('notes-saved-flash');
+          }, 1000);
+        } else {
+          showNotesSaveStatus('<i class="fas fa-exclamation-triangle"></i> 保存失败', 'error');
+        }
+      },
+      error: function(xhr, status, error) {
+        console.log('保存笔记失败:', error);
+        showNotesSaveStatus('<i class="fas fa-exclamation-circle"></i> 保存失败', 'error');
+      }
+    });
+  }
+  
+  function loadClinicalNotesFromDB() {
+    // 从数据库加载临床笔记
+    $.ajax({
+      url: '/api/clinical/notes/' + clinicalSession.caseId + '/',
+      method: 'GET',
+      success: function(resp) {
+        if (resp.success && resp.data.notes) {
+          $('#clinical-notes').val(resp.data.notes);
+          updateNotesCharCount();
+          
+          if (resp.data.last_updated) {
+            showNotesSaveStatus('<i class="fas fa-cloud-download-alt"></i> 已加载 (上次更新: ' + resp.data.last_updated + ')', 'info');
+          } else {
+            showNotesSaveStatus('<i class="fas fa-cloud-download-alt"></i> 已加载历史笔记', 'info');
+          }
+          
+          // 5秒后清除加载状态
+          setTimeout(function() {
+            $('#notes-save-status').fadeOut(500);
+          }, 5000);
+        } else {
+          // 没有保存的笔记，显示欢迎信息
+          updateNotesCharCount();
+          showNotesSaveStatus('<i class="fas fa-edit"></i> 开始记录您的临床思考', 'info');
+          setTimeout(function() {
+            $('#notes-save-status').fadeOut(500);
+          }, 3000);
+        }
+      },
+      error: function(xhr, status, error) {
+        console.log('加载笔记失败:', error);
+        updateNotesCharCount();
+        showNotesSaveStatus('<i class="fas fa-exclamation-triangle"></i> 加载笔记失败', 'error');
+      }
+    });
+  }
+  
+  function showNotesSaveStatus(message, type) {
+    // 显示笔记保存状态
+    var $status = $('#notes-save-status');
+    
+    // 清除之前的淡出定时器
+    if (window.notesStatusTimeout) {
+      clearTimeout(window.notesStatusTimeout);
+    }
+    
+    // 显示新状态
+    $status.stop(true, true).show();
+    $status.html(message);
+    
+    // 根据类型设置样式
+    $status.removeClass('text-success text-danger text-info text-warning');
+    switch (type) {
+      case 'success':
+        $status.addClass('text-success');
+        break;
+      case 'error':
+        $status.addClass('text-danger');
+        break;
+      case 'warning':
+        $status.addClass('text-warning');
+        break;
+      default:
+        $status.addClass('text-info');
+    }
+    
+    // 对于成功和错误状态，设置自动淡出
+    if (type === 'success' || type === 'error') {
+      window.notesStatusTimeout = setTimeout(function() {
+        $status.fadeOut(1000);
+      }, 3000);
+    }
+  }
+  
+  function updateNotesCharCount() {
+    // 更新字数统计
+    var notes = $('#clinical-notes').val();
+    var charCount = notes.length;
+    $('#notes-char-count').text(charCount + ' 字');
+    
+    // 根据字数给出颜色提示
+    var $counter = $('#notes-char-count');
+    $counter.removeClass('text-muted text-info text-warning text-danger');
+    
+    if (charCount === 0) {
+      $counter.addClass('text-muted');
+    } else if (charCount < 50) {
+      $counter.addClass('text-info');
+    } else if (charCount < 200) {
+      $counter.addClass('text-success');
+    } else if (charCount < 500) {
+      $counter.addClass('text-warning');
+    } else {
+      $counter.addClass('text-danger');
+    }
   }
   
   function loadSavedProgress() {
@@ -4963,8 +5259,14 @@
   }
   
   $(document).ready(function() {
+    // 初始化临床记录标签切换功能
+    initializeClinicalRecordTabs();
+    
     // 初始化时间显示更新
     setInterval(updateTimeSpent, 1000);
+    
+    // 加载保存的临床笔记
+    loadClinicalNotesFromDB();
     
     // 清空可能的历史进度数据，避免污染
     localStorage.removeItem('clinical_progress_' + clinicalSession.caseId);
@@ -5015,10 +5317,16 @@
       handlePreviousStage();
     });
     
-    // 绑定临床笔记自动保存
+    // 绑定临床笔记自动保存到数据库和字数统计
     $('#clinical-notes').on('input', function() {
+      updateNotesCharCount();
       clearTimeout(window.notesSaveTimeout);
-      window.notesSaveTimeout = setTimeout(saveCurrentProgress, 2000);
+      window.notesSaveTimeout = setTimeout(saveClinicalNotesToDB, 2000);
+    });
+    
+    // 绑定笔记字段的焦点事件，实时更新字数
+    $('#clinical-notes').on('focus', function() {
+      updateNotesCharCount();
     });
     
     // 页面离开时保存进度
