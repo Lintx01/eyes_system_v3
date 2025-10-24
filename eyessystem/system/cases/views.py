@@ -42,28 +42,45 @@ def validate_examination_selection(required_exam_ids, selected_exam_ids, require
     
     error_message = ""
     if not is_valid:
-        error_parts = []
+        missing_count = len(missing_required)
+        extra_count = len(extra_selected)
         
-        if missing_required:
-            missing_names = required_exams.filter(id__in=missing_required).values_list('examination_name', flat=True)
-            error_parts.append(f"缺少必选检查项目：{', '.join(missing_names)}")
-        
-        if extra_selected:
-            # 这里需要查询所有检查项来获取额外选择的名称
-            from .models import ExaminationOption
-            extra_exams = ExaminationOption.objects.filter(id__in=extra_selected)
-            extra_names = extra_exams.values_list('examination_name', flat=True)
-            error_parts.append(f"不应选择的检查项目：{', '.join(extra_names)}")
-        
-        error_message = "选择有误，请检查后重新选择。" + "; ".join(error_parts)
-        
-        # 根据尝试次数调整提示消息
+        # 构建引导性的教学反馈，而不是直接给出答案
         if attempt_count == 1:
-            error_message += "\n提示：请仔细阅读案例，选择最必要的检查项目。"
+            # 第一次尝试：提供总体指导
+            if missing_count > 0 and extra_count > 0:
+                error_message = f"您的检查选择需要调整。看起来您遗漏了{missing_count}项重要检查，同时选择了{extra_count}项可能不是最优的检查。"
+                error_message += "\n💡 建议：重新审视患者的主要症状和体征，思考哪些检查对确诊最为关键。"
+            elif missing_count > 0:
+                error_message = f"您还需要选择{missing_count}项重要的检查项目。"
+                error_message += "\n💡 建议：回顾患者的主诉和症状，考虑还需要哪些基础检查来评估病情。"
+            elif extra_count > 0:
+                error_message = f"您选择的检查项目中有{extra_count}项可能不是当前最必要的。"
+                error_message += "\n💡 建议：考虑哪些检查对当前症状的诊断最有价值，避免过度检查。"
+                
         elif attempt_count == 2:
-            error_message += f"\n这是您第{attempt_count}次尝试，请更加仔细地分析案例需求。"
-        elif attempt_count >= 3:
-            error_message += f"\n这是您第{attempt_count}次尝试，建议重新阅读案例详情和检查项目描述。"
+            # 第二次尝试：提供更具体的思考方向
+            if missing_count > 0 and extra_count > 0:
+                error_message = f"检查选择仍有改进空间。您可能遗漏了{missing_count}项关键检查，并且选择了{extra_count}项可选检查。"
+                error_message += "\n🎯 思考方向：\n• 患者的主要症状指向哪些系统？\n• 哪些是诊断该症状的'金标准'检查？\n• 是否选择了一些价值不高的辅助检查？"
+            elif missing_count > 0:
+                error_message = f"仍然缺少{missing_count}项重要检查。"
+                error_message += "\n🎯 提示：仔细分析患者症状的特点，思考遗漏了哪些基础但关键的检查项目。"
+            elif extra_count > 0:
+                error_message = f"选择中包含了{extra_count}项非必需的检查。"
+                error_message += "\n🎯 提示：优先考虑成本效益高、诊断价值大的检查项目。"
+                
+        else:
+            # 第三次及以上：提供学习策略建议
+            if missing_count > 0 and extra_count > 0:
+                error_message = f"经过{attempt_count}次尝试，检查选择仍需完善。缺少{missing_count}项，多选了{extra_count}项。"
+                error_message += "\n📚 学习建议：\n• 重新阅读病例的关键信息\n• 思考该疾病的标准诊断流程\n• 区分'必需检查'和'辅助检查'\n• 参考检查项目的诊断价值和成本效益标识"
+            elif missing_count > 0:
+                error_message = f"第{attempt_count}次尝试，仍缺少{missing_count}项关键检查。"
+                error_message += "\n📚 建议：系统回顾该症状的标准检查流程，确保没有遗漏基础检查项目。"
+            elif extra_count > 0:
+                error_message = f"第{attempt_count}次尝试，仍包含{extra_count}项非必需检查。"
+                error_message += "\n📚 建议：重新评估每项检查的必要性，优先选择诊断价值最高的项目。"
     
     # 计算惩罚分数
     penalty_applied = calculate_examination_penalty(attempt_count, len(missing_required), len(extra_selected))
@@ -1090,6 +1107,9 @@ def get_examination_options(request, case_id):
             })
         
         # 有必选项的情况：混合必选项和干扰项
+        # 获取必选项名称集合，用于去重
+        required_exam_names = set(exam.examination_name for exam in required_examinations)
+        
         # 获取其他案例的检查项目作为干扰项池
         distractor_pool = ExaminationOption.objects.exclude(
             clinical_case=clinical_case
@@ -1097,11 +1117,23 @@ def get_examination_options(request, case_id):
         
         # 如果干扰项池不够，使用当前案例的可选项作为补充
         if distractor_pool.count() < 3:
-            distractor_pool = optional_examinations
+            # 从当前案例的可选项中排除与必选项同名的选项
+            distractor_pool = optional_examinations.exclude(
+                examination_name__in=required_exam_names
+            )
+        
+        # 去重：移除与必选项同名的干扰项，避免重复
+        unique_distractors = []
+        seen_names = set(required_exam_names)  # 初始化已见过的名称集合
+        
+        for exam in distractor_pool:
+            if exam.examination_name not in seen_names:
+                unique_distractors.append(exam)
+                seen_names.add(exam.examination_name)
         
         # 按检查类型分组，确保干扰项类型多样性
         distractor_by_type = {}
-        for exam in distractor_pool:
+        for exam in unique_distractors:
             exam_type = exam.examination_type
             if exam_type not in distractor_by_type:
                 distractor_by_type[exam_type] = []
@@ -1125,9 +1157,9 @@ def get_examination_options(request, case_id):
                 # 从每个类型中随机选1个
                 selected_distractors.extend(random.sample(exams, min(1, len(exams))))
         
-        # 如果还需要更多干扰项，随机选择剩余的
+        # 如果还需要更多干扰项，从去重后的池中随机选择剩余的
         if len(selected_distractors) < distractor_count:
-            remaining_pool = [exam for exam in distractor_pool 
+            remaining_pool = [exam for exam in unique_distractors 
                             if exam not in selected_distractors]
             if remaining_pool:
                 additional_count = min(distractor_count - len(selected_distractors), 
@@ -1157,6 +1189,10 @@ def get_examination_options(request, case_id):
             'is_distractor': option.clinical_case_id != clinical_case.id
         } for option in all_examinations]
         
+        # 验证去重效果：检查是否有重复名称
+        all_names = [option.examination_name for option in all_examinations]
+        unique_names = set(all_names)
+        
         return JsonResponse({
             'success': True,
             'data': {
@@ -1164,9 +1200,10 @@ def get_examination_options(request, case_id):
                 'total_count': len(options_data),
                 'required_count': required_count,
                 'distractor_count': len(selected_distractors),
+                'unique_names_count': len(unique_names),  # 调试：实际去重后的唯一名称数量
                 'mode': 'mixed'  # 混合模式，包含必选项和干扰项
             },
-            'message': '检查选项获取成功（含必选项和干扰项）'
+            'message': f'检查选项获取成功（含{required_count}个必选项和{len(selected_distractors)}个去重干扰项）'
         })
         
     except Exception as e:
@@ -1297,16 +1334,18 @@ def confirm_examination_selection(request):
                                   student=request.user, 
                                   clinical_case=clinical_case)
         
-        # 验证选择的检查项目是否存在
+        # 验证选择的检查项目是否存在（包括来自其他案例的干扰项）
         examination_options = ExaminationOption.objects.filter(
-            clinical_case=clinical_case,
-            id__in=selected_examinations
+            id__in=selected_examinations  # 移除 clinical_case 限制，允许干扰项
         )
         
         if len(examination_options) != len(selected_examinations):
+            # 提供更详细的错误信息，帮助调试
+            found_ids = set(examination_options.values_list('id', flat=True))
+            missing_ids = set(selected_examinations) - found_ids
             return JsonResponse({
                 'success': False,
-                'message': '选择的检查项目不存在'
+                'message': f'选择的检查项目不存在，缺失ID: {list(missing_ids)}'
             }, status=400)
         
         # 获取所有必选检查项目

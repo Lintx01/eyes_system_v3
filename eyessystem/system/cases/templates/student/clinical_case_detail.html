@@ -1593,7 +1593,15 @@
 /* 成功反馈样式 */
 .feedback-positive {
   border-left: 4px solid #28a745;
-  background-color: #d4edda;
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+  font-weight: 500;
+}
+
+.feedback-positive i {
+  color: #ffc107;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .feedback-corrective {
@@ -2807,65 +2815,71 @@
     }
     html += '</div>';
     
-    // 错误详情卡片
+    // 错误类型分析卡片（不显示具体项目名称）
     if (details.missing_required && details.missing_required.length > 0) {
-      html += '<div class="card mb-3" style="border: 2px solid #dc3545; border-radius: 10px;">';
-      html += '<div class="card-header bg-danger text-white" style="border-radius: 8px 8px 0 0;">';
-      html += '<h6 class="mb-0"><i class="fas fa-times-circle me-2"></i>缺少必选检查项目</h6>';
+      html += '<div class="card mb-3" style="border: 2px solid #17a2b8; border-radius: 10px;">';
+      html += '<div class="card-header bg-info text-white" style="border-radius: 8px 8px 0 0;">';
+      html += '<h6 class="mb-0"><i class="fas fa-search me-2"></i>检查选择分析</h6>';
       html += '</div>';
       html += '<div class="card-body">';
-      html += '<p class="text-danger mb-2">以下检查项目是必须选择的，请重新选择：</p>';
-      html += '<div class="missing-required-list">';
-      // 这里需要通过检查选项列表来显示缺少的项目名称
-      details.missing_required.forEach(function(examId) {
-        // 从当前页面的检查选项中找到对应名称
-        var examElement = $('.examination-option[data-exam-id="' + examId + '"]');
-        if (examElement.length > 0) {
-          var examName = examElement.find('.form-check-label strong').text();
-          html += '<div class="alert alert-warning py-2 mb-2">';
-          html += '<i class="fas fa-star text-warning me-2"></i>' + examName;
-          html += '</div>';
-        }
-      });
+      html += '<div class="alert alert-primary mb-3" style="border-radius: 8px;">';
+      html += '<i class="fas fa-lightbulb me-2"></i>';
+      html += '<strong>遗漏分析：</strong>您的选择中缺少了 ' + details.missing_required.length + ' 项重要检查。';
       html += '</div>';
+      html += '<p class="text-muted mb-2">💡 <strong>思考提示：</strong></p>';
+      html += '<ul class="list-unstyled mb-0">';
+      html += '<li class="mb-2"><i class="fas fa-arrow-right text-primary me-2"></i>患者的主要症状提示哪些系统可能受累？</li>';
+      html += '<li class="mb-2"><i class="fas fa-arrow-right text-primary me-2"></i>哪些基础检查是评估该症状的常规项目？</li>';
+      html += '<li class="mb-0"><i class="fas fa-arrow-right text-primary me-2"></i>是否遗漏了某些诊断价值高的检查？</li>';
+      html += '</ul>';
       html += '</div>';
       html += '</div>';
     }
     
     if (details.extra_selected && details.extra_selected.length > 0) {
-      html += '<div class="card mb-3" style="border: 2px solid #fd7e14; border-radius: 10px;">';
+      html += '<div class="card mb-3" style="border: 2px solid #ffc107; border-radius: 10px;">';
       html += '<div class="card-header bg-warning text-dark" style="border-radius: 8px 8px 0 0;">';
-      html += '<h6 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>不应选择的检查项目</h6>';
+      html += '<h6 class="mb-0"><i class="fas fa-balance-scale me-2"></i>选择优化建议</h6>';
       html += '</div>';
       html += '<div class="card-body">';
-      html += '<p class="text-warning mb-2">以下检查项目不是必选的，请取消选择：</p>';
-      html += '<div class="extra-selected-list">';
-      details.extra_selected.forEach(function(examId) {
-        var examElement = $('.examination-option[data-exam-id="' + examId + '"]');
-        if (examElement.length > 0) {
-          var examName = examElement.find('.form-check-label strong').text();
-          html += '<div class="alert alert-info py-2 mb-2">';
-          html += '<i class="fas fa-info-circle text-info me-2"></i>' + examName;
-          html += '</div>';
-        }
-      });
+      html += '<div class="alert alert-warning mb-3" style="border-radius: 8px;">';
+      html += '<i class="fas fa-exclamation-triangle me-2"></i>';
+      html += '<strong>效率分析：</strong>您选择了 ' + details.extra_selected.length + ' 项可能非必需的检查。';
       html += '</div>';
+      html += '<p class="text-muted mb-2">💡 <strong>优化建议：</strong></p>';
+      html += '<ul class="list-unstyled mb-0">';
+      html += '<li class="mb-2"><i class="fas fa-arrow-right text-warning me-2"></i>重新评估每项检查的诊断价值</li>';
+      html += '<li class="mb-2"><i class="fas fa-arrow-right text-warning me-2"></i>考虑检查的成本效益比</li>';
+      html += '<li class="mb-0"><i class="fas fa-arrow-right text-warning me-2"></i>优先选择对当前症状最有针对性的检查</li>';
+      html += '</ul>';
       html += '</div>';
       html += '</div>';
     }
     
-    // 重新选择指导
-    html += '<div class="card" style="border: 2px solid #17a2b8; border-radius: 10px;">';
-    html += '<div class="card-header bg-info text-white" style="border-radius: 8px 8px 0 0;">';
-    html += '<h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>重新选择指导</h6>';
+    // 学习策略指导
+    html += '<div class="card" style="border: 2px solid #28a745; border-radius: 10px;">';
+    html += '<div class="card-header bg-success text-white" style="border-radius: 8px 8px 0 0;">';
+    html += '<h6 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>临床思维训练</h6>';
     html += '</div>';
     html += '<div class="card-body">';
-    html += '<ol class="mb-0">';
-    html += '<li>仔细阅读病例描述，理解患者的症状和体征</li>';
-    html += '<li>选择所有<strong>必选的检查项目</strong>（通常是诊断最关键的检查）</li>';
-    html += '<li>不要选择额外的非必选项目</li>';
-    html += '<li>确认选择后，点击"确认检查选择"按钮</li>';
-    html += '</ol>';
+    html += '<div class="row">';
+    html += '<div class="col-md-6">';
+    html += '<h6 class="text-primary mb-2">📋 病例分析步骤</h6>';
+    html += '<ul class="list-unstyled">';
+    html += '<li class="mb-1"><i class="fas fa-check-circle text-success me-2"></i>重读患者主诉和现病史</li>';
+    html += '<li class="mb-1"><i class="fas fa-check-circle text-success me-2"></i>分析症状的临床意义</li>';
+    html += '<li class="mb-0"><i class="fas fa-check-circle text-success me-2"></i>确定诊断思路和方向</li>';
+    html += '</ul>';
+    html += '</div>';
+    html += '<div class="col-md-6">';
+    html += '<h6 class="text-info mb-2">🎯 检查选择原则</h6>';
+    html += '<ul class="list-unstyled">';
+    html += '<li class="mb-1"><i class="fas fa-star text-warning me-2"></i>优先选择高诊断价值的检查</li>';
+    html += '<li class="mb-1"><i class="fas fa-dollar-sign text-info me-2"></i>考虑检查的成本效益比</li>';
+    html += '<li class="mb-0"><i class="fas fa-target text-danger me-2"></i>避免过度检查和漏检</li>';
+    html += '</ul>';
+    html += '</div>';
+    html += '</div>';
     html += '</div>';
     html += '</div>';
     
@@ -2911,28 +2925,44 @@
     errorHtml += '</div>';
     errorHtml += '</div>';
     
-    // 详细错误分析
-    if (details.missing_required && details.missing_required.length > 0) {
-      errorHtml += '<div class="error-section mb-3">';
-      errorHtml += '<h6 class="text-danger mb-2"><i class="fas fa-minus-circle me-2"></i>缺少必选检查项：</h6>';
-      errorHtml += '<ul class="text-danger mb-0">';
-      details.missing_required.forEach(function(examId) {
-        const examName = getExaminationNameById(examId);
-        errorHtml += `<li>${examName || '检查项目ID: ' + examId}</li>`;
-      });
-      errorHtml += '</ul>';
-      errorHtml += '</div>';
-    }
-    
-    if (details.extra_selected && details.extra_selected.length > 0) {
-      errorHtml += '<div class="error-section mb-3">';
-      errorHtml += '<h6 class="text-warning mb-2"><i class="fas fa-plus-circle me-2"></i>不应选择的检查项：</h6>';
-      errorHtml += '<ul class="text-warning mb-0">';
-      details.extra_selected.forEach(function(examId) {
-        const examName = getExaminationNameById(examId);
-        errorHtml += `<li>${examName || '检查项目ID: ' + examId}</li>`;
-      });
-      errorHtml += '</ul>';
+    // 学习提示区域（不显示具体检查项目名称）
+    if ((details.missing_required && details.missing_required.length > 0) || 
+        (details.extra_selected && details.extra_selected.length > 0)) {
+      
+      errorHtml += '<div class="learning-tips mb-3" style="background: linear-gradient(135deg, #f8f9fc 0%, #e9ecef 100%); border-radius: 8px; padding: 15px;">';
+      
+      if (details.attempt_count <= 2) {
+        errorHtml += '<h6 class="text-primary mb-3"><i class="fas fa-compass me-2"></i>学习指导</h6>';
+        
+        if (details.missing_required && details.missing_required.length > 0) {
+          errorHtml += '<div class="mb-2"><i class="fas fa-search text-info me-2"></i>';
+          errorHtml += '<span class="text-dark">重新审视患者症状，还有哪些基础检查是诊断必需的？</span></div>';
+        }
+        
+        if (details.extra_selected && details.extra_selected.length > 0) {
+          errorHtml += '<div class="mb-2"><i class="fas fa-filter text-warning me-2"></i>';
+          errorHtml += '<span class="text-dark">考虑检查的成本效益，是否选择了一些非必需的项目？</span></div>';
+        }
+        
+        errorHtml += '<div class="mt-3 p-2" style="background: rgba(0,123,255,0.1); border-radius: 4px;">';
+        errorHtml += '<small class="text-primary"><i class="fas fa-lightbulb me-1"></i> ';
+        errorHtml += '提示：关注检查项目的"诊断价值"和"成本效益"标识，优先选择高价值的检查。</small>';
+        errorHtml += '</div>';
+        
+      } else {
+        errorHtml += '<h6 class="text-secondary mb-3"><i class="fas fa-book me-2"></i>深度学习建议</h6>';
+        errorHtml += '<div class="row">';
+        errorHtml += '<div class="col-md-6">';
+        errorHtml += '<div class="mb-2"><i class="fas fa-eye text-primary me-2"></i>重新阅读病例关键信息</div>';
+        errorHtml += '<div class="mb-2"><i class="fas fa-list-check text-success me-2"></i>回顾标准诊断流程</div>';
+        errorHtml += '</div>';
+        errorHtml += '<div class="col-md-6">';
+        errorHtml += '<div class="mb-2"><i class="fas fa-balance-scale text-warning me-2"></i>评估检查必要性</div>';
+        errorHtml += '<div class="mb-2"><i class="fas fa-star text-info me-2"></i>参考诊断价值标识</div>';
+        errorHtml += '</div>';
+        errorHtml += '</div>';
+      }
+      
       errorHtml += '</div>';
     }
     
@@ -2943,16 +2973,23 @@
       errorHtml += '</div>';
     }
     
-    // 操作提示
-    errorHtml += '<div class="action-hint alert alert-info" style="background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%); border: none; border-radius: 8px; padding: 12px;">';
-    errorHtml += '<i class="fas fa-lightbulb me-2"></i>';
+    // 鼓励性操作提示
+    errorHtml += '<div class="encouragement-section alert alert-light" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 1px solid #dee2e6; border-radius: 8px; padding: 15px;">';
+    errorHtml += '<div class="text-center">';
+    errorHtml += '<i class="fas fa-graduation-cap text-primary mb-2" style="font-size: 1.5rem;"></i>';
+    
     if (details.attempt_count === 1) {
-      errorHtml += '请仔细阅读案例信息，重新选择必要的检查项目。';
+      errorHtml += '<p class="mb-2 text-dark"><strong>学习是一个探索过程</strong></p>';
+      errorHtml += '<p class="mb-0 text-muted">仔细分析患者症状，思考诊断所需的关键检查。每次尝试都是宝贵的学习机会！</p>';
     } else if (details.attempt_count === 2) {
-      errorHtml += '这是您第二次尝试，请更加仔细地分析案例需求。';
+      errorHtml += '<p class="mb-2 text-dark"><strong>继续深入思考</strong></p>';
+      errorHtml += '<p class="mb-0 text-muted">结合患者的具体症状和体征，重新评估哪些检查最有诊断价值。加油！</p>';
     } else {
-      errorHtml += '多次尝试失败，建议重新阅读案例详情和检查项目描述。';
+      errorHtml += '<p class="mb-2 text-dark"><strong>坚持就是胜利</strong></p>';
+      errorHtml += '<p class="mb-0 text-muted">临床推理需要反复练习。建议系统回顾诊断思路，每个医生都是这样成长的！</p>';
     }
+    
+    errorHtml += '</div>';
     errorHtml += '</div>';
     
     errorHtml += '</div>';
@@ -3575,7 +3612,15 @@
     } else if (selectedCount > 8) {
       feedback = '<div class="alert alert-danger">检查过多可能增加成本和患者负担</div>';
     } else {
-      feedback = '<div class="alert alert-success">检查选择合理，请继续</div>';
+      feedback = '<div class="alert alert-success" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border: 2px solid #28a745; border-radius: 10px;">' +
+                 '<div class="d-flex align-items-center">' +
+                 '<i class="fas fa-trophy text-warning fs-4 me-3"></i>' +
+                 '<div>' +
+                 '<h6 class="mb-1 text-success">🎉 检查选择合理！</h6>' +
+                 '<small class="text-success-emphasis">你展现了良好的临床判断能力，请继续进行下一步</small>' +
+                 '</div>' +
+                 '</div>' +
+                 '</div>';
     }
     
     $('#feedback-panel').html(feedback);
@@ -3638,7 +3683,7 @@
 
           // 进入诊断阶段
           renderDiagnosisStage(resp.data);
-          showFeedbackMessage('检查结果已获得，请开始诊断分析', 'success');
+          showFeedbackMessage('🎉 检查完成！你已成功获得检查结果，现在请基于这些证据进行诊断分析', 'success');
           // 视觉反馈
           flashCard($('#feedback-panel'), 'success');
           launchConfetti(25);
@@ -3869,7 +3914,7 @@
       addToLearningTimeline('选择诊断', diagnosisName);
       
       // 提供即时反馈
-      showFeedbackMessage('已选择诊断：' + diagnosisName + '，可以点击提交按钮继续', 'success');
+      showFeedbackMessage('✅ 诊断已选择：' + diagnosisName + '。你的诊断思路很清晰，可以点击提交按钮继续', 'success');
       
       // 按钮始终保持可用状态
       ensureButtonEnabled();
@@ -4543,7 +4588,15 @@
     } else if (selectedCount > 5) {
       feedback = '<div class="alert alert-danger">治疗方案过多可能增加副作用风险</div>';
     } else {
-      feedback = '<div class="alert alert-success">治疗方案选择合理</div>';
+      feedback = '<div class="alert alert-success" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border: 2px solid #28a745; border-radius: 10px;">' +
+                 '<div class="d-flex align-items-center">' +
+                 '<i class="fas fa-star text-warning fs-4 me-3"></i>' +
+                 '<div>' +
+                 '<h6 class="mb-1 text-success">✨ 治疗方案合理！</h6>' +
+                 '<small class="text-success-emphasis">你的治疗选择体现了良好的循证医学思维</small>' +
+                 '</div>' +
+                 '</div>' +
+                 '</div>';
     }
     
     $('#feedback-panel').html(feedback);
@@ -4856,7 +4909,7 @@
   function showFeedbackMessage(message, type = 'info') {
     var alertClass = {
       'info': 'alert-info',
-      'success': 'alert-success feedback-positive',
+      'success': 'alert-success feedback-positive border-success',
       'warning': 'alert-warning feedback-corrective', 
       'danger': 'alert-danger',
       'guidance': 'alert-info feedback-guidance',
@@ -4865,7 +4918,7 @@
     
     var icon = {
       'info': 'fas fa-info-circle',
-      'success': 'fas fa-check-circle',
+      'success': 'fas fa-trophy',
       'warning': 'fas fa-exclamation-triangle',
       'danger': 'fas fa-times-circle',
       'guidance': 'fas fa-lightbulb',
