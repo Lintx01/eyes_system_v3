@@ -1974,7 +1974,8 @@
     
     // 诊断推理
     diagnosticHypotheses: [],
-    selectedDiagnosis: null,
+    selectedDiagnosis: null, // 保留兼容性
+    selectedDiagnoses: [], // 多选鉴别诊断
     differentialAnalysis: {},
     
     // 治疗决策
@@ -2888,18 +2889,19 @@
     // 更新主要内容区域
     $('#main-content').html(html);
     
-    // 高亮显示相关的检查选项
-    if (details.missing_required) {
-      details.missing_required.forEach(function(examId) {
-        $('.examination-option[data-exam-id="' + examId + '"]').addClass('border-danger').css('animation', 'pulse 1s infinite');
-      });
-    }
+    // 移除红色边框高亮提示 - 让学生自己思考而不是直接提示答案
+    // 注释掉高亮显示，避免过度提示
+    // if (details.missing_required) {
+    //   details.missing_required.forEach(function(examId) {
+    //     $('.examination-option[data-exam-id="' + examId + '"]').addClass('border-danger').css('animation', 'pulse 1s infinite');
+    //   });
+    // }
     
-    if (details.extra_selected) {
-      details.extra_selected.forEach(function(examId) {
-        $('.examination-option[data-exam-id="' + examId + '"]').addClass('border-warning');
-      });
-    }
+    // if (details.extra_selected) {
+    //   details.extra_selected.forEach(function(examId) {
+    //     $('.examination-option[data-exam-id="' + examId + '"]').addClass('border-warning');
+    //   });
+    // }
     
     // 滚动到顶部
     $('html, body').animate({ scrollTop: 0 }, 300);
@@ -3834,7 +3836,7 @@
         html += '<div class="card diagnosis-option mb-3" data-diagnosis-id="' + option.id + '" data-layout-version="2.0" style="border: 2px solid transparent; transition: all 0.3s ease;">';
         html += '<div class="card-body">';
         html += '<div class="d-flex align-items-center mb-2">';
-        html += '<input class="form-check-input diagnosis-radio me-3" type="radio" name="diagnosis" ';
+        html += '<input class="form-check-input diagnosis-checkbox me-3" type="checkbox" name="diagnosis" ';
         html += 'value="' + option.id + '" id="diag_' + option.id + '" style="flex-shrink: 0; margin-top: 0;">';
         html += '<label class="form-check-label me-3" for="diag_' + option.id + '" style="cursor: pointer; flex-grow: 1;">';
         html += '<h6 class="mb-0" style="color: #2c3e50; font-weight: 600;">' + option.name + '</h6>';
@@ -3882,36 +3884,45 @@
   }
   
   function bindDiagnosisEvents() {
-    $('.diagnosis-radio').off('change').on('change', function() {
+    $('.diagnosis-checkbox').off('change').on('change', function() {
       var diagnosisId = parseInt($(this).val());
       var $card = $(this).closest('.diagnosis-option');
+      var isChecked = $(this).is(':checked');
       
-      console.log('=== 诊断选择事件触发 ===');
+      console.log('=== 鉴别诊断选择事件触发 ===');
       console.log('选中的诊断ID:', diagnosisId);
-      console.log('诊断选项卡:', $card);
+      console.log('是否选中:', isChecked);
       
-      // 移除其他选中状态
-      $('.diagnosis-option').removeClass('selected');
+      // 初始化选中的诊断数组
+      if (!clinicalSession.selectedDiagnoses) {
+        clinicalSession.selectedDiagnoses = [];
+      }
       
-      // 设置当前选中
-      $card.addClass('selected');
-      clinicalSession.selectedDiagnosis = diagnosisId;
-      
-      console.log('clinicalSession.selectedDiagnosis已设置为:', clinicalSession.selectedDiagnosis);
-      
-      // 验证选择是否成功
-      setTimeout(function() {
-        console.log('延时验证 - selectedDiagnosis:', clinicalSession.selectedDiagnosis);
-        if (clinicalSession.selectedDiagnosis) {
-          console.log('✅ 诊断选择成功！');
-        } else {
-          console.log('❌ 诊断选择失败！');
+      if (isChecked) {
+        // 添加选中状态
+        $card.addClass('selected');
+        if (!clinicalSession.selectedDiagnoses.includes(diagnosisId)) {
+          clinicalSession.selectedDiagnoses.push(diagnosisId);
         }
-      }, 100);
+        // 记录选择
+        var diagnosisName = $(this).siblings('label').find('h6').text();
+        addToLearningTimeline('选择鉴别诊断', diagnosisName);
+      } else {
+        // 移除选中状态
+        $card.removeClass('selected');
+        clinicalSession.selectedDiagnoses = clinicalSession.selectedDiagnoses.filter(id => id !== diagnosisId);
+      }
       
-      // 记录选择
-      var diagnosisName = $(this).siblings('label').find('h6').text();
-      addToLearningTimeline('选择诊断', diagnosisName);
+      console.log('当前选中的鉴别诊断:', clinicalSession.selectedDiagnoses);
+      
+      // 更新按钮状态
+      if (clinicalSession.selectedDiagnoses.length > 0) {
+        $('#btn-next').removeClass('disabled').addClass('btn-info');
+        console.log('✅ 已选择', clinicalSession.selectedDiagnoses.length, '个鉴别诊断');
+      } else {
+        $('#btn-next').addClass('disabled').removeClass('btn-info');
+        console.log('❌ 未选择任何诊断');
+      }
       
       // 提供即时反馈
       showFeedbackMessage('✅ 诊断已选择：' + diagnosisName + '。你的诊断思路很清晰，可以点击提交按钮继续', 'success');
@@ -3923,10 +3934,10 @@
     
     $('.diagnosis-option').off('click').on('click', function(e) {
       console.log('诊断选项卡片被点击:', $(this));
-      if (e.target.type !== 'radio') {
-        var radio = $(this).find('.diagnosis-radio');
-        console.log('找到的radio按钮:', radio);
-        radio.prop('checked', true).trigger('change');
+      if (e.target.type !== 'checkbox') {
+        var checkbox = $(this).find('.diagnosis-checkbox');
+        console.log('找到的checkbox按钮:', checkbox);
+        checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
       }
     });
   }
@@ -4172,18 +4183,24 @@
   }
 
   function submitDiagnosis() {
-    console.log('=== 开始提交诊断 ===');
-    console.log('当前选中诊断ID:', clinicalSession.selectedDiagnosis);
+    console.log('=== 开始提交鉴别诊断 ===');
+    console.log('当前选中诊断IDs:', clinicalSession.selectedDiagnoses);
     console.log('案例ID:', clinicalSession.caseId);
+    
+    // 检查是否选择了诊断
+    if (!clinicalSession.selectedDiagnoses || clinicalSession.selectedDiagnoses.length === 0) {
+      showFeedbackMessage('请至少选择一个诊断选项', 'warning');
+      return;
+    }
     
     // 显示提交中状态
     $('#btn-next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 提交中...');
-    showFeedbackMessage('正在提交诊断选择...', 'info');
+    showFeedbackMessage('正在提交鉴别诊断选择...', 'info');
     
-    // 准备提交数据
+    // 准备提交数据 - 支持多个诊断
     var submitData = {
       case_id: clinicalSession.caseId,
-      selected_diagnosis_id: clinicalSession.selectedDiagnosis,
+      selected_diagnosis_ids: clinicalSession.selectedDiagnoses,  // 改为数组
       reasoning: $('#clinical-notes').val() || ''
     };
     
@@ -4199,29 +4216,74 @@
       data: JSON.stringify(submitData),
       success: function(resp) {
         console.log('诊断提交成功响应:', resp);
-        $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+        console.log('当前阶段:', resp.data?.current_stage);
+        console.log('尝试次数:', resp.data?.attempt_count);
+        console.log('指导级别:', resp.data?.guidance_level);
         
         if (resp.success) {
-          // 记录诊断阶段完成
-          var selectedDiagName = $('.diagnosis-option.selected').find('h6').text();
-          addToLearningTimeline('提交诊断', selectedDiagName);
-          
           // 更新分数
           if (resp.data.diagnosis_score !== undefined) {
             clinicalSession.scores.diagnosis = resp.data.diagnosis_score;
             $('#current-score').text(resp.data.diagnosis_score.toFixed(1));
           }
           
-          // 显示诊断反馈
-          if (resp.data.diagnosis_feedback) {
-            showFeedbackMessage(resp.data.diagnosis_feedback, 'success');
+          // 检查诊断是否完全正确
+          if (resp.data.current_stage === 'treatment') {
+            // 诊断完全正确，进入治疗阶段
+            $('#btn-next').prop('disabled', false).html('下一步 <i class="fas fa-arrow-right"></i>');
+            
+            // 记录诊断阶段完成
+            var selectedDiagNames = resp.data.selected_diagnoses.map(d => d.name).join(', ');
+            addToLearningTimeline('完成鉴别诊断', selectedDiagNames);
+            
+            // 显示成功反馈
+            if (resp.data.diagnosis_feedback) {
+              showFeedbackMessage(resp.data.diagnosis_feedback, 'success');
+            }
+            
+            // 进入治疗阶段
+            renderTreatmentStage(resp.data);
+            // 视觉反馈
+            flashCard($('#feedback-panel'), 'success');
+            launchConfetti(20);
+            
+          } else {
+            // 诊断不完全正确，提供指导并允许重新选择
+            $('#btn-next').prop('disabled', false).html('重新提交诊断 →').removeClass('btn-success').addClass('btn-warning');
+            
+            // 显示指导反馈 - 确保总是显示
+            var feedbackType = 'warning';
+            if (resp.data.guidance_level === 1) {
+              feedbackType = 'info';
+            } else if (resp.data.guidance_level >= 2) {
+              feedbackType = 'warning';
+            }
+            
+            if (resp.data.diagnosis_feedback) {
+              // 使用多行反馈显示
+              var feedbackHtml = resp.data.diagnosis_feedback.replace(/\n/g, '<br>');
+              showFeedbackMessage(feedbackHtml, feedbackType);
+            }
+            
+            // 总是重新渲染诊断选择界面（即使没有新选项）
+            if (resp.data.diagnosis_options) {
+              renderDiagnosisOptionsWithGuidance(resp.data);
+            } else {
+              // 如果没有返回新选项，至少更新当前界面的指导信息
+              console.log('没有返回新的诊断选项，保持当前界面');
+            }
+            
+            // 记录尝试次数
+            addToLearningTimeline(`第${resp.data.attempt_count}次诊断尝试`, '需要调整选择');
+            
+            // 视觉反馈
+            flashCard($('#feedback-panel'), 'warning');
+            
+            // 清空当前选择，让用户重新选择
+            clinicalSession.selectedDiagnoses = [];
+            $('.diagnosis-checkbox').prop('checked', false);
           }
           
-          // 进入治疗阶段
-          renderTreatmentStage(resp.data);
-          // 视觉反馈
-          flashCard($('#feedback-panel'), 'success');
-          launchConfetti(20);
         } else {
           showFeedbackMessage('提交失败: ' + resp.message + '。请重新选择诊断', 'danger');
           // 恢复按钮状态，允许用户重新选择
@@ -4252,6 +4314,148 @@
     });
   }
 
+  // 重新渲染诊断选择界面，包含智能指导
+  function renderDiagnosisOptionsWithGuidance(data) {
+    console.log('重新渲染诊断选择界面，包含指导:', data);
+    
+    // 更新诊断选项区域
+    var diagnosisHtml = '<div class="diagnosis-options-section">';
+    
+    // 指导级别提示
+    if (data.guidance_level > 0) {
+      diagnosisHtml += '<div class="guidance-alert mb-4">';
+      if (data.guidance_level === 1) {
+        diagnosisHtml += '<div class="alert alert-info border-start border-4 border-info">';
+        diagnosisHtml += '<h6 class="alert-heading"><i class="fas fa-lightbulb me-2"></i>学习指导</h6>';
+      } else if (data.guidance_level === 2) {
+        diagnosisHtml += '<div class="alert alert-warning border-start border-4 border-warning">';
+        diagnosisHtml += '<h6 class="alert-heading"><i class="fas fa-compass me-2"></i>进阶指导</h6>';
+      } else {
+        diagnosisHtml += '<div class="alert alert-primary border-start border-4 border-primary">';
+        diagnosisHtml += '<h6 class="alert-heading"><i class="fas fa-graduation-cap me-2"></i>详细指导</h6>';
+      }
+      diagnosisHtml += '<p class="mb-0">第' + data.attempt_count + '次尝试 - 请根据以下指导重新选择鉴别诊断</p>';
+      diagnosisHtml += '</div>';
+      diagnosisHtml += '</div>';
+    }
+    
+    // 鉴别诊断选项
+    diagnosisHtml += '<h4 class="text-primary mb-4" style="font-weight: 700; font-size: 1.5rem;">';
+    diagnosisHtml += '<i class="fas fa-stethoscope me-2"></i>鉴别诊断选择';
+    if (data.attempt_count > 1) {
+      diagnosisHtml += ' <small class="text-muted">（重新选择）</small>';
+    }
+    diagnosisHtml += '</h4>';
+    
+    diagnosisHtml += '<div class="alert alert-info border-0 bg-info bg-opacity-10 mb-4">';
+    diagnosisHtml += '<h6 class="mb-2"><i class="fas fa-info-circle text-info me-2"></i>诊断思路指导</h6>';
+    diagnosisHtml += '<p class="mb-0">请结合患者的症状、体征和检查结果，选择最可能的鉴别诊断。可以选择多个诊断选项。</p>';
+    diagnosisHtml += '</div>';
+    
+    // 诊断选项列表
+    if (data.diagnosis_options && data.diagnosis_options.length > 0) {
+      diagnosisHtml += '<div class="row g-3">';
+      
+      data.diagnosis_options.forEach(function(option, index) {
+        diagnosisHtml += '<div class="col-lg-6">';
+        diagnosisHtml += '<div class="diagnosis-option card h-100 shadow-sm" data-diagnosis-id="' + option.id + '">';
+        diagnosisHtml += '<div class="card-body p-3">';
+        
+        // 复选框和诊断名称
+        diagnosisHtml += '<div class="d-flex align-items-start mb-2">';
+        diagnosisHtml += '<input class="form-check-input diagnosis-checkbox me-3" type="checkbox" ';
+        diagnosisHtml += 'value="' + option.id + '" id="diag_' + option.id + '"';
+        
+        // 如果之前选择过，保持选中状态
+        if (clinicalSession.selectedDiagnoses && clinicalSession.selectedDiagnoses.includes(option.id)) {
+          diagnosisHtml += ' checked';
+        }
+        
+        diagnosisHtml += ' style="margin-top: 0.125rem;">';
+        diagnosisHtml += '<div class="flex-grow-1">';
+        diagnosisHtml += '<label class="form-check-label" for="diag_' + option.id + '">';
+        diagnosisHtml += '<h6 class="mb-1">' + option.name + '</h6>';
+        diagnosisHtml += '</label>';
+        
+        if (option.code) {
+          diagnosisHtml += '<small class="text-muted">ICD编码: ' + option.code + '</small>';
+        }
+        
+        // 在指导模式下显示正确性提示
+        if (data.guidance_level >= 3 && option.is_correct !== undefined) {
+          if (option.is_correct) {
+            diagnosisHtml += '<div class="mt-2">';
+            diagnosisHtml += '<span class="badge bg-success"><i class="fas fa-check me-1"></i>正确诊断</span>';
+            diagnosisHtml += '</div>';
+          }
+        }
+        
+        diagnosisHtml += '</div>';
+        diagnosisHtml += '</div>';
+        
+        diagnosisHtml += '</div>';
+        diagnosisHtml += '</div>';
+        diagnosisHtml += '</div>';
+      });
+      
+      diagnosisHtml += '</div>';
+    }
+    
+    diagnosisHtml += '</div>';
+    
+    // 更新页面内容
+    var currentHtml = $('#clinical-content').html();
+    var updatedHtml = currentHtml.replace(/<div class="diagnosis-options-section">[\s\S]*?<\/div>/, diagnosisHtml);
+    
+    // 如果没有找到要替换的内容，直接在诊断阶段部分添加
+    if (updatedHtml === currentHtml) {
+      // 查找诊断相关区域并更新
+      var $clinicalContent = $('#clinical-content');
+      $clinicalContent.find('.diagnosis-options-section').remove();
+      $clinicalContent.find('.diagnosis-stage').append(diagnosisHtml);
+    } else {
+      $('#clinical-content').html(updatedHtml);
+    }
+    
+    // 重新绑定事件处理器
+    bindDiagnosisEvents();
+    
+    // 滚动到诊断选项区域
+    setTimeout(function() {
+      $('.diagnosis-options-section')[0]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }
+  
+  // 绑定诊断选择事件
+  function bindDiagnosisEvents() {
+    // 诊断复选框事件
+    $('.diagnosis-checkbox').off('change').on('change', function() {
+      var diagnosisId = parseInt($(this).val());
+      var isChecked = $(this).is(':checked');
+      
+      if (!clinicalSession.selectedDiagnoses) {
+        clinicalSession.selectedDiagnoses = [];
+      }
+      
+      if (isChecked) {
+        if (!clinicalSession.selectedDiagnoses.includes(diagnosisId)) {
+          clinicalSession.selectedDiagnoses.push(diagnosisId);
+        }
+      } else {
+        clinicalSession.selectedDiagnoses = clinicalSession.selectedDiagnoses.filter(id => id !== diagnosisId);
+      }
+      
+      console.log('更新诊断选择:', clinicalSession.selectedDiagnoses);
+      
+      // 更新按钮状态
+      if (clinicalSession.selectedDiagnoses.length > 0) {
+        $('#btn-next').removeClass('btn-secondary').addClass('btn-warning').prop('disabled', false);
+      } else {
+        $('#btn-next').removeClass('btn-warning').addClass('btn-secondary').prop('disabled', true);
+      }
+    });
+  }
+
   
   // ==================== 治疗阶段：治疗决策 ====================
   
@@ -4272,23 +4476,27 @@
     
     var html = '<div class="treatment-stage">';
     
-    // 诊断确认展示
-    if (data.selected_diagnosis) {
+    // 诊断确认展示 - 处理多诊断选择
+    if (data.selected_diagnoses && data.selected_diagnoses.length > 0) {
       html += '<div class="diagnosis-confirmation mb-4">';
       html += '<h5 class="text-success"><i class="fas fa-check-circle"></i> 确认诊断</h5>';
-      html += '<div class="card border-success">';
-      html += '<div class="card-body">';
-      html += '<h6>' + data.selected_diagnosis.name + '</h6>';
-      if (data.selected_diagnosis.code) {
-        html += '<small class="text-muted">ICD编码: ' + data.selected_diagnosis.code + '</small><br>';
-      }
-      if (data.selected_diagnosis.is_correct) {
-        html += '<span class="badge badge-success">诊断正确</span>';
-      } else {
-        html += '<span class="badge badge-warning">需要进一步确认</span>';
-      }
-      html += '</div>';
-      html += '</div>';
+      
+      data.selected_diagnoses.forEach(function(diagnosis) {
+        html += '<div class="card border-success mb-2">';
+        html += '<div class="card-body py-2">';
+        html += '<h6 class="mb-1">' + diagnosis.name + '</h6>';
+        if (diagnosis.code) {
+          html += '<small class="text-muted">ICD编码: ' + diagnosis.code + '</small><br>';
+        }
+        if (diagnosis.is_correct) {
+          html += '<span class="badge badge-success">诊断正确</span>';
+        } else {
+          html += '<span class="badge badge-warning">需要进一步确认</span>';
+        }
+        html += '</div>';
+        html += '</div>';
+      });
+      
       html += '</div>';
     }
     
@@ -5427,15 +5635,15 @@
         
       case 'diagnosis':
         console.log('=== handleNextStage - 诊断阶段 ===');
-        console.log('当前选中诊断ID:', clinicalSession.selectedDiagnosis);
+        console.log('当前选中诊断IDs:', clinicalSession.selectedDiagnoses);
         
         // 隐藏眼底字幕（如果存在）
         if ($('#fundus-overlay').length) {
           hideFundusSubtitle();
         }
-        if (!clinicalSession.selectedDiagnosis) {
+        if (!clinicalSession.selectedDiagnoses || clinicalSession.selectedDiagnoses.length === 0) {
           console.log('没有选择诊断，显示警告');
-          showFeedbackMessage('请先选择一个诊断选项，然后再提交', 'warning');
+          showFeedbackMessage('请至少选择一个诊断选项，然后再提交', 'warning');
           return;
         }
         console.log('开始调用submitDiagnosis()');

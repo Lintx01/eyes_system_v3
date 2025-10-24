@@ -107,33 +107,15 @@ def calculate_examination_penalty(attempt_count, missing_count, extra_count):
     Returns:
         float: 惩罚分数（从总分中扣除）
     """
-    base_penalty = 0
-    
-    # 基础惩罚：每次错误尝试
+    # 简化惩罚逻辑：第一次错误只扣5分，后续递增
     if attempt_count == 1:
-        base_penalty = 5  # 第一次错误扣5分
+        return 5  # 第一次错误扣5分
     elif attempt_count == 2:
-        base_penalty = 10  # 第二次错误扣10分
+        return 10  # 第二次错误扣10分
     elif attempt_count == 3:
-        base_penalty = 15  # 第三次错误扣15分
+        return 15  # 第三次错误扣15分
     else:
-        base_penalty = 20  # 第四次及以上扣20分
-    
-    # 严重度惩罚：根据错误类型和数量
-    severity_penalty = 0
-    
-    # 缺少必选项的惩罚（更严重）
-    severity_penalty += missing_count * 3
-    
-    # 多选不必要项目的惩罚
-    severity_penalty += extra_count * 2
-    
-    total_penalty = base_penalty + severity_penalty
-    
-    # 限制最大惩罚分数，避免过度惩罚
-    max_penalty = min(30, total_penalty)  # 单次最多扣30分
-    
-    return max_penalty
+        return 20  # 第四次及以上扣20分
 
 
 def record_examination_error(session, validation_result):
@@ -786,31 +768,141 @@ def submit_diagnosis_choice(request):
     try:
         data = json.loads(request.body)
         case_id = data.get('case_id')
-        selected_diagnosis_id = data.get('selected_diagnosis_id')
+        selected_diagnosis_ids = data.get('selected_diagnosis_ids', [])  # 支持多个诊断
+        selected_diagnosis_id = data.get('selected_diagnosis_id')  # 兼容旧的单诊断
         reasoning = data.get('reasoning', '')
+        
+        # 兼容处理：如果使用旧的单诊断格式，转换为数组
+        if selected_diagnosis_id and not selected_diagnosis_ids:
+            selected_diagnosis_ids = [selected_diagnosis_id]
+        
+        if not selected_diagnosis_ids:
+            return JsonResponse({
+                'success': False,
+                'message': '请至少选择一个诊断选项'
+            }, status=400)
         
         clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
         session = get_object_or_404(StudentClinicalSession, 
                                   student=request.user, 
                                   clinical_case=clinical_case)
         
-        diagnosis_option = get_object_or_404(DiagnosisOption, 
-                                           id=selected_diagnosis_id, 
-                                           clinical_case=clinical_case)
+        # 验证所有选择的诊断都属于该案例
+        diagnosis_options = DiagnosisOption.objects.filter(
+            id__in=selected_diagnosis_ids, 
+            clinical_case=clinical_case
+        )
         
-        # 更新会话状态
-        session.selected_diagnosis = diagnosis_option
-        session.session_status = 'treatment'
+        if len(diagnosis_options) != len(selected_diagnosis_ids):
+            return JsonResponse({
+                'success': False,
+                'message': '选择的诊断选项无效'
+            }, status=400)
         
-        # 计算诊断得分
-        if diagnosis_option.is_correct_diagnosis:
-            session.diagnosis_score = 100.0
-            feedback_message = diagnosis_option.correct_feedback
+        # 获取所有正确诊断以供比较
+        all_correct_diagnoses = DiagnosisOption.objects.filter(
+            clinical_case=clinical_case, 
+            is_correct_diagnosis=True
+        )
+        correct_diagnosis_ids = set(all_correct_diagnoses.values_list('id', flat=True))
+        selected_diagnosis_ids_set = set(selected_diagnosis_ids)
+        
+        # 计算诊断结果
+        correct_diagnoses = diagnosis_options.filter(is_correct_diagnosis=True)
+        total_selected = len(diagnosis_options)
+        correct_selected = len(correct_diagnoses)
+        
+        # 检查是否完全正确
+        is_completely_correct = (selected_diagnosis_ids_set == correct_diagnosis_ids)
+        
+        # 增加尝试次数
+        session.diagnosis_attempt_count += 1
+        
+        if is_completely_correct:
+            # 诊断完全正确 - 进入治疗阶段
+            session.selected_diagnoses = selected_diagnosis_ids
+            session.session_status = 'treatment'
+            session.diagnosis_score = max(100 - (session.diagnosis_attempt_count - 1) * 10, 60)  # 最低60分
+            
+            feedback_message = f"恭喜！您的鉴别诊断完全正确！"
+            if session.diagnosis_attempt_count > 1:
+                feedback_message += f"（第{session.diagnosis_attempt_count}次尝试，得分：{session.diagnosis_score:.0f}分）"
             feedback_type = 'positive'
+            
+        elif correct_selected > 0:
+            # 部分正确 - 提供指导并允许重新选择
+            wrong_selected = total_selected - correct_selected
+            missing_correct = len(correct_diagnosis_ids) - len(selected_diagnosis_ids_set & correct_diagnosis_ids)
+            
+            # 根据尝试次数提供不同级别的指导
+            if session.diagnosis_attempt_count == 1:
+                session.diagnosis_guidance_level = 1
+                guidance_hint = f"您选择了{correct_selected}个正确诊断，但还有{missing_correct}个正确诊断未选择"
+                if wrong_selected > 0:
+                    guidance_hint += f"，同时选择了{wrong_selected}个错误诊断"
+                guidance_hint += "。请重新思考并调整您的选择。"
+                
+            elif session.diagnosis_attempt_count == 2:
+                session.diagnosis_guidance_level = 2
+                guidance_hint = "提示：请仔细回顾患者的症状、体征和检查结果。"
+                # 给出轻度提示
+                wrong_options = diagnosis_options.filter(is_correct_diagnosis=False)
+                if wrong_options.exists():
+                    for option in wrong_options:
+                        if option.hint_level_1:
+                            guidance_hint += f"\n关于{option.diagnosis_name}: {option.hint_level_1}"
+                            
+            elif session.diagnosis_attempt_count == 3:
+                session.diagnosis_guidance_level = 3  
+                guidance_hint = "进一步提示："
+                # 给出中度提示
+                wrong_options = diagnosis_options.filter(is_correct_diagnosis=False)
+                if wrong_options.exists():
+                    for option in wrong_options:
+                        if option.hint_level_2:
+                            guidance_hint += f"\n{option.diagnosis_name}: {option.hint_level_2}"
+                            
+            else:  # 第4次及以上
+                session.diagnosis_guidance_level = 3
+                guidance_hint = "详细指导："
+                # 给出强提示
+                all_diagnosis_options = DiagnosisOption.objects.filter(clinical_case=clinical_case)
+                for option in all_diagnosis_options:
+                    if option.is_correct_diagnosis:
+                        guidance_hint += f"\n✓ {option.diagnosis_name}: 这是正确的诊断"
+                    else:
+                        if option.hint_level_3:
+                            guidance_hint += f"\n✗ {option.diagnosis_name}: {option.hint_level_3}"
+            
+            feedback_message = guidance_hint
+            feedback_type = 'guidance'
+            session.diagnosis_score = 0  # 未完成时不给分
+            # 不改变session_status，允许重新选择
+            
         else:
-            session.diagnosis_score = diagnosis_option.probability_score * 100
-            feedback_message = diagnosis_option.incorrect_feedback
+            # 完全错误 - 提供基础指导
+            session.diagnosis_guidance_level = min(session.diagnosis_attempt_count, 3)
+            
+            if session.diagnosis_attempt_count == 1:
+                feedback_message = f"您选择的{total_selected}个诊断都不正确。请重新分析患者的症状、体征和检查结果，考虑可能的鉴别诊断。\n\n💡 提示：仔细观察患者的检查结果和临床表现。"
+            elif session.diagnosis_attempt_count == 2:
+                feedback_message = "请注意以下诊断要点："
+                # 给出正确诊断的轻度提示
+                for correct_diagnosis in all_correct_diagnoses:
+                    if correct_diagnosis.hint_level_1:
+                        feedback_message += f"\n• {correct_diagnosis.diagnosis_name}: {correct_diagnosis.hint_level_1}"
+            else:
+                feedback_message = "详细指导 - 请考虑以下正确诊断："
+                # 给出正确诊断的详细提示
+                for correct_diagnosis in all_correct_diagnoses:
+                    feedback_message += f"\n✓ {correct_diagnosis.diagnosis_name}: "
+                    if correct_diagnosis.hint_level_2:
+                        feedback_message += correct_diagnosis.hint_level_2
+                    else:
+                        feedback_message += "这是正确的鉴别诊断选项"
+                        
             feedback_type = 'corrective'
+            session.diagnosis_score = 0
         
         session.save()
         
@@ -823,47 +915,82 @@ def submit_diagnosis_choice(request):
             is_automated=True
         )
         
-        # 获取相关的治疗选项
-        treatment_options = TreatmentOption.objects.filter(
-            clinical_case=clinical_case,
-            related_diagnosis=diagnosis_option
-        ).order_by('display_order')
+        # 准备返回数据
+        response_data = {
+            'diagnosis_feedback': feedback_message,
+            'diagnosis_score': session.diagnosis_score,
+            'attempt_count': session.diagnosis_attempt_count,
+            'guidance_level': session.diagnosis_guidance_level,
+            'current_stage': session.session_status,
+        }
         
-        # 如果没有特定诊断的治疗选项，获取通用治疗选项
-        if not treatment_options.exists():
+        # 如果诊断完全正确，准备治疗选项
+        if is_completely_correct:
+            # 获取相关的治疗选项 - 基于选择的诊断
             treatment_options = TreatmentOption.objects.filter(
                 clinical_case=clinical_case,
-                related_diagnosis__isnull=True
+                related_diagnosis__in=diagnosis_options
             ).order_by('display_order')
+            
+            # 如果没有特定诊断的治疗选项，获取通用治疗选项
+            if not treatment_options.exists():
+                treatment_options = TreatmentOption.objects.filter(
+                    clinical_case=clinical_case,
+                    related_diagnosis__isnull=True
+                ).order_by('display_order')
+            
+            treatment_data = [{
+                'id': option.id,
+                'name': option.treatment_name,
+                'type': option.get_treatment_type_display(),
+                'description': option.treatment_description,
+                'is_optimal': option.is_optimal,
+                'is_acceptable': option.is_acceptable,
+                'is_contraindicated': option.is_contraindicated,
+                'efficacy_score': option.get_efficacy_score_display(),
+                'safety_score': option.get_safety_score_display(),
+                'expected_outcome': option.expected_outcome
+            } for option in treatment_options]
+            
+            response_data.update({
+                'treatment_options': treatment_data,
+                'next_stage': 'treatment',
+                'message': '诊断选择正确，请选择治疗方案'
+            })
+        else:
+            # 诊断不完全正确，返回诊断选项供重新选择
+            all_diagnosis_options = DiagnosisOption.objects.filter(
+                clinical_case=clinical_case
+            ).order_by('display_order')
+            
+            diagnosis_data = [{
+                'id': option.id,
+                'name': option.diagnosis_name,
+                'code': option.diagnosis_code,
+                'is_differential': option.is_differential,
+                'probability_score': option.probability_score,
+                'is_correct': option.is_correct_diagnosis  # 在指导模式下可以显示
+            } for option in all_diagnosis_options]
+            
+            response_data.update({
+                'diagnosis_options': diagnosis_data,
+                'next_stage': 'diagnosis',
+                'allow_retry': True,
+                'message': '请根据指导重新选择鉴别诊断'
+            })
         
-        treatment_data = [{
-            'id': option.id,
-            'name': option.treatment_name,
-            'type': option.get_treatment_type_display(),
-            'description': option.treatment_description,
-            'is_optimal': option.is_optimal,
-            'is_acceptable': option.is_acceptable,
-            'is_contraindicated': option.is_contraindicated,
-            'efficacy_score': option.get_efficacy_score_display(),
-            'safety_score': option.get_safety_score_display(),
-            'expected_outcome': option.expected_outcome
-        } for option in treatment_options]
+        # 准备选中诊断的信息（用于显示）
+        selected_diagnoses_data = [{
+            'id': d.id,
+            'name': d.diagnosis_name,
+            'code': d.diagnosis_code,
+            'is_correct': d.is_correct_diagnosis
+        } for d in diagnosis_options]
+        response_data['selected_diagnoses'] = selected_diagnoses_data
         
         return JsonResponse({
             'success': True,
-            'data': {
-                'diagnosis_feedback': feedback_message,
-                'diagnosis_score': session.diagnosis_score,
-                'selected_diagnosis': {
-                    'name': diagnosis_option.diagnosis_name,
-                    'code': diagnosis_option.diagnosis_code,
-                    'is_correct': diagnosis_option.is_correct_diagnosis
-                },
-                'treatment_options': treatment_data,
-                'current_stage': 'treatment',
-                'next_stage': 'feedback'
-            },
-            'message': '诊断选择已提交，请选择治疗方案'
+            'data': response_data
         })
         
     except Exception as e:

@@ -505,6 +505,23 @@ class DiagnosisOption(models.Model):
     is_correct_diagnosis = models.BooleanField(default=False, verbose_name="是否正确诊断")
     is_differential = models.BooleanField(default=True, verbose_name="是否鉴别诊断")
     
+    # 诊断选择要求（参考检查选项设计）
+    is_required = models.BooleanField(default=False, verbose_name="是否必选诊断", 
+                                    help_text="必选诊断必须被选中才算完全正确")
+    is_recommended = models.BooleanField(default=False, verbose_name="是否推荐诊断",
+                                       help_text="推荐但非必需的诊断选项")
+    diagnostic_difficulty = models.IntegerField(
+        choices=[(1, '容易识别'), (2, '中等难度'), (3, '困难识别')],
+        default=2,
+        verbose_name="识别难度"
+    )
+    interference_level = models.IntegerField(
+        choices=[(1, '低干扰'), (2, '中干扰'), (3, '高干扰')],
+        default=2,
+        verbose_name="干扰程度",
+        help_text="作为错误选项时的干扰强度"
+    )
+    
     # 诊断依据
     supporting_evidence = models.TextField(verbose_name="支持依据")
     contradicting_evidence = models.TextField(blank=True, verbose_name="反对依据")
@@ -516,6 +533,11 @@ class DiagnosisOption(models.Model):
     # 教学反馈
     correct_feedback = models.TextField(verbose_name="选择正确时的反馈")
     incorrect_feedback = models.TextField(verbose_name="选择错误时的反馈")
+    
+    # 循序渐进智能指导
+    hint_level_1 = models.TextField(blank=True, verbose_name="轻度提示", help_text="第一次错误时给出的轻度提示")
+    hint_level_2 = models.TextField(blank=True, verbose_name="中度提示", help_text="第二次错误时给出的中度提示")  
+    hint_level_3 = models.TextField(blank=True, verbose_name="强提示", help_text="第三次错误时给出的强提示")
     
     probability_score = models.FloatField(
         default=0.0,
@@ -626,6 +648,7 @@ class StudentClinicalSession(models.Model):
     selected_examinations = models.JSONField(default=list, verbose_name="已选检查项目")
     examination_images_viewed = models.JSONField(default=list, verbose_name="已查看的检查图像")
     selected_diagnosis = models.ForeignKey(DiagnosisOption, on_delete=SET_NULL, blank=True, null=True, verbose_name="选择的诊断")
+    selected_diagnoses = models.JSONField(default=list, verbose_name="选中的多个诊断ID", help_text="支持鉴别诊断的多选功能")
     diagnosis_reasoning_text = models.TextField(blank=True, verbose_name="诊断推理过程", 
                                                help_text="学生的诊断思路和推理过程")
     selected_treatments = models.JSONField(default=list, verbose_name="已选治疗方案")
@@ -647,6 +670,10 @@ class StudentClinicalSession(models.Model):
     treatment_score = models.FloatField(default=0.0, verbose_name="治疗方案得分")
     reasoning_score = models.FloatField(default=0.0, verbose_name="推理过程得分")
     overall_score = models.FloatField(default=0.0, verbose_name="总体得分")
+    
+    # 智能指导
+    diagnosis_attempt_count = models.IntegerField(default=0, verbose_name="诊断尝试次数", help_text="记录学生诊断尝试的次数，用于循序渐进指导")
+    diagnosis_guidance_level = models.IntegerField(default=0, verbose_name="指导级别", help_text="0=无提示，1=轻度提示，2=中度提示，3=强提示")
     
     # 时间跟踪
     time_spent = models.JSONField(default=dict, verbose_name="各阶段用时", help_text="JSON格式记录各阶段耗时")
