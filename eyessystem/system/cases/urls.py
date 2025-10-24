@@ -18,6 +18,11 @@ urlpatterns = [
     # 教师端
     path('teacher/', views.teacher_dashboard, name='teacher_dashboard'),
     
+    # 测试页面
+    path('test-delete/', views.test_delete_view, name='test_delete'),
+    path('frontend-test/', views.frontend_delete_test, name='frontend_test'),
+    path('simple-delete-test/', views.simple_delete_test, name='simple_delete_test'),
+    
     # 教师端 - 临床推理病例管理
     path('teacher/clinical-cases/', views.teacher_clinical_case_list, name='teacher_clinical_case_list'),
     path('teacher/clinical-cases/create/', views.teacher_clinical_case_create, name='teacher_clinical_case_create'),

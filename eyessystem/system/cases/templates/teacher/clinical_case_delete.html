@@ -6,6 +6,16 @@
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-8">
+            <!-- 显示消息 -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
             <div class="card">
                 <div class="card-header bg-danger text-white">
                     <h5 class="mb-0">
@@ -70,10 +80,10 @@
                         </div>
                     </div>
                     
-                    <form method="post">
+                    <form method="post" id="deleteForm">
                         {% csrf_token %}
                         <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="confirmDelete" name="confirm_delete" required>
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" name="confirm_delete" value="on" required>
                             <label class="form-check-label" for="confirmDelete">
                                 我确认要删除此病例及其所有相关数据
                             </label>
@@ -92,6 +102,7 @@
                                 <i class="fas fa-arrow-left"></i> 返回病例列表
                             </a>
                         </div>
+
                     </form>
                 </div>
             </div>
@@ -104,18 +115,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmCheckbox = document.getElementById('confirmDelete');
     const deleteBtn = document.getElementById('deleteBtn');
     
+    // 简单的复选框控制删除按钮状态
     confirmCheckbox.addEventListener('change', function() {
         deleteBtn.disabled = !this.checked;
-        if (this.checked) {
-            deleteBtn.classList.remove('btn-danger');
-            deleteBtn.classList.add('btn-danger');
-        }
     });
     
-    // 二次确认
+    // 删除按钮点击时简单确认
     deleteBtn.addEventListener('click', function(e) {
-        if (!confirm('最后确认：确定要删除病例 "{{ case.title }}" 吗？\n\n这个操作无法撤销！')) {
+        if (!confirm('确定要删除此病例吗？删除后无法恢复！')) {
             e.preventDefault();
+            return false;
         }
     });
 });

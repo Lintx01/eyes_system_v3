@@ -1842,6 +1842,9 @@ def teacher_clinical_case_edit(request, case_id):
 def teacher_clinical_case_delete(request, case_id):
     """教师端 - 删除临床推理病例"""
     
+    # 调试信息（可根据需要开启）
+    # print(f"删除请求 - 用户: {request.user.username}, 方法: {request.method}, 案例: {case_id}")
+    
     case = get_object_or_404(ClinicalCase, case_id=case_id)
     
     # 获取相关数据统计
@@ -1852,10 +1855,27 @@ def teacher_clinical_case_delete(request, case_id):
     ).count()
     
     if request.method == 'POST':
+        # 检查是否勾选了确认删除
+        if not request.POST.get('confirm_delete'):
+            messages.error(request, '请勾选确认删除选项')
+            return render(request, 'teacher/clinical_case_delete.html', {
+                'case': case,
+                'student_sessions_count': student_sessions_count,
+                'completed_sessions_count': completed_sessions_count,
+            })
+        
         case_title = case.title
-        case.delete()
-        messages.success(request, f'临床推理病例 "{case_title}" 已删除')
-        return redirect('teacher_clinical_case_list')
+        try:
+            case.delete()
+            messages.success(request, f'临床推理病例 "{case_title}" 已删除')
+            return redirect('teacher_clinical_case_list')
+        except Exception as e:
+            messages.error(request, f'删除失败: {str(e)}')
+            return render(request, 'teacher/clinical_case_delete.html', {
+                'case': case,
+                'student_sessions_count': student_sessions_count,
+                'completed_sessions_count': completed_sessions_count,
+            })
     
     context = {
         'case': case,
@@ -1863,6 +1883,24 @@ def teacher_clinical_case_delete(request, case_id):
         'completed_sessions_count': completed_sessions_count,
     }
     return render(request, 'teacher/clinical_case_delete.html', context)
+
+
+@login_required
+def test_delete_view(request):
+    """测试删除功能的简单页面"""
+    return render(request, 'test_delete.html')
+
+
+@login_required
+def frontend_delete_test(request):
+    """前端删除功能测试页面"""
+    return render(request, 'frontend_delete_test.html')
+
+
+@login_required
+def simple_delete_test(request):
+    """简单删除功能测试"""
+    return render(request, 'simple_delete_test.html')
 
 
 @login_required

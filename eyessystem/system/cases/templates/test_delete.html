@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>删除功能测试</title>
+    <style>
+        .container { max-width: 800px; margin: 50px auto; padding: 20px; }
+        .btn { padding: 10px 20px; margin: 10px; text-decoration: none; border-radius: 5px; }
+        .btn-danger { background: #dc3545; color: white; border: 1px solid #dc3545; }
+        .test-section { border: 1px solid #ccc; margin: 20px 0; padding: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>临床案例删除功能测试</h1>
+        
+        <div class="test-section">
+            <h3>测试1：直接链接测试</h3>
+            <p>点击下面的链接，看是否能正确跳转到删除确认页面：</p>
+            <a href="/teacher/clinical-cases/CC52E72C39/delete/" class="btn btn-danger">测试删除链接</a>
+        </div>
+        
+        <div class="test-section">
+            <h3>测试2：模拟列表页面删除按钮</h3>
+            <p>这个按钮模拟列表页面的删除逻辑：</p>
+            <a href="/teacher/clinical-cases/CC52E72C39/delete/" 
+               class="btn btn-danger"
+               onclick="return confirm('确认删除此病例吗？')">模拟列表删除按钮</a>
+        </div>
+        
+        <div class="test-section">
+            <h3>测试3：检查当前案例</h3>
+            <p>请手动检查系统中的案例列表</p>
+        </div>
+        
+        <div class="test-section">
+            <h3>测试4：简单删除表单</h3>
+            <form action="/teacher/clinical-cases/CC52E72C39/delete/" method="post">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <label>
+                    <input type="checkbox" name="confirm_delete" value="on" required> 
+                    我确认要删除此案例
+                </label>
+                <br><br>
+                <button type="submit" class="btn btn-danger">直接删除</button>
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -376,14 +376,21 @@
                                 <i class="fas fa-prescription-bottle-alt"></i>
                             </a>
                             <a href="{% url 'teacher_clinical_case_edit' case.case_id %}" 
-                               class="btn btn-primary-custom btn-sm-custom" title="编辑">
+                               class="btn btn-primary btn-sm-custom" title="编辑">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <a href="{% url 'teacher_clinical_case_delete' case.case_id %}" 
-                               class="btn btn-danger btn-sm-custom" title="删除"
-                               onclick="return confirm('确认删除此病例吗？')">
-                                <i class="fas fa-trash"></i>
-                            </a>
+                            
+                            <!-- 直接删除表单 -->
+                            <form method="post" action="{% url 'teacher_clinical_case_delete' case.case_id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="confirm_delete" value="on">
+                                <button type="submit" 
+                                        class="btn btn-danger btn-sm-custom" 
+                                        title="删除"
+                                        onclick="return confirm('确定要删除病例「{{ case.title }}」吗？\n\n这个操作无法撤销！')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
                         </div>
                     </div>
 
