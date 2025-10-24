@@ -1943,6 +1943,99 @@ def user_management(request):
     """用户管理页面"""
     from django.contrib.auth.models import User, Group
     from django.db.models import Q
+    from django.contrib import messages
+    
+    # 处理POST请求（权限管理和删除用户）
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'change_role':
+            user_id = request.POST.get('user_id')
+            role = request.POST.get('role')
+            is_active = request.POST.get('is_active') == 'on'
+            is_superuser = request.POST.get('is_superuser') == 'on'
+            
+            try:
+                user_obj = User.objects.get(id=user_id)
+                
+                # 更新用户状态
+                user_obj.is_active = is_active
+                user_obj.is_superuser = is_superuser
+                user_obj.save()
+                
+                # 更新用户组
+                user_obj.groups.clear()
+                if role == 'teacher':
+                    teacher_group, created = Group.objects.get_or_create(name='Teachers')
+                    user_obj.groups.add(teacher_group)
+                elif role == 'student':
+                    student_group, created = Group.objects.get_or_create(name='Students')
+                    user_obj.groups.add(student_group)
+                
+                messages.success(request, f'用户 {user_obj.username} 的权限已更新')
+                
+            except User.DoesNotExist:
+                messages.error(request, '用户不存在')
+            except Exception as e:
+                messages.error(request, f'更新失败：{str(e)}')
+                
+        elif action == 'delete_user':
+            user_id = request.POST.get('user_id')
+            
+            try:
+                user_obj = User.objects.get(id=user_id)
+                
+                # 防止删除超级管理员
+                if user_obj.is_superuser:
+                    messages.error(request, '不能删除超级管理员')
+                else:
+                    username = user_obj.username
+                    user_obj.delete()
+                    messages.success(request, f'用户 {username} 已被删除')
+                    
+            except User.DoesNotExist:
+                messages.error(request, '用户不存在')
+            except Exception as e:
+                messages.error(request, f'删除失败：{str(e)}')
+                
+        elif action == 'add_user':
+            username = request.POST.get('username')
+            email = request.POST.get('email', '')
+            first_name = request.POST.get('first_name', '')
+            last_name = request.POST.get('last_name', '')
+            password = request.POST.get('password')
+            role = request.POST.get('role')
+            is_active = request.POST.get('is_active') == 'on'
+            
+            try:
+                # 验证用户名是否已存在
+                if User.objects.filter(username=username).exists():
+                    messages.error(request, f'用户名 {username} 已存在')
+                elif not username or not password or not role:
+                    messages.error(request, '用户名、密码和角色为必填项')
+                else:
+                    # 创建新用户
+                    user_obj = User.objects.create_user(
+                        username=username,
+                        email=email,
+                        password=password,
+                        first_name=first_name,
+                        last_name=last_name,
+                        is_active=is_active
+                    )
+                    
+                    # 设置用户组
+                    if role == 'teacher':
+                        teacher_group, created = Group.objects.get_or_create(name='Teachers')
+                        user_obj.groups.add(teacher_group)
+                    elif role == 'student':
+                        student_group, created = Group.objects.get_or_create(name='Students')
+                        user_obj.groups.add(student_group)
+                    
+                    messages.success(request, f'用户 {username} 创建成功')
+                    
+            except Exception as e:
+                messages.error(request, f'创建用户失败：{str(e)}')
     
     # 获取搜索和筛选参数
     search_query = request.GET.get('search', '')

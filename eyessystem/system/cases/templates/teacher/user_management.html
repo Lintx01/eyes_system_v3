@@ -4,15 +4,20 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <!-- 消息显示 -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                <i class="fas fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}exclamation-circle{% else %}info-circle{% endif %} me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="mb-4">
         <h1><i class="fas fa-users me-3"></i>人员管理</h1>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{% url 'teacher_dashboard' %}">仪表板</a></li>
-                <li class="breadcrumb-item"><a href="{% url 'system_management' %}">系统管理</a></li>
-                <li class="breadcrumb-item active">人员管理</li>
-            </ol>
-        </nav>
+        <p class="text-muted">管理系统用户、分配权限和控制访问</p>
     </div>
 
     <!-- 搜索和筛选 -->
@@ -58,79 +63,95 @@
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">用户列表</h6>
             <div>
-                <a href="/admin/auth/user/add/" class="btn btn-success btn-sm" target="_blank">
+                <button type="button" class="btn btn-success shadow" onclick="showAddUserModal()">
                     <i class="fas fa-user-plus me-2"></i>新增用户
-                </a>
+                </button>
             </div>
         </div>
         <div class="card-body">
             {% if users %}
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-light">
+                    <table class="table table-hover align-middle" style="min-width: 1200px;">
+                        <thead class="table-dark">
                             <tr>
-                                <th>用户名</th>
-                                <th>姓名</th>
-                                <th>邮箱</th>
-                                <th>角色</th>
-                                <th>状态</th>
-                                <th>注册时间</th>
-                                <th>最后登录</th>
-                                <th>操作</th>
+                                <th class="border-0 text-uppercase fw-medium" style="width: 16%;">用户名</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 12%;">姓名</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 18%;">邮箱</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 10%;">角色</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 8%;">状态</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 14%;">注册时间</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 14%;">最后登录</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 8%;">操作</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for user in users %}
-                            <tr>
-                                <td>
+                            <tr class="border-0">
+                                <td class="py-3">
                                     <div class="d-flex align-items-center">
-                                        <div class="avatar-circle bg-primary text-white me-2">
+                                        <div class="avatar-circle bg-gradient-primary text-white me-3 shadow-sm">
                                             {{ user.username|first|upper }}
                                         </div>
-                                        <strong>{{ user.username }}</strong>
-                                        {% if user.is_superuser %}
-                                            <span class="badge bg-danger ms-2">超级管理员</span>
-                                        {% endif %}
+                                        <div class="fw-semibold text-dark text-nowrap">{{ user.username }}</div>
                                     </div>
                                 </td>
-                                <td>{{ user.get_full_name|default:"-" }}</td>
-                                <td>{{ user.email|default:"-" }}</td>
-                                <td>
-                                    {% for group in user.groups.all %}
-                                        {% if group.name == 'Teachers' %}
-                                            <span class="badge bg-success">教师</span>
-                                        {% elif group.name == 'Students' %}
-                                            <span class="badge bg-info">学生</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">{{ group.name }}</span>
+                                <td class="py-3 text-center">
+                                    <span class="text-dark text-nowrap">{{ user.get_full_name|default:"-" }}</span>
+                                </td>
+                                <td class="py-3 text-center">
+                                    <span class="text-muted text-nowrap" style="font-size: 0.9rem;">{{ user.email|default:"-" }}</span>
+                                </td>
+                                <td class="py-3 text-center">
+                                    <div class="d-flex flex-column align-items-center gap-1">
+                                        {% if user.is_superuser %}
+                                            <span class="badge bg-gradient-danger text-white text-nowrap">超级管理员</span>
                                         {% endif %}
-                                    {% empty %}
-                                        <span class="text-muted">-</span>
-                                    {% endfor %}
+                                        {% for group in user.groups.all %}
+                                            {% if group.name == 'Teachers' %}
+                                                <span class="badge bg-success bg-opacity-10 text-success border border-success text-nowrap">教师</span>
+                                            {% elif group.name == 'Students' %}
+                                                <span class="badge bg-info bg-opacity-10 text-info border border-info text-nowrap">学生</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary text-nowrap">{{ group.name }}</span>
+                                            {% endif %}
+                                        {% empty %}
+                                            {% if not user.is_superuser %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
                                 </td>
-                                <td>
+                                <td class="py-3 text-center">
                                     {% if user.is_active %}
-                                        <span class="badge bg-success">活跃</span>
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success text-nowrap">
+                                            <i class="fas fa-check-circle me-1"></i>活跃
+                                        </span>
                                     {% else %}
-                                        <span class="badge bg-danger">停用</span>
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger text-nowrap">
+                                            <i class="fas fa-times-circle me-1"></i>停用
+                                        </span>
                                     {% endif %}
                                 </td>
-                                <td>{{ user.date_joined|date:"Y-m-d H:i" }}</td>
-                                <td>
+                                <td class="py-3 text-center">
+                                    <small class="text-muted text-nowrap">{{ user.date_joined|date:"m-d H:i" }}</small>
+                                </td>
+                                <td class="py-3 text-center">
                                     {% if user.last_login %}
-                                        {{ user.last_login|date:"Y-m-d H:i" }}
+                                        <small class="text-muted text-nowrap">{{ user.last_login|date:"m-d H:i" }}</small>
                                     {% else %}
-                                        <span class="text-muted">从未登录</span>
+                                        <small class="text-muted text-nowrap">从未登录</small>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    <div class="btn-group" role="group">
-                                        <a href="{% url 'user_detail' user.id %}" class="btn btn-outline-primary btn-sm">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <a href="/admin/auth/user/{{ user.id }}/change/" class="btn btn-outline-secondary btn-sm" target="_blank">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
+                                <td class="py-3 text-center">
+                                    <div class="btn-group shadow-sm" role="group">
+                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="showRoleModal('{{ user.id }}', '{{ user.username }}')" title="权限管理">
+                                            <i class="fas fa-user-cog"></i>
+                                        </button>
+                                        {% if not user.is_superuser %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete('{{ user.id }}', '{{ user.username }}')" title="删除用户">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -180,16 +201,403 @@
     </div>
 </div>
 
+<!-- 权限管理模态框 -->
+<div class="modal fade" id="roleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-gradient-primary text-white border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-user-cog me-2"></i>权限管理
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'user_management' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <input type="hidden" name="action" value="change_role">
+                    <input type="hidden" name="user_id" id="roleUserId">
+                    
+                    <div class="text-center mb-4">
+                        <div class="avatar-circle bg-gradient-primary text-white mx-auto mb-3" style="width: 64px; height: 64px; font-size: 1.5rem;" id="roleUserAvatar">
+                            U
+                        </div>
+                        <h6 class="text-dark mb-1">修改用户权限</h6>
+                        <p class="text-muted mb-0">用户: <strong id="roleUsername"></strong></p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 mb-4">
+                            <label class="form-label fw-semibold text-dark">
+                                <i class="fas fa-users me-2 text-primary"></i>用户角色
+                            </label>
+                            <select class="form-select form-select-lg shadow-sm border-0 bg-light" name="role" id="userRole" required>
+                                <option value="">请选择角色</option>
+                                <option value="student">学生</option>
+                                <option value="teacher">教师</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-0 bg-success bg-opacity-10 h-100">
+                                <div class="card-body text-center p-3">
+                                    <div class="form-check form-switch d-flex flex-column align-items-center">
+                                        <input class="form-check-input fs-5 mb-2" type="checkbox" name="is_active" id="userActive">
+                                        <label class="form-check-label fw-semibold text-success" for="userActive">
+                                            <i class="fas fa-check-circle me-1"></i>账户激活
+                                        </label>
+                                        <small class="text-muted">启用用户账户</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-0 bg-warning bg-opacity-10 h-100">
+                                <div class="card-body text-center p-3">
+                                    <div class="form-check form-switch d-flex flex-column align-items-center">
+                                        <input class="form-check-input fs-5 mb-2" type="checkbox" name="is_superuser" id="userSuperuser">
+                                        <label class="form-check-label fw-semibold text-warning" for="userSuperuser">
+                                            <i class="fas fa-crown me-1"></i>超级权限
+                                        </label>
+                                        <small class="text-muted">管理员权限</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>取消
+                    </button>
+                    <button type="submit" class="btn btn-primary px-4 shadow">
+                        <i class="fas fa-save me-2"></i>保存更改
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 新增用户模态框 -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-gradient-success text-white border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-user-plus me-2"></i>添加新用户
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'user_management' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <input type="hidden" name="action" value="add_user">
+                    
+                    <div class="text-center mb-4">
+                        <div class="rounded-circle bg-success bg-opacity-10 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="fas fa-user-plus text-success fa-2x"></i>
+                        </div>
+                        <h5 class="text-success fw-bold mb-2">创建新用户账户</h5>
+                        <p class="text-muted mb-0">填写用户基本信息</p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                <i class="fas fa-user me-2 text-primary"></i>用户名 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control form-control-lg shadow-sm border-0 bg-light" name="username" required 
+                                   placeholder="请输入用户名" maxlength="150">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                <i class="fas fa-envelope me-2 text-primary"></i>邮箱
+                            </label>
+                            <input type="email" class="form-control form-control-lg shadow-sm border-0 bg-light" name="email" 
+                                   placeholder="请输入邮箱地址">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                <i class="fas fa-id-card me-2 text-primary"></i>姓氏
+                            </label>
+                            <input type="text" class="form-control form-control-lg shadow-sm border-0 bg-light" name="first_name" 
+                                   placeholder="请输入姓氏">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                <i class="fas fa-id-card me-2 text-primary"></i>名字
+                            </label>
+                            <input type="text" class="form-control form-control-lg shadow-sm border-0 bg-light" name="last_name" 
+                                   placeholder="请输入名字">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                <i class="fas fa-lock me-2 text-primary"></i>密码 <span class="text-danger">*</span>
+                            </label>
+                            <input type="password" class="form-control form-control-lg shadow-sm border-0 bg-light" name="password" required 
+                                   placeholder="请输入密码" minlength="8">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                <i class="fas fa-users me-2 text-primary"></i>用户角色 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select form-select-lg shadow-sm border-0 bg-light" name="role" required>
+                                <option value="">请选择角色</option>
+                                <option value="student">学生</option>
+                                <option value="teacher">教师</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="card border-0 bg-info bg-opacity-10">
+                                <div class="card-body text-center p-3">
+                                    <div class="form-check form-switch d-flex flex-column align-items-center">
+                                        <input class="form-check-input fs-5 mb-2" type="checkbox" name="is_active" id="addUserActive" checked>
+                                        <label class="form-check-label fw-semibold text-info" for="addUserActive">
+                                            <i class="fas fa-check-circle me-1"></i>激活账户
+                                        </label>
+                                        <small class="text-muted">用户创建后立即可用</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>取消
+                    </button>
+                    <button type="submit" class="btn btn-success px-4 shadow">
+                        <i class="fas fa-user-plus me-2"></i>创建用户
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-gradient-danger text-white border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-exclamation-triangle me-2"></i>删除用户
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'user_management' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <input type="hidden" name="action" value="delete_user">
+                    <input type="hidden" name="user_id" id="deleteUserId">
+                    
+                    <div class="text-center mb-4">
+                        <div class="rounded-circle bg-danger bg-opacity-10 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="fas fa-exclamation-triangle text-danger fa-2x"></i>
+                        </div>
+                        <h5 class="text-danger fw-bold mb-2">确认删除操作</h5>
+                    </div>
+                    
+                    <div class="alert alert-danger border-0 bg-danger bg-opacity-10 mb-4">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-shield-alt text-danger me-3 fa-lg"></i>
+                            <div>
+                                <div class="fw-bold text-danger mb-1">警告！此操作不可撤销</div>
+                                <small class="text-danger opacity-75">删除后无法恢复用户数据</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-light rounded p-3 mb-4">
+                        <p class="mb-2">您确定要删除用户 <strong class="text-dark" id="deleteUsername"></strong> 吗？</p>
+                        <div class="text-muted small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            删除用户将同时删除：
+                            <ul class="mt-2 mb-0">
+                                <li>所有学习记录和进度</li>
+                                <li>考试成绩和评估数据</li>
+                                <li>用户个人设置和偏好</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>取消
+                    </button>
+                    <button type="submit" class="btn btn-danger px-4 shadow">
+                        <i class="fas fa-trash me-2"></i>确认删除
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap 5 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <style>
 .avatar-circle {
-    height: 32px;
-    width: 32px;
+    height: 40px;
+    width: 40px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 1rem;
+    font-weight: 600;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.table > :not(caption) > * > * {
+    border-bottom-width: 1px;
+    border-color: rgba(0, 0, 0, 0.05);
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.table th {
+    font-weight: 600;
     font-size: 0.875rem;
-    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 1rem 0.5rem;
+}
+
+.btn-group .btn {
+    border-color: rgba(0, 0, 0, 0.1);
+    padding: 0.25rem 0.5rem;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.modal-content {
+    border-radius: 1rem;
+}
+
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+
+.bg-gradient-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+}
+
+.card {
+    border-radius: 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.form-switch .form-check-input {
+    border-radius: 2rem;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+    transition: all 0.2s ease;
+}
+
+.badge {
+    font-weight: 500;
+    padding: 0.4em 0.6em;
+    font-size: 0.75rem;
+}
+
+.text-nowrap {
+    white-space: nowrap !important;
+}
+
+/* 确保用户名列有足够空间 */
+.table td:first-child {
+    min-width: 180px;
+}
+
+/* 优化按钮组的显示 */
+.btn-group {
+    display: inline-flex;
+    vertical-align: middle;
+}
+
+.btn-sm {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.4rem;
 }
 </style>
+
+<script>
+function showRoleModal(userId, username) {
+    document.getElementById('roleUserId').value = userId;
+    document.getElementById('roleUsername').textContent = username;
+    
+    // 更新用户头像
+    const avatar = document.getElementById('roleUserAvatar');
+    avatar.textContent = username.charAt(0).toUpperCase();
+    
+    // 这里可以通过AJAX获取用户当前角色信息并填充表单
+    // 为简化，这里先显示空表单
+    try {
+        var roleEl = document.getElementById('userRole');
+        if (roleEl) roleEl.value = '';
+        var activeEl = document.getElementById('userActive');
+        var superEl = document.getElementById('userSuperuser');
+        if (activeEl) activeEl.checked = true; // 默认账户激活 on
+        if (superEl) superEl.checked = false; // 默认超级权限 off
+    } catch (e) {
+        console.warn('初始化权限模态框失败', e);
+    }
+
+    var modal = new bootstrap.Modal(document.getElementById('roleModal'));
+    modal.show();
+}
+
+function confirmDelete(userId, username) {
+    document.getElementById('deleteUserId').value = userId;
+    document.getElementById('deleteUsername').textContent = username;
+    
+    var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+function showAddUserModal() {
+    // 重置表单
+    const form = document.querySelector('#addUserModal form');
+    if (form) {
+        form.reset();
+        // 默认激活账户
+        const activeCheckbox = document.getElementById('addUserActive');
+        if (activeCheckbox) activeCheckbox.checked = true;
+    }
+    
+    var modal = new bootstrap.Modal(document.getElementById('addUserModal'));
+    modal.show();
+}
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 这里可以添加页面初始化代码
+});
+</script>
 {% endblock %}
