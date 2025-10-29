@@ -1,3 +1,4 @@
+conda activate med_train
 cd .\eyessystem\system 
 python manage.py runserver
 python manage.py createsuperuser
