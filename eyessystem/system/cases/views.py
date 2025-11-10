@@ -294,12 +294,24 @@ def student_dashboard(request):
     if total_clinical_cases > 0:
         progress_percentage = round((completed_sessions / total_clinical_cases) * 100, 1)
     
-    # 计算总学习时长（分钟）
+    # 计算总学习时长（分钟）- 使用last_activity作为实际学习时间
     total_study_time = 0
+    
     for session in user_sessions.filter(completed_at__isnull=False):
         if session.completed_at and session.started_at:
-            duration = session.completed_at - session.started_at
-            total_study_time += duration.total_seconds() / 60  # 转换为分钟
+            # 使用last_activity作为实际学习结束时间
+            # last_activity会在每次操作时更新，更准确反映实际学习时间
+            if session.last_activity:
+                duration = session.last_activity - session.started_at
+            else:
+                # 如果没有last_activity，使用completed_at
+                duration = session.completed_at - session.started_at
+            
+            duration_minutes = duration.total_seconds() / 60
+            # 只过滤明显异常的负值，不设置上限
+            if duration_minutes > 0:
+                total_study_time += duration_minutes
+    
     total_study_time = round(total_study_time)
     
     # 格式化学习时长为小时和分钟
@@ -360,6 +372,35 @@ def teacher_dashboard(request):
     # 最近活动
     recent_sessions = StudentClinicalSession.objects.select_related('student', 'clinical_case').order_by('-started_at')[:10]
     
+    # 为每个会话计算学习时长
+    sessions_with_time = []
+    for session in recent_sessions:
+        # 计算该学生的总学习时长
+        user_sessions = StudentClinicalSession.objects.filter(student=session.student)
+        total_study_time = 0
+        
+        for s in user_sessions.filter(completed_at__isnull=False):
+            if s.completed_at and s.started_at:
+                # 使用last_activity作为实际学习结束时间
+                if s.last_activity:
+                    duration = s.last_activity - s.started_at
+                else:
+                    duration = s.completed_at - s.started_at
+                
+                duration_minutes = duration.total_seconds() / 60
+                if duration_minutes > 0:
+                    total_study_time += duration_minutes
+        
+        # 格式化学习时长
+        hours = int(total_study_time // 60)
+        minutes = int(total_study_time % 60)
+        formatted_time = f"{hours}h {minutes}min" if hours > 0 else f"{minutes}min"
+        
+        sessions_with_time.append({
+            'session': session,
+            'total_study_time': formatted_time
+        })
+    
     context = {
         'total_clinical_cases': total_clinical_cases,
         'active_clinical_cases': active_clinical_cases,
@@ -368,7 +409,7 @@ def teacher_dashboard(request):
         'total_sessions': total_sessions,
         'completed_sessions': completed_sessions,
         'completion_rate': completion_rate,
-        'recent_sessions': recent_sessions,
+        'recent_sessions': sessions_with_time,
     }
     
     return render(request, 'teacher/dashboard.html', context)
@@ -446,6 +487,25 @@ def clinical_case_detail(request, case_id):
         if created:
             session.session_status = 'history'
             session.save()
+        else:
+            # 如果是已完成的会话，重置为新的学习会话（保留历史记录但重置计数）
+            if session.session_status == 'completed' or session.completed_at is not None:
+                # 重置会话状态，开始新一轮学习
+                session.session_status = 'history'
+                session.completed_at = None
+                # 重置尝试次数和指导级别，避免"终生惩罚"
+                session.diagnosis_attempt_count = 0
+                session.diagnosis_guidance_level = 0
+                # 重置分数（但保留历史最高分在其他字段中）
+                session.examination_score = 0
+                session.diagnosis_score = 0
+                session.treatment_score = 0
+                session.overall_score = 0
+                # 清空当前选择
+                session.selected_examinations.clear()
+                session.selected_diagnoses = []
+                session.selected_treatments = []
+                session.save()
         
         case_data = {
             'case_id': clinical_case.case_id,
@@ -504,6 +564,25 @@ def clinical_case_detail(request, case_id):
         if created:
             session.session_status = 'history'
             session.save()
+        else:
+            # 如果是已完成的会话，重置为新的学习会话（保留历史记录但重置计数）
+            if session.session_status == 'completed' or session.completed_at is not None:
+                # 重置会话状态，开始新一轮学习
+                session.session_status = 'history'
+                session.completed_at = None
+                # 重置尝试次数和指导级别，避免"终生惩罚"
+                session.diagnosis_attempt_count = 0
+                session.diagnosis_guidance_level = 0
+                # 重置分数（但保留历史最高分在其他字段中）
+                session.examination_score = 0
+                session.diagnosis_score = 0
+                session.treatment_score = 0
+                session.overall_score = 0
+                # 清空当前选择
+                session.selected_examinations.clear()
+                session.selected_diagnoses = []
+                session.selected_treatments = []
+                session.save()
         
         case_data = {
             'case_id': clinical_case.case_id,
@@ -822,11 +901,14 @@ def submit_diagnosis_choice(request):
             # 诊断完全正确 - 进入治疗阶段
             session.selected_diagnoses = selected_diagnosis_ids
             session.session_status = 'treatment'
+            # 修复：使用当前尝试次数计算分数（第1次=100分，第2次=90分，以此类推，最低60分）
             session.diagnosis_score = max(100 - (session.diagnosis_attempt_count - 1) * 10, 60)  # 最低60分
             
             feedback_message = f"恭喜！您的鉴别诊断完全正确！"
             if session.diagnosis_attempt_count > 1:
                 feedback_message += f"（第{session.diagnosis_attempt_count}次尝试，得分：{session.diagnosis_score:.0f}分）"
+            else:
+                feedback_message += f"（首次尝试即正确，满分100分！）"
             feedback_type = 'positive'
             
         elif correct_selected > 0:
@@ -2251,8 +2333,15 @@ def user_detail(request, user_id):
     
     for session in user_sessions.filter(completed_at__isnull=False):
         if session.completed_at and session.started_at:
-            duration = session.completed_at - session.started_at
-            total_study_time += duration.total_seconds() / 60
+            # 使用last_activity作为实际学习结束时间
+            if session.last_activity:
+                duration = session.last_activity - session.started_at
+            else:
+                duration = session.completed_at - session.started_at
+            
+            duration_minutes = duration.total_seconds() / 60
+            if duration_minutes > 0:
+                total_study_time += duration_minutes
     
     # 格式化学习时长
     hours = int(total_study_time // 60)

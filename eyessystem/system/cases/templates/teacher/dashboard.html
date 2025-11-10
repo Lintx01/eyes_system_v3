@@ -57,25 +57,27 @@
                     <th>临床病例</th>
                     <th>学习状态</th>
                     <th>总分</th>
+                    <th>总学习时间</th>
                     <th>开始时间</th>
                     <th>最后活动</th>
                 </tr>
             </thead>
             <tbody>
-                {% for session in recent_sessions %}
+                {% for item in recent_sessions %}
                 <tr>
-                    <td>{{ session.student.get_full_name|default:session.student.username }}</td>
-                    <td>{{ session.clinical_case.title }}</td>
-                    <td>{{ session.get_session_status_display|default:session.session_status }}</td>
+                    <td>{{ item.session.student.get_full_name|default:item.session.student.username }}</td>
+                    <td>{{ item.session.clinical_case.title }}</td>
+                    <td>{{ item.session.get_session_status_display|default:item.session.session_status }}</td>
                     <td>
-                        {% if session.overall_score %}
-                            <strong>{{ session.overall_score|floatformat:1 }}分</strong>
+                        {% if item.session.overall_score %}
+                            <strong>{{ item.session.overall_score|floatformat:1 }}分</strong>
                         {% else %}
                             -
                         {% endif %}
                     </td>
-                    <td>{{ session.started_at|date:"m-d H:i" }}</td>
-                    <td>{{ session.last_activity|date:"m-d H:i"|default:"-" }}</td>
+                    <td><strong style="color: #007bff;">{{ item.total_study_time }}</strong></td>
+                    <td>{{ item.session.started_at|date:"m-d H:i" }}</td>
+                    <td>{{ item.session.last_activity|date:"m-d H:i"|default:"-" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
