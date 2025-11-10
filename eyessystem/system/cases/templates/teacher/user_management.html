@@ -74,14 +74,13 @@
                     <table class="table table-hover align-middle" style="min-width: 1200px;">
                         <thead class="table-dark">
                             <tr>
-                                <th class="border-0 text-uppercase fw-medium" style="width: 16%;">用户名</th>
-                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 12%;">姓名</th>
-                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 18%;">邮箱</th>
-                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 10%;">角色</th>
-                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 8%;">状态</th>
-                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 14%;">注册时间</th>
-                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 14%;">最后登录</th>
-                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 8%;">操作</th>
+                                <th class="border-0 text-uppercase fw-medium" style="width: 18%;">用户名</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 20%;">邮箱</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 12%;">角色</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 10%;">状态</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 15%;">注册时间</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 15%;">最后登录</th>
+                                <th class="border-0 text-uppercase fw-medium text-center" style="width: 10%;">操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -94,9 +93,6 @@
                                         </div>
                                         <div class="fw-semibold text-dark text-nowrap">{{ user.username }}</div>
                                     </div>
-                                </td>
-                                <td class="py-3 text-center">
-                                    <span class="text-dark text-nowrap">{{ user.get_full_name|default:"-" }}</span>
                                 </td>
                                 <td class="py-3 text-center">
                                     <span class="text-muted text-nowrap" style="font-size: 0.9rem;">{{ user.email|default:"-" }}</span>
@@ -147,8 +143,11 @@
                                         <button type="button" class="btn btn-outline-success btn-sm" onclick="showRoleModal('{{ user.id }}', '{{ user.username }}')" title="权限管理">
                                             <i class="fas fa-user-cog"></i>
                                         </button>
+                                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="confirmResetPassword('{{ user.id }}', '{{ user.username }}')" title="重置密码">
+                                            <i class="fas fa-key"></i>
+                                        </button>
                                         {% if not user.is_superuser %}
-                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete('{{ user.id }}', '{{ user.username }}')" title="删除用户">
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="submitDeleteDirectly('{{ user.id }}', '{{ user.username }}')" title="删除用户">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                         {% endif %}
@@ -392,7 +391,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post" action="{% url 'user_management' %}">
+            <form id="deleteUserForm" method="post" action="{% url 'user_management' %}">
                 {% csrf_token %}
                 <div class="modal-body p-4">
                     <input type="hidden" name="action" value="delete_user">
@@ -432,7 +431,7 @@
                     <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
                         <i class="fas fa-times me-2"></i>取消
                     </button>
-                    <button type="submit" class="btn btn-danger px-4 shadow">
+                    <button type="submit" class="btn btn-danger px-4 shadow" id="confirmDeleteBtn">
                         <i class="fas fa-trash me-2"></i>确认删除
                     </button>
                 </div>
@@ -440,6 +439,132 @@
         </div>
     </div>
 </div>
+
+<!-- 重置密码确认模态框 -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-gradient-warning text-white border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-key me-2"></i>重置密码
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'user_management' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <input type="hidden" name="action" value="reset_password">
+                    <input type="hidden" name="user_id" id="resetPasswordUserId">
+                    
+                    <div class="text-center mb-4">
+                        <div class="rounded-circle bg-warning bg-opacity-10 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="fas fa-key text-warning fa-2x"></i>
+                        </div>
+                        <h5 class="text-warning fw-bold mb-2">重置用户密码</h5>
+                    </div>
+                    
+                    <div class="alert alert-warning border-0 bg-warning bg-opacity-10 mb-4">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-info-circle text-warning me-3 fa-lg"></i>
+                            <div>
+                                <div class="fw-bold text-warning mb-1">密码重置说明</div>
+                                <small class="text-warning opacity-75">系统将生成8位随机密码</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-light rounded p-3 mb-4">
+                        <p class="mb-2">您确定要重置用户 <strong class="text-dark" id="resetPasswordUsername"></strong> 的密码吗？</p>
+                        <div class="text-muted small">
+                            <i class="fas fa-shield-alt me-1"></i>
+                            重置后：
+                            <ul class="mt-2 mb-0">
+                                <li>旧密码将立即失效</li>
+                                <li>系统生成新的8位随机密码</li>
+                                <li>新密码将在下一页面显示（请务必记录）</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>取消
+                    </button>
+                    <button type="submit" class="btn btn-warning px-4 shadow">
+                        <i class="fas fa-key me-2"></i>确认重置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 密码显示模态框 -->
+{% if reset_password_info %}
+<div class="modal fade" id="passwordDisplayModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-gradient-success text-white border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-check-circle me-2"></i>密码重置成功
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="text-center mb-4">
+                    <div class="rounded-circle bg-success bg-opacity-10 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                        <i class="fas fa-check-circle text-success fa-2x"></i>
+                    </div>
+                    <h5 class="text-success fw-bold mb-2">新密码已生成</h5>
+                    <p class="text-muted">请将以下信息告知用户</p>
+                </div>
+                
+                <div class="card border-success">
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-4 text-end fw-bold">用户名:</div>
+                            <div class="col-8">
+                                <code class="fs-5 text-primary">{{ reset_password_info.username }}</code>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-4 text-end fw-bold">新密码:</div>
+                            <div class="col-8">
+                                <div class="input-group">
+                                    <input type="text" class="form-control form-control-lg bg-light border-success" 
+                                           id="newPasswordDisplay" value="{{ reset_password_info.new_password }}" readonly>
+                                    <button class="btn btn-success" type="button" onclick="copyPassword()">
+                                        <i class="fas fa-copy me-1"></i>复制
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-danger border-danger mt-4 mb-0">
+                    <div class="d-flex align-items-start">
+                        <i class="fas fa-exclamation-triangle me-3 mt-1"></i>
+                        <div>
+                            <div class="fw-bold mb-2">重要提示</div>
+                            <ul class="mb-0 ps-3">
+                                <li>请立即记录此密码</li>
+                                <li>关闭此窗口后将无法再次查看</li>
+                                <li>建议用户首次登录后立即修改密码</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4 bg-light">
+                <button type="button" class="btn btn-success px-4 shadow" data-bs-dismiss="modal">
+                    <i class="fas fa-check me-2"></i>我已记录密码
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Bootstrap 5 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -504,6 +629,14 @@
 
 .bg-gradient-danger {
     background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+}
+
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
 }
 
 .card {
@@ -574,11 +707,77 @@ function showRoleModal(userId, username) {
 }
 
 function confirmDelete(userId, username) {
+    console.log('[DEBUG] 准备删除用户:', userId, username);
     document.getElementById('deleteUserId').value = userId;
     document.getElementById('deleteUsername').textContent = username;
     
     var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
     modal.show();
+}
+
+function submitDeleteDirectly(userId, username) {
+    // 直接提交删除，不使用模态框（因为模态框可能有问题）
+    if (confirm('确定要删除用户 ' + username + ' 吗？\n\n此操作不可撤销，将同时删除：\n- 所有学习记录和进度\n- 考试成绩和评估数据\n- 用户个人设置和偏好')) {
+        console.log('[DEBUG] 用户确认删除:', userId, username);
+        
+        // 创建表单并提交
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "user_management" %}';
+        
+        // CSRF token
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = '{{ csrf_token }}';
+        form.appendChild(csrfInput);
+        
+        // action
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = 'delete_user';
+        form.appendChild(actionInput);
+        
+        // user_id
+        const userIdInput = document.createElement('input');
+        userIdInput.type = 'hidden';
+        userIdInput.name = 'user_id';
+        userIdInput.value = userId;
+        form.appendChild(userIdInput);
+        
+        // 添加到页面并提交
+        document.body.appendChild(form);
+        console.log('[DEBUG] 表单已创建，准备提交...');
+        form.submit();
+    } else {
+        console.log('[DEBUG] 用户取消删除');
+    }
+}
+
+function confirmResetPassword(userId, username) {
+    document.getElementById('resetPasswordUserId').value = userId;
+    document.getElementById('resetPasswordUsername').textContent = username;
+    
+    var modal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
+    modal.show();
+}
+
+function copyPassword() {
+    const passwordInput = document.getElementById('newPasswordDisplay');
+    passwordInput.select();
+    document.execCommand('copy');
+    
+    // 显示复制成功提示
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check me-1"></i>已复制';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }, 2000);
 }
 
 function showAddUserModal() {
@@ -597,7 +796,40 @@ function showAddUserModal() {
 
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
-    // 这里可以添加页面初始化代码
+    // 如果有重置密码信息，自动显示密码显示模态框
+    {% if reset_password_info %}
+    var passwordModal = new bootstrap.Modal(document.getElementById('passwordDisplayModal'));
+    passwordModal.show();
+    {% endif %}
+    
+    // 监听删除表单提交
+    const deleteForm = document.getElementById('deleteUserForm');
+    if (deleteForm) {
+        console.log('[DEBUG] 删除表单已找到，添加提交监听器');
+        deleteForm.addEventListener('submit', function(e) {
+            console.log('[DEBUG] ========== 表单提交事件触发 ==========');
+            const userId = document.getElementById('deleteUserId').value;
+            const action = document.querySelector('input[name="action"]').value;
+            console.log('[DEBUG] user_id:', userId);
+            console.log('[DEBUG] action:', action);
+            console.log('[DEBUG] form action属性:', deleteForm.action);
+            console.log('[DEBUG] form method属性:', deleteForm.method);
+            
+            // 检查必要字段
+            if (!userId || userId === '') {
+                console.error('[DEBUG] 错误：user_id为空！');
+                e.preventDefault();
+                alert('删除失败：未选择用户');
+                return false;
+            }
+            
+            console.log('[DEBUG] 表单验证通过，准备提交...');
+            // 让表单正常提交，不阻止
+            console.log('[DEBUG] 表单即将提交到服务器');
+        });
+    } else {
+        console.error('[DEBUG] 错误：未找到删除表单！');
+    }
 });
 </script>
 {% endblock %}

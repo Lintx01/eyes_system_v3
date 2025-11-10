@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>删除功能调试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border-left: 3px solid #333; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>删除功能测试页面</h1>
+    
+    <div class="debug">
+        <h3>步骤1: 检查是否能访问人员管理页面</h3>
+        <p>访问: <a href="http://127.0.0.1:8000/system/users/" target="_blank">http://127.0.0.1:8000/system/users/</a></p>
+    </div>
+
+    <div class="debug">
+        <h3>步骤2: 手动测试表单提交</h3>
+        <form id="testForm" method="post" action="http://127.0.0.1:8000/system/users/">
+            <p>这个表单将尝试删除用户ID为 999 的用户（不存在的用户，安全测试）</p>
+            <input type="hidden" name="csrfmiddlewaretoken" value="test-token-replace-this">
+            <input type="hidden" name="action" value="delete_user">
+            <input type="hidden" name="user_id" value="999">
+            <button type="submit">提交删除请求（测试用户 ID=999）</button>
+        </form>
+        <p class="error">注意：这会因为CSRF验证失败，但能测试路由是否正常</p>
+    </div>
+
+    <div class="debug">
+        <h3>步骤3: 检查浏览器控制台</h3>
+        <button onclick="testConsole()">测试控制台输出</button>
+        <button onclick="testModal()">测试模态框</button>
+    </div>
+
+    <div class="debug">
+        <h3>诊断清单</h3>
+        <ul>
+            <li>□ Django服务器正在运行 (python manage.py runserver)</li>
+            <li>□ 能访问人员管理页面</li>
+            <li>□ 点击删除按钮能弹出确认对话框</li>
+            <li>□ 浏览器控制台(F12)没有JavaScript错误</li>
+            <li>□ 点击"确认删除"后Django终端有输出</li>
+        </ul>
+    </div>
+
+    <div id="output" class="debug">
+        <h3>测试输出</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        function log(message, isError = false) {
+            const logDiv = document.getElementById('log');
+            const p = document.createElement('p');
+            p.className = isError ? 'error' : 'success';
+            p.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            logDiv.appendChild(p);
+            console.log(message);
+        }
+
+        function testConsole() {
+            log('控制台测试正常');
+            console.log('[TEST] 控制台功能正常');
+            alert('请检查浏览器控制台(F12)是否显示了测试消息');
+        }
+
+        function testModal() {
+            log('尝试加载Bootstrap...');
+            if (typeof bootstrap === 'undefined') {
+                log('Bootstrap未加载！', true);
+                alert('Bootstrap未加载，这可能是问题所在！');
+            } else {
+                log('Bootstrap已加载');
+                alert('Bootstrap正常加载');
+            }
+        }
+
+        // 页面加载完成
+        window.onload = function() {
+            log('页面加载完成');
+        };
+    </script>
+</body>
+</html>

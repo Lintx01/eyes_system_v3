@@ -246,6 +246,17 @@ def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        
+        # 先检查用户是否存在以及是否被禁用
+        try:
+            user_check = User.objects.get(username=username)
+            if not user_check.is_active:
+                error = '该账户已被禁用，请联系管理员'
+                return render(request, 'login.html', {'error': error})
+        except User.DoesNotExist:
+            pass  # 用户不存在，继续常规验证流程
+        
+        # 进行身份验证
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
@@ -2275,10 +2286,18 @@ def user_management(request):
     from django.contrib.auth.models import User, Group
     from django.db.models import Q
     from django.contrib import messages
+    from django.shortcuts import redirect
+    
+    print(f"[DEBUG] ===== user_management 被调用 =====")
+    print(f"[DEBUG] 请求方法: {request.method}")
+    print(f"[DEBUG] 请求路径: {request.path}")
     
     # 处理POST请求（权限管理和删除用户）
     if request.method == 'POST':
+        # 添加调试输出
+        print(f"[DEBUG] POST请求收到: {dict(request.POST)}")
         action = request.POST.get('action')
+        print(f"[DEBUG] 操作类型: {action}")
         
         if action == 'change_role':
             user_id = request.POST.get('user_id')
@@ -2309,25 +2328,38 @@ def user_management(request):
                 messages.error(request, '用户不存在')
             except Exception as e:
                 messages.error(request, f'更新失败：{str(e)}')
+            
+            return redirect('user_management')
                 
         elif action == 'delete_user':
             user_id = request.POST.get('user_id')
+            print(f"[DEBUG] 准备删除用户ID: {user_id}")
             
             try:
                 user_obj = User.objects.get(id=user_id)
+                print(f"[DEBUG] 找到用户: {user_obj.username}, is_superuser={user_obj.is_superuser}")
                 
                 # 防止删除超级管理员
                 if user_obj.is_superuser:
+                    print(f"[DEBUG] 阻止删除超级管理员")
                     messages.error(request, '不能删除超级管理员')
                 else:
                     username = user_obj.username
                     user_obj.delete()
+                    print(f"[DEBUG] 用户 {username} 已成功删除")
                     messages.success(request, f'用户 {username} 已被删除')
                     
             except User.DoesNotExist:
                 messages.error(request, '用户不存在')
+                print(f"[DEBUG] 错误: 用户ID {user_id} 不存在")
             except Exception as e:
                 messages.error(request, f'删除失败：{str(e)}')
+                print(f"[DEBUG] 删除异常: {str(e)}")
+                import traceback
+                traceback.print_exc()
+            
+            # 删除操作后重定向,避免重复提交
+            return redirect('user_management')
                 
         elif action == 'add_user':
             username = request.POST.get('username')
@@ -2367,6 +2399,38 @@ def user_management(request):
                     
             except Exception as e:
                 messages.error(request, f'创建用户失败：{str(e)}')
+            
+            return redirect('user_management')
+        
+        elif action == 'reset_password':
+            user_id = request.POST.get('user_id')
+            
+            try:
+                user_obj = User.objects.get(id=user_id)
+                
+                # 生成新密码（8位随机密码）
+                import random
+                import string
+                new_password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+                
+                # 设置新密码
+                user_obj.set_password(new_password)
+                user_obj.save()
+                
+                # 将新密码显示给管理员（通过session临时存储）
+                request.session['reset_password_info'] = {
+                    'username': user_obj.username,
+                    'new_password': new_password
+                }
+                
+                messages.success(request, f'用户 {user_obj.username} 的密码已重置')
+                
+            except User.DoesNotExist:
+                messages.error(request, '用户不存在')
+            except Exception as e:
+                messages.error(request, f'重置密码失败：{str(e)}')
+            
+            return redirect('user_management')
     
     # 获取搜索和筛选参数
     search_query = request.GET.get('search', '')
@@ -2408,12 +2472,16 @@ def user_management(request):
     # 获取所有组
     groups = Group.objects.all()
     
+    # 获取重置密码信息（如果有）
+    reset_password_info = request.session.pop('reset_password_info', None)
+    
     context = {
         'users': users,
         'groups': groups,
         'search_query': search_query,
         'role_filter': role_filter,
         'status_filter': status_filter,
+        'reset_password_info': reset_password_info,
     }
     
     return render(request, 'teacher/user_management.html', context)
