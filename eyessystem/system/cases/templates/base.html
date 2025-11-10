@@ -70,6 +70,23 @@
             gap: 15px;
         }
         
+        .change-password-btn {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            display: inline-block;
+        }
+        
+        .change-password-btn:hover {
+            background: rgba(255,255,255,0.25);
+            border-color: rgba(255,255,255,0.5);
+        }
+        
         .logout-btn {
             background: rgba(255,255,255,0.2);
             color: white;
@@ -289,6 +306,7 @@
             </nav>
             <div class="user-info">
                 <span>欢迎，{{ user.get_full_name|default:user.username }}</span>
+                <a href="{% url 'change_password' %}" class="change-password-btn" style="margin-right: 10px;">修改密码</a>
                 <form method="post" action="{% url 'logout' %}" style="display: inline;">
                     {% csrf_token %}
                     <button type="submit" class="logout-btn">退出登录</button>

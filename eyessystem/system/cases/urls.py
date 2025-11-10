@@ -6,6 +6,8 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('register/', views.register_view, name='register'),
+    path('change-password/', views.change_password_view, name='change_password'),
     
     # Django默认登录URL兼容性路由
     path('accounts/login/', views.login_view, name='account_login'),

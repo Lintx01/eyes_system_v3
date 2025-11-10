@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <title>学生注册 - 眼科临床训练系统</title>
+    <style>
+        body {
+            background: #f8eaea;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .register-container {
+            width: 420px;
+            margin: 60px auto;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 40px 30px 30px 30px;
+        }
+        .logo {
+            display: block;
+            margin: 0 auto 20px auto;
+            width: 560px;
+        }
+        h2 {
+            text-align: center;
+            color: #b71c1c;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #555;
+            font-size: 15px;
+            margin-bottom: 25px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        label .required {
+            color: #d32f2f;
+        }
+        input[type="text"], input[type="password"], input[type="email"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d0d0d0;
+            border-radius: 5px;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #b71c1c;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #9a0007;
+        }
+        .error-list {
+            background: #ffebee;
+            border-left: 4px solid #d32f2f;
+            padding: 12px;
+            margin-bottom: 18px;
+            border-radius: 4px;
+        }
+        .error-list ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .error-list li {
+            color: #d32f2f;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .links {
+            text-align: center;
+            margin-top: 18px;
+        }
+        .links a {
+            color: #b71c1c;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            text-align: center;
+            color: #aaa;
+            font-size: 13px;
+            margin-top: 18px;
+        }
+        .hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div style="display:flex;justify-content:center;align-items:center;margin-bottom:18px;">
+            <img src="{% static 'logo.png' %}" class="logo" alt="深圳大学总医院Logo" style="width:400px;max-width:90%;height:auto;display:block;">
+        </div>
+        <h2 style="color:#b71c1c;text-align:center;margin-bottom:10px;">学生注册</h2>
+        <div class="subtitle" style="color:#b71c1c;">眼科临床训练系统</div>
+        
+        {% if errors %}
+        <div class="error-list">
+            <ul>
+                {% for error in errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label><span class="required">*</span> 用户名（学号）</label>
+                <input type="text" name="username" value="{{ username }}" required autofocus placeholder="请输入学号或用户名">
+                <div class="hint">至少3个字符，建议使用学号</div>
+            </div>
+            
+            <div class="form-group">
+                <label><span class="required">*</span> 密码</label>
+                <input type="password" name="password" required placeholder="请输入密码">
+                <div class="hint">至少6个字符</div>
+            </div>
+            
+            <div class="form-group">
+                <label><span class="required">*</span> 确认密码</label>
+                <input type="password" name="password2" required placeholder="请再次输入密码">
+            </div>
+            
+            <div class="form-group">
+                <label>邮箱</label>
+                <input type="email" name="email" value="{{ email }}" placeholder="选填，用于找回密码">
+            </div>
+            
+            <div class="form-group">
+                <label>姓</label>
+                <input type="text" name="last_name" value="{{ last_name }}" placeholder="选填">
+            </div>
+            
+            <div class="form-group">
+                <label>名</label>
+                <input type="text" name="first_name" value="{{ first_name }}" placeholder="选填">
+            </div>
+            
+            <button type="submit">注册</button>
+        </form>
+        
+        <div class="links">
+            已有账号？<a href="{% url 'login' %}">立即登录</a>
+        </div>
+        
+        <div class="footer">&copy; 2025 深圳大学总医院 | 深圳大学</div>
+    </div>
+</body>
+</html>

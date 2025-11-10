@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib import messages
@@ -264,6 +264,128 @@ def logout_view(request):
     """用户退出登录视图"""
     logout(request)
     return redirect('login')
+
+
+def register_view(request):
+    """用户注册视图 - 学生自主注册"""
+    if request.user.is_authenticated:
+        # 已登录用户直接跳转到首页
+        return redirect('index')
+    
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        password2 = request.POST.get('password2', '')
+        email = request.POST.get('email', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        
+        # 验证
+        errors = []
+        
+        if not username:
+            errors.append('用户名不能为空')
+        elif len(username) < 3:
+            errors.append('用户名至少需要3个字符')
+        elif User.objects.filter(username=username).exists():
+            errors.append('该用户名已被使用')
+        
+        if not password:
+            errors.append('密码不能为空')
+        elif len(password) < 6:
+            errors.append('密码至少需要6个字符')
+        
+        if password != password2:
+            errors.append('两次输入的密码不一致')
+        
+        if email and User.objects.filter(email=email).exists():
+            errors.append('该邮箱已被使用')
+        
+        if errors:
+            context = {
+                'errors': errors,
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+            }
+            return render(request, 'register.html', context)
+        
+        try:
+            # 创建用户
+            user = User.objects.create_user(
+                username=username,
+                password=password,
+                email=email,
+                first_name=first_name,
+                last_name=last_name
+            )
+            
+            # 自动添加到学生组
+            student_group, created = Group.objects.get_or_create(name='Students')
+            user.groups.add(student_group)
+            
+            messages.success(request, f'注册成功！欢迎 {username}，请登录。')
+            return redirect('login')
+            
+        except Exception as e:
+            messages.error(request, f'注册失败：{str(e)}')
+            return render(request, 'register.html', {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+            })
+    
+    return render(request, 'register.html')
+
+
+@login_required
+def change_password_view(request):
+    """修改密码视图"""
+    if request.method == 'POST':
+        old_password = request.POST.get('old_password', '')
+        new_password = request.POST.get('new_password', '')
+        new_password2 = request.POST.get('new_password2', '')
+        
+        # 验证
+        errors = []
+        
+        if not old_password:
+            errors.append('请输入当前密码')
+        elif not request.user.check_password(old_password):
+            errors.append('当前密码不正确')
+        
+        if not new_password:
+            errors.append('请输入新密码')
+        elif len(new_password) < 6:
+            errors.append('新密码至少需要6个字符')
+        
+        if new_password != new_password2:
+            errors.append('两次输入的新密码不一致')
+        
+        if old_password == new_password:
+            errors.append('新密码不能与当前密码相同')
+        
+        if errors:
+            return render(request, 'change_password.html', {'errors': errors})
+        
+        try:
+            # 修改密码
+            request.user.set_password(new_password)
+            request.user.save()
+            
+            # 更新session，避免用户被登出
+            update_session_auth_hash(request, request.user)
+            
+            messages.success(request, '密码修改成功！')
+            return redirect('index')
+            
+        except Exception as e:
+            messages.error(request, f'密码修改失败：{str(e)}')
+            return render(request, 'change_password.html')
+    
+    return render(request, 'change_password.html')
 
 
 @login_required
