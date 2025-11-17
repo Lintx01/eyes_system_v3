@@ -1,0 +1,11 @@
+<!-- 这是一个简单的SVG图标，代表眼科相关的图标 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- 眼球背景 -->
+  <ellipse cx="16" cy="16" rx="14" ry="9" fill="#4a90e2" stroke="#2c5aa0" stroke-width="2"/>
+  <!-- 虹膜 -->
+  <circle cx="16" cy="16" r="6" fill="#1a365d"/>
+  <!-- 瞳孔 -->
+  <circle cx="16" cy="16" r="3" fill="#000000"/>
+  <!-- 高光 -->
+  <circle cx="17" cy="14" r="1" fill="#ffffff" opacity="0.8"/>
+</svg>
