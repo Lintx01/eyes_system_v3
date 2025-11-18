@@ -135,5 +135,4 @@ def show_guidance_levels():
 if __name__ == '__main__':
     simulate_diagnosis_attempts()
     show_guidance_levels()
-    
     print("🚀 系统现已准备就绪，可以为学生提供智能诊断指导！")
