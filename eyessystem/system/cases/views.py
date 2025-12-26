@@ -3,16 +3,20 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.contrib import messages
 from django.db.models import Q, Avg
 from django.utils import timezone
+from django.conf import settings
 from .models import (
     ClinicalCase, ExaminationOption, DiagnosisOption, TreatmentOption, 
     StudentClinicalSession, TeachingFeedback
 )
+from .models import ChatMessage, PatientResponseTemplate
 import json
+import re
 from datetime import datetime, timedelta
+from django.views.decorators.csrf import csrf_exempt
 
 
 # ==================== 检查选择验证辅助函数 ====================
@@ -409,64 +413,441 @@ def index(request):
 
 
 # 学生端视图
+def _format_minutes_as_hm(total_minutes: int) -> str:
+    total_minutes = int(total_minutes or 0)
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    if hours > 0:
+        if minutes > 0:
+            return f"{hours}h {minutes}min"
+        return f"{hours}h"
+    return f"{minutes}min"
+
+
+def _parse_iso_dt(value):
+    if not value:
+        return None
+    try:
+        dt = timezone.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        return dt
+    except Exception:
+        return None
+
+
+def _get_user_total_study_time_minutes(user) -> int:
+    """统一的学习时长口径（分钟），供教师端/学生端复用。"""
+    user_sessions = StudentClinicalSession.objects.filter(student=user)
+    completed_qs = user_sessions.filter(Q(session_status='completed') | Q(completed_at__isnull=False))
+
+    total_study_time = 0
+    for session in completed_qs:
+        start_time = None
+        try:
+            sd = getattr(session, 'session_data', None) or {}
+            start_time = _parse_iso_dt(sd.get('run_started_at'))
+        except Exception:
+            start_time = None
+
+        if not start_time:
+            start_time = getattr(session, 'started_at', None)
+        if not start_time:
+            continue
+
+        completed_at = getattr(session, 'completed_at', None)
+        last_activity = getattr(session, 'last_activity', None)
+        end_time = None
+        if completed_at and last_activity:
+            end_time = max(completed_at, last_activity)
+        else:
+            end_time = completed_at or last_activity
+        if not end_time:
+            continue
+
+        duration_seconds = (end_time - start_time).total_seconds()
+        if duration_seconds <= 0:
+            continue
+        if duration_seconds > 24 * 60 * 60:
+            continue
+
+        total_study_time += (duration_seconds / 60)
+
+    return int(round(total_study_time))
+
+
+def _get_session_study_time_minutes(session) -> int | None:
+    """单个会话（单病例）学习时长口径（分钟）。
+
+    口径与总学习时长一致：start=run_started_at 优先，其次 started_at；
+    end=max(completed_at,last_activity)；过滤非正值/超 24h 的异常数据。
+    返回 None 表示无法计算。
+    """
+    if session is None:
+        return None
+
+    start_time = None
+    try:
+        sd = getattr(session, 'session_data', None) or {}
+        start_time = _parse_iso_dt(sd.get('run_started_at'))
+    except Exception:
+        start_time = None
+
+    if not start_time:
+        start_time = getattr(session, 'started_at', None)
+    if not start_time:
+        return None
+
+    completed_at = getattr(session, 'completed_at', None)
+    last_activity = getattr(session, 'last_activity', None)
+    if completed_at and last_activity:
+        end_time = max(completed_at, last_activity)
+    else:
+        end_time = completed_at or last_activity
+    if not end_time:
+        return None
+
+    duration_seconds = (end_time - start_time).total_seconds()
+    if duration_seconds <= 0:
+        return None
+    if duration_seconds > 24 * 60 * 60:
+        return None
+
+    return int(round(duration_seconds / 60))
+
+
+def _filter_timing_dict(raw_dict, run_start):
+    """按本轮 run_started_at 过滤旧 timing（避免历史污染）。"""
+    if not isinstance(raw_dict, dict) or not raw_dict:
+        return raw_dict
+    if not run_start:
+        return raw_dict
+    filtered = {}
+    for k, v in raw_dict.items():
+        dtv = _parse_iso_dt(v)
+        if dtv is None or dtv >= run_start:
+            filtered[str(k)] = v
+    return filtered
+
+
+def _build_review_payload_for_session(session) -> dict:
+    """构造与学生端复盘字段一致的 review payload（教师端只读查看用）。"""
+    if session is None:
+        return {}
+
+    session_data = getattr(session, 'session_data', None) or {}
+
+    completed_at = getattr(session, 'completed_at', None)
+    last_activity = getattr(session, 'last_activity', None)
+    end_time = None
+    try:
+        candidates = [t for t in (completed_at, last_activity) if t is not None]
+        if candidates:
+            end_time = max(candidates)
+    except Exception:
+        end_time = completed_at or last_activity
+
+    run_started_at = _parse_iso_dt(session_data.get('run_started_at'))
+    if run_started_at is None:
+        try:
+            st = session_data.get('stage_times') or {}
+            if isinstance(st, dict) and st:
+                parsed = [_parse_iso_dt(v) for v in st.values()]
+                parsed = [x for x in parsed if x is not None]
+                if parsed:
+                    run_started_at = min(parsed)
+        except Exception:
+            pass
+    if run_started_at is None:
+        run_started_at = getattr(session, 'started_at', None)
+
+    session_total_ms = None
+    if run_started_at and end_time and end_time >= run_started_at:
+        try:
+            session_total_ms = int((end_time - run_started_at).total_seconds() * 1000)
+        except Exception:
+            session_total_ms = None
+
+    stage_times = _filter_timing_dict(session_data.get('stage_times'), run_started_at)
+    stage_start_times = _filter_timing_dict(session_data.get('stage_start_times'), run_started_at)
+
+    # 后端权威口径：各阶段用时（毫秒）
+    stage_durations_ms = None
+    try:
+        end_time2 = end_time
+        run_started_at2 = run_started_at
+        if run_started_at2 is None:
+            try:
+                st2 = stage_times or {}
+                if isinstance(st2, dict) and st2:
+                    parsed2 = [_parse_iso_dt(v) for v in st2.values()]
+                    parsed2 = [x for x in parsed2 if x is not None]
+                    if parsed2:
+                        run_started_at2 = min(parsed2)
+            except Exception:
+                pass
+        if run_started_at2 is None:
+            run_started_at2 = getattr(session, 'started_at', None)
+
+        major_stages = ['case_presentation', 'examination_selection', 'diagnosis_reasoning', 'treatment_selection', 'learning_feedback']
+
+        # 计算阶段开始
+        stage_start_dt = {}
+        sst = stage_start_times or {}
+        if not isinstance(sst, dict):
+            sst = {}
+
+        inferred_to_stage = {}
+        st = stage_times or {}
+        if isinstance(st, dict):
+            for k, v in st.items():
+                m = re.match(r'^(.+)_to_(.+)$', str(k))
+                if not m:
+                    continue
+                to_stage = m.group(2)
+                dtv = _parse_iso_dt(v)
+                if dtv is None:
+                    continue
+                if to_stage not in inferred_to_stage or dtv < inferred_to_stage[to_stage]:
+                    inferred_to_stage[to_stage] = dtv
+
+        for stg in major_stages:
+            dtv = _parse_iso_dt(sst.get(stg)) or inferred_to_stage.get(stg)
+            if dtv is None and stg == 'case_presentation':
+                dtv = run_started_at2
+            stage_start_dt[stg] = dtv
+
+        # 计算阶段结束：开始之后最近的下一事件（其他阶段开始/会话结束）
+        stage_end_dt = {}
+        all_starts = [dt for dt in stage_start_dt.values() if dt is not None]
+        for stg in major_stages:
+            sdt = stage_start_dt.get(stg)
+            if sdt is None:
+                stage_end_dt[stg] = None
+                continue
+            candidates = [dt for dt in all_starts if dt > sdt]
+            if end_time2 is not None and end_time2 > sdt:
+                candidates.append(end_time2)
+            stage_end_dt[stg] = min(candidates) if candidates else end_time2
+
+        stage_durations_ms = {}
+        for stg in major_stages:
+            sdt = stage_start_dt.get(stg)
+            edt = stage_end_dt.get(stg)
+            if not sdt or not edt or edt < sdt:
+                stage_durations_ms[stg] = None
+                continue
+            ms = int((edt - sdt).total_seconds() * 1000)
+            if ms < 0 or ms > 24 * 60 * 60 * 1000:
+                stage_durations_ms[stg] = None
+            else:
+                stage_durations_ms[stg] = ms
+    except Exception:
+        stage_durations_ms = None
+
+    # 检查选择详情
+    selected_exam_ids = []
+    try:
+        selected_exams_obj = getattr(session, 'selected_examinations', None)
+        if isinstance(selected_exams_obj, list):
+            selected_exam_ids = list(selected_exams_obj)
+        else:
+            selected_exam_ids = list(selected_exams_obj or [])
+    except Exception:
+        selected_exam_ids = []
+
+    selected_exam_details = []
+    if selected_exam_ids:
+        try:
+            exam_qs = ExaminationOption.objects.filter(id__in=selected_exam_ids)
+            exam_by_id = {int(x.id): x for x in exam_qs}
+
+            # 保持学生选择的顺序（JSON list 的顺序）
+            ordered_ids = []
+            for raw_id in selected_exam_ids:
+                try:
+                    ordered_ids.append(int(raw_id))
+                except Exception:
+                    continue
+
+            selected_exam_details = []
+            for exam_id in ordered_ids:
+                obj = exam_by_id.get(int(exam_id))
+                if not obj:
+                    selected_exam_details.append({'id': int(exam_id), 'name': f'检查#{exam_id}'})
+                    continue
+
+                # 提取检查结果图片（与学生端展示结构兼容）
+                images = []
+                try:
+                    # result_images: JSONField，可能是 string 或 dict
+                    raw_imgs = getattr(obj, 'result_images', None) or []
+                    if isinstance(raw_imgs, (list, tuple)):
+                        for idx, it in enumerate(raw_imgs):
+                            if isinstance(it, dict):
+                                url = it.get('url') or it.get('path') or it.get('src')
+                                if url:
+                                    images.append({
+                                        'url': url,
+                                        'description': it.get('description') or f'结果图像 {idx + 1}',
+                                    })
+                            elif isinstance(it, str) and it.strip():
+                                images.append({'url': it.strip(), 'description': f'结果图像 {idx + 1}'})
+
+                    if getattr(obj, 'left_eye_image', None):
+                        try:
+                            images.append({'url': obj.left_eye_image.url, 'description': '左眼检查图片'})
+                        except Exception:
+                            pass
+                    if getattr(obj, 'right_eye_image', None):
+                        try:
+                            images.append({'url': obj.right_eye_image.url, 'description': '右眼检查图片'})
+                        except Exception:
+                            pass
+
+                    raw_additional = getattr(obj, 'additional_images', None) or []
+                    if isinstance(raw_additional, (list, tuple)):
+                        for idx, it in enumerate(raw_additional):
+                            if isinstance(it, dict):
+                                url = it.get('url') or it.get('path') or it.get('src')
+                                if url:
+                                    images.append({
+                                        'url': url,
+                                        'description': it.get('description') or f'附加图像 {idx + 1}',
+                                    })
+                            elif isinstance(it, str) and it.strip():
+                                images.append({'url': it.strip(), 'description': f'附加图像 {idx + 1}'})
+                except Exception:
+                    images = []
+
+                selected_exam_details.append(
+                    {
+                        'id': int(obj.id),
+                        'name': getattr(obj, 'examination_name', '') or f'检查#{exam_id}',
+                        'type': getattr(obj, 'examination_type', None),
+                        'type_display': obj.get_examination_type_display() if hasattr(obj, 'get_examination_type_display') else getattr(obj, 'examination_type', ''),
+                        'is_required': bool(getattr(obj, 'is_required', False)),
+                        'is_recommended': bool(getattr(obj, 'is_recommended', False)),
+                        'diagnostic_value': getattr(obj, 'diagnostic_value', None),
+                        'cost_effectiveness': getattr(obj, 'cost_effectiveness', None),
+                        'description': getattr(obj, 'examination_description', '') or '',
+                        'actual_result': getattr(obj, 'actual_result', '') or '',
+                        'images': images,
+                    }
+                )
+        except Exception:
+            selected_exam_details = [{'id': int(exam_id), 'name': f'检查#{exam_id}'} for exam_id in selected_exam_ids]
+
+    diagnosis_record = session_data.get('diagnosis')
+    treatment_record = session_data.get('treatment')
+
+    # 治疗选择详情
+    selected_treatment_ids = []
+    try:
+        if isinstance(treatment_record, dict) and treatment_record.get('treatment_ids'):
+            selected_treatment_ids = list(treatment_record.get('treatment_ids') or [])
+        else:
+            selected_treats_obj = getattr(session, 'selected_treatments', None)
+            if isinstance(selected_treats_obj, list):
+                selected_treatment_ids = list(selected_treats_obj)
+            else:
+                selected_treatment_ids = list(selected_treats_obj or [])
+    except Exception:
+        selected_treatment_ids = []
+
+    selected_treatment_details = []
+    if selected_treatment_ids:
+        try:
+            rows = list(TreatmentOption.objects.filter(id__in=selected_treatment_ids).values('id', 'treatment_name'))
+            id_to_name = {row['id']: row.get('treatment_name') for row in rows}
+            selected_treatment_details = [
+                {'id': int(tid), 'name': id_to_name.get(int(tid)) or f'治疗#{tid}'}
+                for tid in selected_treatment_ids
+            ]
+        except Exception:
+            selected_treatment_details = [{'id': int(tid), 'name': f'治疗#{tid}'} for tid in selected_treatment_ids]
+
+    return {
+        'selected_examinations': selected_exam_details,
+        'diagnosis': diagnosis_record,
+        'selected_treatments': selected_treatment_details,
+        'treatment': treatment_record,
+        'stage_times': stage_times,
+        'stage_start_times': stage_start_times,
+        'stage_durations_ms': stage_durations_ms,
+        'session_started_at': run_started_at.isoformat() if run_started_at else None,
+        'session_completed_at': completed_at.isoformat() if completed_at else None,
+        'session_last_activity_at': last_activity.isoformat() if last_activity else None,
+        'session_total_ms': session_total_ms,
+    }
+
+
+def _get_student_clinical_stats(user):
+    """统一的学生端临床推理统计口径（dashboard 与 API 共用）"""
+    total_cases = ClinicalCase.objects.filter(is_active=True).count()
+    user_sessions = StudentClinicalSession.objects.filter(student=user)
+
+    completed_qs = user_sessions.filter(Q(session_status='completed') | Q(completed_at__isnull=False))
+    completed_cases = completed_qs.count()
+
+    progress_percentage = 0
+    if total_cases > 0:
+        progress_percentage = round((completed_cases / total_cases) * 100, 1)
+
+    # 平均分：只统计有有效得分的记录；优先使用已完成会话
+    avg_overall = (
+        completed_qs.filter(overall_score__gt=0)
+        .aggregate(Avg('overall_score'))
+        .get('overall_score__avg')
+        or 0
+    )
+
+    # 总学习时长（分钟）：使用“本轮学习起点 run_started_at”避免老会话 created_at/started_at 导致爆炸
+    total_study_time = _get_user_total_study_time_minutes(user)
+
+    stats = {
+        'total_cases': total_cases,
+        'completed_cases': completed_cases,
+        'progress_percentage': progress_percentage,
+        'total_study_time': total_study_time,
+        'formatted_study_time': _format_minutes_as_hm(total_study_time),
+        'average_score': round(avg_overall, 2),
+        'difficulty_progress': {
+            'beginner': {
+                'completed': completed_qs.filter(clinical_case__difficulty_level='beginner').count(),
+                'total': ClinicalCase.objects.filter(difficulty_level='beginner', is_active=True).count(),
+            },
+            'intermediate': {
+                'completed': completed_qs.filter(clinical_case__difficulty_level='intermediate').count(),
+                'total': ClinicalCase.objects.filter(difficulty_level='intermediate', is_active=True).count(),
+            },
+            'advanced': {
+                'completed': completed_qs.filter(clinical_case__difficulty_level='advanced').count(),
+                'total': ClinicalCase.objects.filter(difficulty_level='advanced', is_active=True).count(),
+            },
+        },
+    }
+    return stats
+
+
 @login_required
 @user_passes_test(is_student, login_url='login')
 def student_dashboard(request):
     """学生仪表板"""
     user = request.user
-    
-    # 临床推理病例统计
-    total_clinical_cases = ClinicalCase.objects.filter(is_active=True).count()
-    
-    # 获取用户学习会话统计
-    user_sessions = StudentClinicalSession.objects.filter(student=user)
-    completed_sessions = user_sessions.filter(completed_at__isnull=False).count()
-    
-    # 计算学习进度百分比
-    progress_percentage = 0
-    if total_clinical_cases > 0:
-        progress_percentage = round((completed_sessions / total_clinical_cases) * 100, 1)
-    
-    # 计算总学习时长（分钟）- 使用last_activity作为实际学习时间
-    total_study_time = 0
-    
-    for session in user_sessions.filter(completed_at__isnull=False):
-        if session.completed_at and session.started_at:
-            # 使用last_activity作为实际学习结束时间
-            # last_activity会在每次操作时更新，更准确反映实际学习时间
-            if session.last_activity:
-                duration = session.last_activity - session.started_at
-            else:
-                # 如果没有last_activity，使用completed_at
-                duration = session.completed_at - session.started_at
-            
-            duration_minutes = duration.total_seconds() / 60
-            # 只过滤明显异常的负值，不设置上限
-            if duration_minutes > 0:
-                total_study_time += duration_minutes
-    
-    total_study_time = round(total_study_time)
-    
-    # 格式化学习时长为小时和分钟
-    hours = total_study_time // 60
-    minutes = total_study_time % 60
-    
-    if hours > 0:
-        if minutes > 0:
-            formatted_study_time = f"{hours}h {minutes}min"
-        else:
-            formatted_study_time = f"{hours}h"
-    else:
-        formatted_study_time = f"{minutes}min"
+
+    stats = _get_student_clinical_stats(user)
+    total_clinical_cases = stats.get('total_cases', 0)
+    completed_sessions = stats.get('completed_cases', 0)
 
     # 最近学习记录
-    recent_sessions = user_sessions.order_by('-started_at')[:5]
+    recent_sessions = StudentClinicalSession.objects.filter(student=user).order_by('-started_at')[:5]
 
     # 模拟进度对象结构
     progress = {
-        'progress_percentage': progress_percentage,
-        'total_study_time': total_study_time,
-        'formatted_study_time': formatted_study_time,
+        'progress_percentage': stats.get('progress_percentage', 0),
+        'total_study_time': stats.get('total_study_time', 0),
+        'formatted_study_time': stats.get('formatted_study_time', '0min'),
     }
     
     context = {
@@ -505,34 +886,27 @@ def teacher_dashboard(request):
     # 最近活动
     recent_sessions = StudentClinicalSession.objects.select_related('student', 'clinical_case').order_by('-started_at')[:10]
     
-    # 为每个会话计算学习时长
+    # 为每个会话计算学习时长（与学生端统计口径对齐：run_started_at 作为本轮起点，过滤历史脏数据）
     sessions_with_time = []
+    cached_user_total_minutes = {}
     for session in recent_sessions:
-        # 计算该学生的总学习时长
-        user_sessions = StudentClinicalSession.objects.filter(student=session.student)
-        total_study_time = 0
-        
-        for s in user_sessions.filter(completed_at__isnull=False):
-            if s.completed_at and s.started_at:
-                # 使用last_activity作为实际学习结束时间
-                if s.last_activity:
-                    duration = s.last_activity - s.started_at
-                else:
-                    duration = s.completed_at - s.started_at
-                
-                duration_minutes = duration.total_seconds() / 60
-                if duration_minutes > 0:
-                    total_study_time += duration_minutes
-        
-        # 格式化学习时长
-        hours = int(total_study_time // 60)
-        minutes = int(total_study_time % 60)
-        formatted_time = f"{hours}h {minutes}min" if hours > 0 else f"{minutes}min"
-        
-        sessions_with_time.append({
-            'session': session,
-            'total_study_time': formatted_time
-        })
+        student_id = getattr(session.student, 'id', None)
+        if student_id not in cached_user_total_minutes:
+            cached_user_total_minutes[student_id] = _get_user_total_study_time_minutes(session.student)
+
+        total_minutes = cached_user_total_minutes[student_id]
+        formatted_time = _format_minutes_as_hm(total_minutes)
+
+        case_minutes = _get_session_study_time_minutes(session)
+        formatted_case_time = _format_minutes_as_hm(case_minutes) if isinstance(case_minutes, int) else '-'
+
+        sessions_with_time.append(
+            {
+                'session': session,
+                'total_study_time': formatted_time,
+                'case_study_time': formatted_case_time,
+            }
+        )
     
     context = {
         'total_clinical_cases': total_clinical_cases,
@@ -546,6 +920,45 @@ def teacher_dashboard(request):
     }
     
     return render(request, 'teacher/dashboard.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def teacher_session_review(request, session_id: int):
+    """教师端：查看某个学生在某个病例的学习反馈（只读复盘）。"""
+    session = get_object_or_404(
+        StudentClinicalSession.objects.select_related('student', 'clinical_case'),
+        id=session_id,
+    )
+    review = _build_review_payload_for_session(session)
+
+    total_minutes = None
+    try:
+        total_ms = review.get('session_total_ms')
+        if isinstance(total_ms, int) and total_ms >= 0:
+            total_minutes = int(round(total_ms / 60000))
+    except Exception:
+        total_minutes = None
+
+    stage_minutes = {}
+    try:
+        sdm = review.get('stage_durations_ms')
+        if isinstance(sdm, dict):
+            for k, v in sdm.items():
+                if isinstance(v, int) and v >= 0:
+                    stage_minutes[str(k)] = int(round(v / 60000))
+                else:
+                    stage_minutes[str(k)] = None
+    except Exception:
+        stage_minutes = {}
+
+    context = {
+        'session': session,
+        'review': review,
+        'total_study_time': _format_minutes_as_hm(total_minutes) if isinstance(total_minutes, int) else '-',
+        'stage_minutes': stage_minutes,
+    }
+    return render(request, 'teacher/session_review.html', context)
 
 
 
@@ -613,19 +1026,24 @@ def clinical_case_detail(request, case_id):
         session, created = StudentClinicalSession.objects.get_or_create(
             student=request.user,
             clinical_case=clinical_case,
-            defaults={'session_status': 'history'}
+            defaults={'session_status': 'case_presentation'}
         )
         
         # 如果是新会话，重置状态
         if created:
-            session.session_status = 'history'
+            session.session_status = 'case_presentation'
             session.save()
         else:
             # 如果是已完成的会话，重置为新的学习会话（保留历史记录但重置计数）
             if session.session_status == 'completed' or session.completed_at is not None:
                 # 重置会话状态，开始新一轮学习
-                session.session_status = 'history'
+                session.session_status = 'case_presentation'
                 session.completed_at = None
+                # 重置本轮计时，避免继承历史 started_at / stage_times
+                session.started_at = timezone.now()
+                session.time_spent = {}
+                session.step_start_times = {}
+                session.session_data = {}
                 # 重置尝试次数和指导级别，避免"终生惩罚"
                 session.diagnosis_attempt_count = 0
                 session.diagnosis_guidance_level = 0
@@ -690,18 +1108,18 @@ def clinical_case_detail(request, case_id):
         session, created = StudentClinicalSession.objects.get_or_create(
             student=request.user,
             clinical_case=clinical_case,
-            defaults={'session_status': 'history'}
+            defaults={'session_status': 'case_presentation'}
         )
         
         # 如果是新会话，重置状态
         if created:
-            session.session_status = 'history'
+            session.session_status = 'case_presentation'
             session.save()
         else:
             # 如果是已完成的会话，重置为新的学习会话（保留历史记录但重置计数）
             if session.session_status == 'completed' or session.completed_at is not None:
                 # 重置会话状态，开始新一轮学习
-                session.session_status = 'history'
+                session.session_status = 'case_presentation'
                 session.completed_at = None
                 # 重置尝试次数和指导级别，避免"终生惩罚"
                 session.diagnosis_attempt_count = 0
@@ -827,7 +1245,7 @@ def submit_examination_choices(request):
         
         # 更新会话状态
         session.selected_examinations = selected_examinations
-        session.session_status = 'diagnosis'
+        session.session_status = 'diagnosis_reasoning'
         
         # 计算检查选择得分
         examination_options = ExaminationOption.objects.filter(clinical_case=clinical_case)
@@ -1029,11 +1447,29 @@ def submit_diagnosis_choice(request):
         
         # 增加尝试次数
         session.diagnosis_attempt_count += 1
+
+        # 持久化“诊断选择 + 诊断依据”，用于学习反馈复盘（刷新不丢）
+        if not getattr(session, 'session_data', None):
+            session.session_data = {}
+        try:
+            session.session_data['diagnosis'] = {
+                'diagnosis_ids': list(selected_diagnosis_ids),
+                'diagnosis_names': [opt.diagnosis_name for opt in diagnosis_options],
+                'diagnosis_rationale': reasoning,
+                'attempt_count': session.diagnosis_attempt_count,
+            }
+        except Exception:
+            session.session_data['diagnosis'] = {
+                'diagnosis_ids': list(selected_diagnosis_ids),
+                'diagnosis_names': [],
+                'diagnosis_rationale': reasoning,
+                'attempt_count': session.diagnosis_attempt_count,
+            }
         
         if is_completely_correct:
             # 诊断完全正确 - 进入治疗阶段
             session.selected_diagnoses = selected_diagnosis_ids
-            session.session_status = 'treatment'
+            session.session_status = 'treatment_selection'
             # 修复：使用当前尝试次数计算分数（第1次=100分，第2次=90分，以此类推，最低60分）
             session.diagnosis_score = max(100 - (session.diagnosis_attempt_count - 1) * 10, 60)  # 最低60分
             
@@ -1544,6 +1980,24 @@ def get_examination_options(request, case_id):
             'is_distractor': option.clinical_case_id != clinical_case.id
         } for option in all_examinations]
         
+        # 在列表开头插入"体格检查"选项
+        physical_exam_option = {
+            'id': 'physical_exam',  # 特殊ID标识
+            'type': '基础检查',
+            'name': '体格检查',
+            'description': '包括视力、眼压、外眼检查、瞳孔检查、结膜检查、角膜检查等基础体格检查项目',
+            'diagnostic_value': '基础必要',
+            'cost_effectiveness': '高性价比',
+            'is_recommended': True,
+            'is_required': True,
+            'is_multiple_choice': False,
+            'images': [],
+            'is_case_required': True,
+            'is_distractor': False,
+            'is_physical_exam': True  # 特殊标识
+        }
+        options_data.insert(0, physical_exam_option)
+        
         # 验证去重效果：检查是否有重复名称
         all_names = [option.examination_name for option in all_examinations]
         unique_names = set(all_names)
@@ -1574,9 +2028,32 @@ def get_examination_result(request, case_id, exam_id):
     """获取单个检查项目的详细结果"""
     try:
         clinical_case = get_object_or_404(ClinicalCase, case_id=case_id, is_active=True)
-        examination = get_object_or_404(ExaminationOption, 
-                                       id=exam_id, 
-                                       clinical_case=clinical_case)
+        
+        # 尝试获取检查选项（可能是本病例的，也可能是干扰项）
+        try:
+            examination = ExaminationOption.objects.get(id=exam_id)
+        except ExaminationOption.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': '检查选项不存在'
+            }, status=404)
+        
+        # 判断是否为干扰项（不属于当前病例）
+        is_distractor = examination.clinical_case_id != clinical_case.id
+        
+        if is_distractor:
+            # 干扰项：返回"无相关检查信息"
+            return JsonResponse({
+                'success': False,
+                'result': {
+                    'id': examination.id,
+                    'name': examination.examination_name,
+                    'type': examination.get_examination_type_display(),
+                    'actual_result': '无相关检查信息',
+                    'is_relevant': False
+                },
+                'message': '该检查对本病例无诊断价值'
+            })
         
         # 构建检查结果数据
         result_data = {
@@ -1827,7 +2304,14 @@ def clinical_cases_list(request):
 
         return JsonResponse({'success': True, 'data': {'cases': cases}})
     except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+        try:
+            import traceback
+            print('[clinical_cases_list] error:', str(e))
+            print(traceback.format_exc())
+        except Exception:
+            pass
+        # 前端会根据 success 字段提示，不要用 500 让浏览器报 Failed to load resource
+        return JsonResponse({'success': False, 'message': str(e), 'data': {'cases': []}}, status=200)
 
 
 @login_required
@@ -1835,21 +2319,29 @@ def clinical_cases_list(request):
 def clinical_user_stats(request):
     """返回当前学生的临床学习统计数据"""
     try:
-        total_completed = StudentClinicalSession.objects.filter(student=request.user, session_status='completed').count()
-        avg_overall = StudentClinicalSession.objects.filter(student=request.user, overall_score__gt=0).aggregate(Avg('overall_score'))['overall_score__avg'] or 0
-
-        stats = {
-            'completed_cases': total_completed,
-            'average_score': round(avg_overall, 2),
-            'difficulty_progress': {
-                'beginner': {'completed': StudentClinicalSession.objects.filter(student=request.user, clinical_case__difficulty_level='beginner', session_status='completed').count(), 'total': ClinicalCase.objects.filter(difficulty_level='beginner', is_active=True).count()},
-                'intermediate': {'completed': StudentClinicalSession.objects.filter(student=request.user, clinical_case__difficulty_level='intermediate', session_status='completed').count(), 'total': ClinicalCase.objects.filter(difficulty_level='intermediate', is_active=True).count()},
-                'advanced': {'completed': StudentClinicalSession.objects.filter(student=request.user, clinical_case__difficulty_level='advanced', session_status='completed').count(), 'total': ClinicalCase.objects.filter(difficulty_level='advanced', is_active=True).count()},
-            }
-        }
+        stats = _get_student_clinical_stats(request.user)
         return JsonResponse({'success': True, 'data': stats})
     except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+        try:
+            import traceback
+            print('[clinical_user_stats] error:', str(e))
+            print(traceback.format_exc())
+        except Exception:
+            pass
+        fallback = {
+            'total_cases': 0,
+            'completed_cases': 0,
+            'progress_percentage': 0,
+            'total_study_time': 0,
+            'formatted_study_time': '0min',
+            'average_score': 0,
+            'difficulty_progress': {
+                'beginner': {'completed': 0, 'total': 0},
+                'intermediate': {'completed': 0, 'total': 0},
+                'advanced': {'completed': 0, 'total': 0},
+            },
+        }
+        return JsonResponse({'success': False, 'message': str(e), 'data': fallback}, status=200)
 
 
 @login_required
@@ -1928,10 +2420,414 @@ def get_clinical_progress(request, case_id):
                 student=request.user,
                 clinical_case=clinical_case
             )
-            progress_data = session.step_data or {}
+
+            # 复盘所需数据：检查选择、诊断提交、阶段用时等（即使部分字段异常，也不要让接口500）
+            review_payload = {
+                'selected_examinations': [],
+                'diagnosis': None,
+                'selected_treatments': [],
+                'treatment': None,
+                'stage_times': None,
+                'stage_start_times': None,
+                'session_started_at': None,
+                'session_completed_at': None,
+                'session_last_activity_at': None,
+                'session_total_ms': None,
+            }
+            try:
+                session_data = getattr(session, 'session_data', None) or {}
+
+                # 可选：后端计时 debug 输出（只在开发模式开启，避免泄露/干扰生产）
+                debug_time_enabled = bool(getattr(settings, 'DEBUG', False)) and (request.GET.get('debug_time') in ('1', 'true', 'True'))
+                debug_time = None
+
+                # 会话时间（用于前端校准总用时与阶段用时）
+                try:
+                    # 注意：StudentClinicalSession.started_at 是 auto_now_add（会话创建时间），
+                    # 不能作为“本轮学习开始时间”，否则旧会话会导致总用时异常变大。
+                    completed_at = getattr(session, 'completed_at', None)
+                    last_activity = getattr(session, 'last_activity', None)
+                    review_payload['session_completed_at'] = completed_at.isoformat() if completed_at else None
+                    review_payload['session_last_activity_at'] = last_activity.isoformat() if last_activity else None
+
+                    def _parse_dt(value):
+                        if not value:
+                            return None
+                        try:
+                            dt = timezone.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+                            if timezone.is_naive(dt):
+                                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                            return dt
+                        except Exception:
+                            return None
+
+                    run_started_at = _parse_dt(session_data.get('run_started_at'))
+
+                    # 兜底：若没有 run_started_at，用 stage_times 的最早时间戳作为“本轮起点”
+                    if run_started_at is None:
+                        try:
+                            st = session_data.get('stage_times') or {}
+                            if isinstance(st, dict) and st:
+                                parsed = [_parse_dt(v) for v in st.values()]
+                                parsed = [x for x in parsed if x is not None]
+                                if parsed:
+                                    run_started_at = min(parsed)
+                        except Exception:
+                            pass
+
+                    # 最后兜底：使用会话创建时间（可能偏旧，但至少有值）
+                    if run_started_at is None:
+                        started_at = getattr(session, 'started_at', None)
+                        run_started_at = started_at
+
+                    review_payload['session_started_at'] = run_started_at.isoformat() if run_started_at else None
+
+                    # 结束时间：优先取“更晚”的那个，避免 completed_at < last_activity 造成用时/阶段结束时间倒挂
+                    end_time = None
+                    try:
+                        candidates = [t for t in (completed_at, last_activity) if t is not None]
+                        if candidates:
+                            end_time = max(candidates)
+                    except Exception:
+                        end_time = completed_at or last_activity
+                    if run_started_at and end_time and end_time >= run_started_at:
+                        review_payload['session_total_ms'] = int((end_time - run_started_at).total_seconds() * 1000)
+
+                    # 组织 debug_time（不影响正常逻辑）
+                    if debug_time_enabled:
+                        try:
+                            major_stages = ['case_presentation', 'examination_selection', 'diagnosis_reasoning', 'treatment_selection', 'learning_feedback']
+
+                            raw_stage_start_times = session_data.get('stage_start_times') if isinstance(session_data.get('stage_start_times'), dict) else {}
+                            raw_stage_times = session_data.get('stage_times') if isinstance(session_data.get('stage_times'), dict) else {}
+
+                            parsed_stage_start_times = {}
+                            for k, v in (raw_stage_start_times or {}).items():
+                                parsed_stage_start_times[str(k)] = _parse_dt(v)
+
+                            # 按本轮 run_started_at 过滤旧的 stage_times（避免历史污染导致“阶段顺序倒挂”）
+                            filtered_stage_times = {}
+                            if isinstance(raw_stage_times, dict) and raw_stage_times:
+                                for key, val in raw_stage_times.items():
+                                    dtv = _parse_dt(val)
+                                    if dtv is None:
+                                        continue
+                                    if run_started_at and dtv < run_started_at:
+                                        continue
+                                    filtered_stage_times[str(key)] = val
+
+                            # 由 stage_times 反推进入某阶段的时间（key: old_to_new）
+                            inferred_to_stage_times = {}
+                            for key, val in (filtered_stage_times or {}).items():
+                                m = re.match(r'^(.+)_to_(.+)$', str(key))
+                                if not m:
+                                    continue
+                                to_stage = m.group(2)
+                                dtv = _parse_dt(val)
+                                if dtv is not None:
+                                    # 同一 to_stage 可能多次出现，取最早一次作为“首次进入”
+                                    if to_stage not in inferred_to_stage_times or dtv < inferred_to_stage_times[to_stage]:
+                                        inferred_to_stage_times[to_stage] = dtv
+
+                            # 计算每个主阶段的开始时间：优先 stage_start_times，其次 stage_times 推断，其次 run_started_at（仅用于 case_presentation）
+                            stage_start_dt = {}
+                            for stg in major_stages:
+                                dtv = parsed_stage_start_times.get(stg) or inferred_to_stage_times.get(stg)
+                                if dtv is None and stg == 'case_presentation':
+                                    dtv = run_started_at
+                                stage_start_dt[stg] = dtv
+
+                            # 计算结束时间：不再依赖固定阶段顺序；
+                            # 而是为每个阶段选择“开始时间之后最近发生的下一事件（其他阶段开始/会话结束）”。
+                            stage_end_dt = {}
+                            all_starts = [dt for dt in stage_start_dt.values() if dt is not None]
+                            for stg in major_stages:
+                                sdt = stage_start_dt.get(stg)
+                                if sdt is None:
+                                    stage_end_dt[stg] = None
+                                    continue
+                                candidates = []
+                                for dt in all_starts:
+                                    if dt > sdt:
+                                        candidates.append(dt)
+                                if end_time is not None and end_time > sdt:
+                                    candidates.append(end_time)
+                                stage_end_dt[stg] = min(candidates) if candidates else end_time
+
+                            stage_durations_ms = {}
+                            stage_anomalies = {}
+                            total_ms = review_payload.get('session_total_ms')
+                            for stg in major_stages:
+                                sdt = stage_start_dt.get(stg)
+                                edt = stage_end_dt.get(stg)
+                                if not sdt or not edt:
+                                    stage_durations_ms[stg] = None
+                                    stage_anomalies[stg] = 'missing_start_or_end'
+                                    continue
+                                if edt < sdt:
+                                    stage_durations_ms[stg] = None
+                                    stage_anomalies[stg] = 'end_before_start'
+                                    continue
+                                ms = int((edt - sdt).total_seconds() * 1000)
+                                # 极端异常：超过 24h 直接标记
+                                if ms > 24 * 60 * 60 * 1000:
+                                    stage_durations_ms[stg] = ms
+                                    stage_anomalies[stg] = 'duration_gt_24h'
+                                else:
+                                    stage_durations_ms[stg] = ms
+
+                                # 合理性校验：阶段用时不应远大于总用时（允许 30s 误差）
+                                if isinstance(total_ms, int) and total_ms >= 0 and ms > total_ms + 30_000:
+                                    stage_anomalies[stg] = (stage_anomalies.get(stg) or '') + '|duration_gt_total'
+
+                            debug_time = {
+                                'tz': {
+                                    'USE_TZ': bool(getattr(settings, 'USE_TZ', False)),
+                                    'TIME_ZONE': str(getattr(settings, 'TIME_ZONE', '')),
+                                    'now_iso': timezone.now().isoformat(),
+                                },
+                                'session_fields': {
+                                    'session_status': getattr(session, 'session_status', None),
+                                    'started_at': getattr(session, 'started_at', None).isoformat() if getattr(session, 'started_at', None) else None,
+                                    'completed_at': completed_at.isoformat() if completed_at else None,
+                                    'last_activity': last_activity.isoformat() if last_activity else None,
+                                },
+                                'run_started_at': {
+                                    'raw': session_data.get('run_started_at'),
+                                    'parsed': run_started_at.isoformat() if run_started_at else None,
+                                },
+                                'stage_start_times': {
+                                    'raw': raw_stage_start_times,
+                                    'parsed': {k: (v.isoformat() if v else None) for k, v in parsed_stage_start_times.items()},
+                                },
+                                'stage_times': {
+                                    'raw': raw_stage_times,
+                                    'inferred_to_stage_first_enter': {k: (v.isoformat() if v else None) for k, v in inferred_to_stage_times.items()},
+                                },
+                                'derived': {
+                                    'end_time_used': end_time.isoformat() if end_time else None,
+                                    'session_total_ms': review_payload.get('session_total_ms'),
+                                    'stage_start_dt': {k: (v.isoformat() if v else None) for k, v in stage_start_dt.items()},
+                                    'stage_end_dt': {k: (v.isoformat() if v else None) for k, v in stage_end_dt.items()},
+                                    'stage_durations_ms': stage_durations_ms,
+                                    'stage_anomalies': stage_anomalies,
+                                },
+                            }
+                        except Exception:
+                            debug_time = {'error': 'debug_time_build_failed'}
+                except Exception:
+                    pass
+
+                # selected_examinations 可能是 list(JSONField) 或 M2M manager，做兼容读取
+                selected_exam_ids = []
+                try:
+                    selected_exams_obj = getattr(session, 'selected_examinations', None)
+                    if hasattr(selected_exams_obj, 'values_list'):
+                        selected_exam_ids = list(selected_exams_obj.values_list('id', flat=True))
+                    else:
+                        selected_exam_ids = list(selected_exams_obj or [])
+                except Exception:
+                    selected_exam_ids = []
+
+                selected_exam_details = []
+                if selected_exam_ids:
+                    try:
+                        from cases.models import ExaminationOption
+                        exam_rows = list(ExaminationOption.objects.filter(id__in=selected_exam_ids).values('id', 'examination_name'))
+                        id_to_name = {row['id']: row.get('examination_name') for row in exam_rows}
+                        selected_exam_details = [
+                            {'id': int(exam_id), 'name': id_to_name.get(int(exam_id)) or f'检查#{exam_id}'}
+                            for exam_id in selected_exam_ids
+                        ]
+                    except Exception:
+                        selected_exam_details = [{'id': int(exam_id), 'name': f'检查#{exam_id}'} for exam_id in selected_exam_ids]
+
+                diagnosis_record = session_data.get('diagnosis')
+                treatment_record = session_data.get('treatment')
+
+                # 仅返回“本轮”计时数据，避免旧 run 的 stage_times 混入导致前端复盘/调试紊乱
+                def _filter_timing_dict(raw_dict, run_start):
+                    if not isinstance(raw_dict, dict) or not raw_dict:
+                        return raw_dict
+                    if not run_start:
+                        return raw_dict
+                    filtered = {}
+                    for k, v in raw_dict.items():
+                        dtv = None
+                        try:
+                            dtv = timezone.datetime.fromisoformat(str(v).replace('Z', '+00:00'))
+                            if timezone.is_naive(dtv):
+                                dtv = timezone.make_aware(dtv, timezone.get_current_timezone())
+                        except Exception:
+                            dtv = None
+                        if dtv is None or dtv >= run_start:
+                            filtered[str(k)] = v
+                    return filtered
+
+                run_started_at = None
+                try:
+                    run_started_at = timezone.datetime.fromisoformat(str(session_data.get('run_started_at')).replace('Z', '+00:00')) if session_data.get('run_started_at') else None
+                    if run_started_at and timezone.is_naive(run_started_at):
+                        run_started_at = timezone.make_aware(run_started_at, timezone.get_current_timezone())
+                except Exception:
+                    run_started_at = None
+
+                stage_times = _filter_timing_dict(session_data.get('stage_times'), run_started_at)
+                stage_start_times = _filter_timing_dict(session_data.get('stage_start_times'), run_started_at)
+
+                # 后端权威口径：计算各主阶段用时（毫秒），前端不再兜底/估算。
+                stage_durations_ms = None
+                try:
+                    def _parse_dt2(value):
+                        if not value:
+                            return None
+                        try:
+                            dt = timezone.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+                            if timezone.is_naive(dt):
+                                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                            return dt
+                        except Exception:
+                            return None
+
+                    completed_at2 = getattr(session, 'completed_at', None)
+                    last_activity2 = getattr(session, 'last_activity', None)
+                    end_time2 = None
+                    try:
+                        candidates2 = [t for t in (completed_at2, last_activity2) if t is not None]
+                        if candidates2:
+                            end_time2 = max(candidates2)
+                    except Exception:
+                        end_time2 = completed_at2 or last_activity2
+
+                    # run_started_at 再兜底一次：若缺失，用本轮 stage_times 最早时间戳；最后才回退 started_at
+                    run_started_at2 = run_started_at
+                    if run_started_at2 is None:
+                        try:
+                            st2 = stage_times or {}
+                            if isinstance(st2, dict) and st2:
+                                parsed2 = [_parse_dt2(v) for v in st2.values()]
+                                parsed2 = [x for x in parsed2 if x is not None]
+                                if parsed2:
+                                    run_started_at2 = min(parsed2)
+                        except Exception:
+                            pass
+                    if run_started_at2 is None:
+                        run_started_at2 = getattr(session, 'started_at', None)
+
+                    major_stages2 = ['case_presentation', 'examination_selection', 'diagnosis_reasoning', 'treatment_selection', 'learning_feedback']
+
+                    # 计算阶段开始：优先 stage_start_times，其次 stage_times 的 to_stage 首次进入；case_presentation 用 run_started_at
+                    stage_start_dt2 = {}
+                    try:
+                        sst2 = stage_start_times or {}
+                        if not isinstance(sst2, dict):
+                            sst2 = {}
+                        inferred_to_stage2 = {}
+                        st2 = stage_times or {}
+                        if isinstance(st2, dict):
+                            for k, v in st2.items():
+                                m = re.match(r'^(.+)_to_(.+)$', str(k))
+                                if not m:
+                                    continue
+                                to_stage = m.group(2)
+                                dtv = _parse_dt2(v)
+                                if dtv is None:
+                                    continue
+                                if to_stage not in inferred_to_stage2 or dtv < inferred_to_stage2[to_stage]:
+                                    inferred_to_stage2[to_stage] = dtv
+
+                        for stg in major_stages2:
+                            dtv = _parse_dt2(sst2.get(stg)) or inferred_to_stage2.get(stg)
+                            if dtv is None and stg == 'case_presentation':
+                                dtv = run_started_at2
+                            stage_start_dt2[stg] = dtv
+                    except Exception:
+                        stage_start_dt2 = {stg: (run_started_at2 if stg == 'case_presentation' else None) for stg in major_stages2}
+
+                    # 计算阶段结束：选“开始之后最近的下一事件（其他阶段开始/会话结束）”
+                    stage_end_dt2 = {}
+                    all_starts2 = [dt for dt in stage_start_dt2.values() if dt is not None]
+                    for stg in major_stages2:
+                        sdt = stage_start_dt2.get(stg)
+                        if sdt is None:
+                            stage_end_dt2[stg] = None
+                            continue
+                        candidates = [dt for dt in all_starts2 if dt > sdt]
+                        if end_time2 is not None and end_time2 > sdt:
+                            candidates.append(end_time2)
+                        stage_end_dt2[stg] = min(candidates) if candidates else end_time2
+
+                    # 生成 durations
+                    stage_durations_ms = {}
+                    for stg in major_stages2:
+                        sdt = stage_start_dt2.get(stg)
+                        edt = stage_end_dt2.get(stg)
+                        if not sdt or not edt or edt < sdt:
+                            stage_durations_ms[stg] = None
+                            continue
+                        ms = int((edt - sdt).total_seconds() * 1000)
+                        if ms < 0 or ms > 24 * 60 * 60 * 1000:
+                            stage_durations_ms[stg] = None
+                        else:
+                            stage_durations_ms[stg] = ms
+                except Exception:
+                    stage_durations_ms = None
+
+                # selected_treatments 可能来自 session_data['treatment'] 或 M2M/list
+                selected_treatment_ids = []
+                try:
+                    selected_treats_obj = getattr(session, 'selected_treatments', None)
+                    if isinstance(treatment_record, dict) and treatment_record.get('treatment_ids'):
+                        selected_treatment_ids = list(treatment_record.get('treatment_ids') or [])
+                    elif hasattr(selected_treats_obj, 'values_list'):
+                        selected_treatment_ids = list(selected_treats_obj.values_list('id', flat=True))
+                    else:
+                        selected_treatment_ids = list(selected_treats_obj or [])
+                except Exception:
+                    selected_treatment_ids = []
+
+                selected_treatment_details = []
+                if selected_treatment_ids:
+                    try:
+                        from cases.models import TreatmentOption
+                        rows = list(TreatmentOption.objects.filter(id__in=selected_treatment_ids).values('id', 'treatment_name'))
+                        id_to_name = {row['id']: row.get('treatment_name') for row in rows}
+                        selected_treatment_details = [
+                            {'id': int(tid), 'name': id_to_name.get(int(tid)) or f'治疗#{tid}'}
+                            for tid in selected_treatment_ids
+                        ]
+                    except Exception:
+                        selected_treatment_details = [{'id': int(tid), 'name': f'治疗#{tid}'} for tid in selected_treatment_ids]
+
+                review_payload = {
+                    'selected_examinations': selected_exam_details,
+                    'diagnosis': diagnosis_record,
+                    'selected_treatments': selected_treatment_details,
+                    'treatment': treatment_record,
+                    'stage_times': stage_times,
+                    'stage_start_times': stage_start_times,
+                    'stage_durations_ms': stage_durations_ms,
+                    'session_started_at': review_payload.get('session_started_at'),
+                    'session_completed_at': review_payload.get('session_completed_at'),
+                    'session_last_activity_at': review_payload.get('session_last_activity_at'),
+                    'session_total_ms': review_payload.get('session_total_ms'),
+                    **({'debug_time': debug_time} if debug_time_enabled else {}),
+                }
+            except Exception:
+                # 保持 review_payload 默认值，确保接口继续成功返回
+                pass
+            progress_data = {
+                'session_status': getattr(session, 'session_status', None),
+                'step_data': getattr(session, 'step_data', None) or {},
+                'examination_score': getattr(session, 'examination_score', None),
+                'diagnosis_score': getattr(session, 'diagnosis_score', None),
+                'treatment_score': getattr(session, 'treatment_score', None),
+                'overall_score': getattr(session, 'overall_score', None),
+                'review': review_payload,
+            }
             return JsonResponse({'success': True, 'data': progress_data})
         except StudentClinicalSession.DoesNotExist:
-            return JsonResponse({'success': True, 'data': None})
+            return JsonResponse({'success': True, 'data': {'session_status': 'case_presentation'}})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
@@ -1998,13 +2894,22 @@ def teacher_clinical_case_list(request):
     elif status_filter == 'inactive':
         cases = cases.filter(is_active=False)
     
-    # 为每个病例添加统计数据
-    from django.db.models import Count
+    # 为每个病例添加统计数据（注意：多表 join 会导致 Count 被放大，必须 distinct）
+    from django.db.models import Count, Avg
     cases = cases.annotate(
-        examination_count=Count('examination_options'),
-        diagnosis_count=Count('diagnosis_options'),
-        treatment_count=Count('treatment_options'),
-        student_sessions_count=Count('studentclinicalsession')
+        examination_count=Count('examination_options', distinct=True),
+        diagnosis_count=Count('diagnosis_options', distinct=True),
+        treatment_count=Count('treatment_options', distinct=True),
+        student_sessions_count=Count('studentclinicalsession', distinct=True),
+        completed_sessions_count=Count(
+            'studentclinicalsession',
+            filter=Q(studentclinicalsession__completed_at__isnull=False),
+            distinct=True,
+        ),
+        avg_score=Avg(
+            'studentclinicalsession__overall_score',
+            filter=Q(studentclinicalsession__overall_score__gt=0),
+        ),
     )
     
     # 分页
@@ -2013,20 +2918,12 @@ def teacher_clinical_case_list(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    # 为分页后的每个病例计算详细统计
+    # 为分页后的每个病例补齐展示字段（不再做额外查询，避免 N+1）
     for case in page_obj:
-        # 计算完成的会话数
-        completed_sessions = StudentClinicalSession.objects.filter(
-            clinical_case=case, 
-            completed_at__isnull=False
-        ).count()
-        
-        # 计算完成率
-        total_sessions = case.student_sessions_count
-        case.completion_rate = round((completed_sessions / total_sessions * 100) if total_sessions > 0 else 0)
-        
-        # 计算平均分 (暂时设为0，需要后续实现评分系统)
-        case.avg_score = 0
+        total_sessions = int(getattr(case, 'student_sessions_count', 0) or 0)
+        completed_sessions = int(getattr(case, 'completed_sessions_count', 0) or 0)
+        case.completion_rate = round((completed_sessions / total_sessions * 100), 1) if total_sessions > 0 else 0
+        case.avg_score = float(getattr(case, 'avg_score', 0) or 0)
     
     context = {
         'page_obj': page_obj,
@@ -2225,6 +3122,54 @@ def teacher_clinical_case_delete(request, case_id):
         'completed_sessions_count': completed_sessions_count,
     }
     return render(request, 'teacher/clinical_case_delete.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='login')
+def teacher_clinical_case_scores(request, case_id):
+    """教师端：查看某个病例的学生成绩情况（会话列表）。"""
+    clinical_case = get_object_or_404(ClinicalCase, case_id=case_id)
+
+    sessions_qs = (
+        StudentClinicalSession.objects.select_related('student', 'clinical_case')
+        .filter(clinical_case=clinical_case)
+        .order_by('-last_activity')
+    )
+
+    # 分页（避免学生很多时卡顿）
+    from django.core.paginator import Paginator
+    paginator = Paginator(sessions_qs, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    items = []
+    for session in page_obj:
+        case_minutes = _get_session_study_time_minutes(session)
+        items.append(
+            {
+                'session': session,
+                'study_time': _format_minutes_as_hm(case_minutes) if isinstance(case_minutes, int) else '-',
+            }
+        )
+
+    # 汇总：平均分（与列表页一致，统计 overall_score>0）
+    from django.db.models import Avg
+    avg_score = (
+        sessions_qs.filter(overall_score__gt=0)
+        .aggregate(Avg('overall_score'))
+        .get('overall_score__avg')
+        or 0
+    )
+
+    context = {
+        'clinical_case': clinical_case,
+        'page_obj': page_obj,
+        'items': items,
+        'avg_score': float(avg_score or 0),
+        'total_sessions': sessions_qs.count(),
+        'completed_sessions': sessions_qs.filter(Q(session_status='completed') | Q(completed_at__isnull=False)).count(),
+    }
+    return render(request, 'teacher/clinical_case_scores.html', context)
 
 
 @login_required
@@ -3133,3 +4078,847 @@ def student_learning_notes(request):
     }
     
     return render(request, 'student/learning_notes.html', context)
+
+
+# ==================== 聊天API端点 ====================
+
+@require_POST
+@login_required
+def chat_api(request, case_id):
+    """
+    处理聊天消息并返回患者回复
+    基于关键词匹配返回预设的患者回答
+    """
+    try:
+        # 解析请求数据
+        data = json.loads(request.body)
+        message_content = data.get('message', '').strip()
+        
+        # 🔍 调试日志：显示接收到的数据
+        import sys
+        sys.stdout.write(f"\n{'='*60}\n")
+        sys.stdout.write(f"🔍 Chat API 被调用\n")
+        sys.stdout.write(f"用户: {request.user.username}\n")
+        sys.stdout.write(f"病例ID: {case_id}\n")
+        sys.stdout.write(f"消息: {message_content}\n")
+        sys.stdout.flush()
+        
+        if not message_content:
+            return JsonResponse({
+                'success': False,
+                'error': '消息内容不能为空'
+            })
+        
+        # 获取临床病例和会话
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id)
+        session, created = StudentClinicalSession.objects.get_or_create(
+            student=request.user,
+            clinical_case=clinical_case,
+            defaults={'session_status': 'case_presentation'}
+        )
+        
+        # 🔍 调试日志：显示会话状态
+        sys.stdout.write(f"会话状态: '{session.session_status}' (类型: {type(session.session_status).__name__})\n")
+        sys.stdout.write(f"会话ID: {session.id}\n")
+        sys.stdout.flush()
+        
+        # 检查当前阶段是否允许聊天（病史采集和检查选择阶段允许，诊断和治疗阶段禁止）
+        allowed_chat_stages = ['case_presentation', 'examination_selection', 'examination_results']
+        forbidden_chat_stages = ['diagnosis_reasoning', 'treatment_selection', 'learning_feedback', 'completed']
+        
+        sys.stdout.write(f"允许聊天的阶段: {allowed_chat_stages}\n")
+        sys.stdout.write(f"禁止聊天的阶段: {forbidden_chat_stages}\n")
+        sys.stdout.write(f"session.session_status in forbidden_chat_stages: {session.session_status in forbidden_chat_stages}\n")
+        sys.stdout.flush()
+        
+        if session.session_status in forbidden_chat_stages:
+            sys.stdout.write(f"❌ 阶段检查失败: '{session.session_status}' 在禁止列表中\n")
+            sys.stdout.write(f"{'='*60}\n")
+            sys.stdout.flush()
+            return JsonResponse({
+                'success': False,
+                'error': '当前阶段不允许聊天输入'
+            })
+        
+        sys.stdout.write(f"✓ 阶段检查通过: '{session.session_status}' 允许聊天\n")
+        sys.stdout.flush()
+        
+        # 保存学生问题
+        student_message = ChatMessage.objects.create(
+            session=session,
+            message_type='student_question',
+            content=message_content,
+            stage=session.session_status
+        )
+        
+        # 基于病历库数据进行关键词匹配找到最佳回答
+        import sys
+        sys.stdout.write(f"\n{'='*50}\n")
+        sys.stdout.write(f"📞 调用匹配函数\n")
+        sys.stdout.write(f"问题: {message_content}\n")
+        sys.stdout.write(f"阶段: {session.session_status}\n")
+        sys.stdout.write(f"病例ID: {clinical_case.case_id}\n")
+        sys.stdout.flush()
+        
+        patient_response = find_best_patient_response_from_case(clinical_case, message_content, session.session_status)
+        
+        sys.stdout.write(f"🎯 匹配结果: {patient_response}\n")
+        sys.stdout.flush()
+        
+        if patient_response:
+            # 保存匹配到的患者回答
+            response_message = ChatMessage.objects.create(
+                session=session,
+                message_type='patient_response',
+                content=patient_response['text'],
+                stage=session.session_status,
+                matched_keywords=patient_response.get('keywords', []),
+                confidence_score=patient_response.get('confidence', 0.0)
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'response': {
+                    'id': response_message.id,
+                    'content': patient_response['text'],
+                    'timestamp': response_message.timestamp.isoformat(),
+                    'confidence': patient_response.get('confidence', 0.0),
+                    'matched_keywords': patient_response.get('keywords', [])
+                }
+            })
+        else:
+            # 没有匹配到合适的回答，返回默认回复
+            default_response = get_default_patient_response(session.session_status)
+            response_message = ChatMessage.objects.create(
+                session=session,
+                message_type='patient_response',
+                content=default_response,
+                stage=session.session_status,
+                confidence_score=0.1
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'response': {
+                    'id': response_message.id,
+                    'content': default_response,
+                    'timestamp': response_message.timestamp.isoformat(),
+                    'confidence': 0.1,
+                    'matched_keywords': []
+                }
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': '无效的JSON数据'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'服务器内部错误: {str(e)}'
+        })
+
+
+def find_best_patient_response_from_case(clinical_case, question, stage):
+    """
+    基于病历库数据和关键词匹配找到最佳的患者回答
+    直接从病例的病史信息中提取相关内容作为回答
+    """
+    import sys
+    sys.stdout.write(f"\n{'='*60}\n")
+    sys.stdout.write(f"🔍 查找患者回答\n")
+    sys.stdout.write(f"  问题: {question}\n")
+    sys.stdout.write(f"  阶段: {stage}\n")
+    sys.stdout.write(f"  病例: {clinical_case.case_id}\n")
+    sys.stdout.write(f"{'='*60}\n\n")
+    sys.stdout.flush()
+    
+    # 预处理问题文本
+    question_normalized = normalize_text(question)
+    question_words = question_normalized.split()
+    
+    # 根据不同阶段匹配不同的病史字段
+    # 支持新旧两种阶段命名
+    case_fields = {
+        'history': {
+            'chief_complaint': clinical_case.chief_complaint,
+            'present_illness': clinical_case.present_illness,
+            'past_history': clinical_case.past_history,
+            'family_history': clinical_case.family_history,
+        },
+        'case_presentation': {  # 新的阶段名
+            'chief_complaint': clinical_case.chief_complaint,
+            'present_illness': clinical_case.present_illness,
+            'past_history': clinical_case.past_history,
+            'family_history': clinical_case.family_history,
+        },
+        'examination': {
+            'chief_complaint': clinical_case.chief_complaint,
+            'present_illness': clinical_case.present_illness,
+        },
+        'examination_selection': {  # 新的阶段名
+            'chief_complaint': clinical_case.chief_complaint,
+            'present_illness': clinical_case.present_illness,
+        },
+        'examination_results': {  # 新的阶段名
+            'chief_complaint': clinical_case.chief_complaint,
+            'present_illness': clinical_case.present_illness,
+        }
+    }
+    
+    # 默认使用病史阶段的字段
+    fields_to_search = case_fields.get(stage, case_fields.get('history', {}))
+    
+    best_match = None
+    highest_confidence = 0.0
+    
+    # 为不同类型的问题定义关键词和对应的回答模式
+    question_patterns = {
+        '症状': ['症状', '不舒服', '舒服', '感觉', '疼', '痛', '胀', '痒', '干', '涩', '模糊', '看不清', '哪里', '什么地方', '哪儿', '怎么了'],
+        '时间': ['什么时候', '多长时间', '多久', '几天', '几个月', '几年', '开始', '持续'],
+        '程度': ['严重', '轻微', '厉害', '程度', '怎么样'],
+        '诱因': ['为什么', '原因', '怎么回事', '引起', '诱发'],
+        '既往史': ['以前', '之前', '历史', '得过', '有没有', '曾经'],
+        '家族史': ['家人', '父母', '亲属', '遗传', '家族', '家里', '家庭', '眼病']
+    }
+    
+    # 分析问题类型并匹配相应的病史信息
+    for pattern_type, keywords in question_patterns.items():
+        pattern_confidence = calculate_keyword_confidence(question_words, keywords)
+        
+        sys.stdout.write(f"  模式'{pattern_type}': 置信度={pattern_confidence:.2f}\n")
+        sys.stdout.flush()
+        
+        if pattern_confidence > 0.1:  # 如果匹配到某个模式（降低阈值）
+            response_text = generate_response_from_case_data(
+                clinical_case, pattern_type, fields_to_search, question
+            )
+            
+            sys.stdout.write(f"    ✓ 匹配成功，响应长度={len(response_text) if response_text else 0}\n")
+            sys.stdout.flush()
+            
+            if response_text and pattern_confidence > highest_confidence:
+                highest_confidence = pattern_confidence
+                best_match = {
+                    'text': response_text,
+                    'keywords': keywords,
+                    'confidence': pattern_confidence
+                }
+    
+    if best_match:
+        sys.stdout.write(f"\n✅ 找到最佳匹配:\n")
+        sys.stdout.write(f"  置信度: {best_match['confidence']:.2f}\n")
+        sys.stdout.write(f"  响应: {best_match['text'][:100]}...\n")
+        sys.stdout.flush()
+    else:
+        sys.stdout.write(f"\n❌ 未找到匹配\n")
+        sys.stdout.flush()
+    
+    return best_match
+
+
+def calculate_keyword_confidence(question_words, template_keywords):
+    """
+    计算关键词匹配的置信度
+    """
+    if not template_keywords or not question_words:
+        return 0.0
+    
+    matched_keywords = 0
+    total_keywords = len(template_keywords)
+    
+    for keyword in template_keywords:
+        keyword_normalized = normalize_text(keyword)
+        # 检查完整匹配或部分匹配
+        for word in question_words:
+            if (keyword_normalized in word or 
+                word in keyword_normalized or
+                keyword_normalized == word):
+                matched_keywords += 1
+                break
+    
+    # 基础匹配度
+    base_confidence = matched_keywords / total_keywords
+    
+    # 考虑匹配词汇的权重（医学术语给予更高权重）
+    medical_keywords = ['疼', '痛', '肿', '胀', '模糊', '视力', '眼压', '充血', '分泌物', '干涩', '流泪']
+    medical_matches = sum(1 for keyword in template_keywords 
+                         if any(med in normalize_text(keyword) for med in medical_keywords))
+    
+    # 调整置信度
+    if medical_matches > 0:
+        base_confidence *= (1 + medical_matches * 0.1)  # 医学关键词加权
+    
+    return min(base_confidence, 1.0)
+
+
+def normalize_text(text):
+    """
+    文本标准化：转小写，去除标点符号
+    """
+    import string
+    # 去除中英文标点符号
+    punctuation = string.punctuation + '，。！？；：""''（）【】《》'
+    for p in punctuation:
+        text = text.replace(p, ' ')
+    return ' '.join(text.lower().split())
+
+
+def convert_to_patient_speech(medical_text, pattern_type):
+    """
+    将医学记录转换为患者的第一人称口语化表达
+    """
+    if not medical_text or not medical_text.strip():
+        return None
+    
+    text = medical_text.strip()
+    
+    # 针对不同类型采用不同的转换策略
+    if pattern_type == '症状':
+        # 主诉：转换为第一人称
+        # "双眼视力逐渐下降3年，右眼明显。" -> "我双眼视力逐渐下降3年了，右眼更明显。"
+        text = text.replace('。', '')
+        text = text.replace('，', '，我')
+        if not text.startswith('我'):
+            text = '我' + text
+        # 添加口语化词汇
+        text = text.replace('逐渐', '逐渐')
+        text = text.replace('明显', '更明显')
+        if not text.endswith('。'):
+            text += '。'
+        return text
+    
+    elif pattern_type == '时间':
+        # 现病史：保持详细但转为第一人称
+        # "患者3年前开始..." -> "我3年前开始..."
+        text = text.replace('患者', '我')
+        text = text.replace('自觉', '')
+        text = text.replace('近半年', '最近半年')
+        return text
+    
+    elif pattern_type == '既往史':
+        # 既往史：转为第一人称否定/肯定句
+        # "无高血压、糖尿病等..." -> "我没有高血压、糖尿病..."
+        text = text.replace('无', '我没有')
+        text = text.replace('患者', '我')
+        text = text.replace('否认', '没有')
+        return text
+    
+    elif pattern_type == '家族史':
+        # 家族史：转为家庭描述
+        # "无类似家族病史。" -> "我们家里没有人得过类似的病。"
+        if '无' in text or '阴性' in text:
+            return '我们家里没有人得过类似的眼病。'
+        else:
+            text = text.replace('患者', '我')
+            text = text.replace('家族史', '家里')
+            return text
+    
+    else:
+        # 其他情况：基本转换
+        text = text.replace('患者', '我')
+        return text
+
+
+def generate_response_from_case_data(clinical_case, pattern_type, case_fields, question):
+    """
+    根据问题类型从病例数据中生成相应的患者回答
+    """
+    responses = {
+        '症状': {
+            'fields': ['chief_complaint'],  # 主诉直接返回
+            'direct_return': True,  # 标记直接返回，不提取句子
+            'convert_to_speech': True,  # 转换为口语化
+            'templates': [
+                '{content}'
+            ]
+        },
+        '时间': {
+            'fields': ['present_illness'],
+            'direct_return': True,  # 直接返回完整现病史
+            'convert_to_speech': True,  # 转换为口语化
+            'templates': [
+                '{content}'
+            ]
+        },
+        '程度': {
+            'fields': ['present_illness'],
+            'convert_to_speech': True,
+            'templates': [
+                '{content}'
+            ]
+        },
+        '诱因': {
+            'fields': ['present_illness'],
+            'convert_to_speech': True,
+            'templates': [
+                '{content}'
+            ]
+        },
+        '既往史': {
+            'fields': ['past_history'],
+            'direct_return': True,  # 直接返回完整既往史
+            'convert_to_speech': True,  # 转换为口语化
+            'templates': [
+                '{content}' if case_fields.get('past_history') else '我以前没有类似的病史。'
+            ]
+        },
+        '家族史': {
+            'fields': ['family_history'],
+            'direct_return': True,  # 直接返回完整家族史
+            'convert_to_speech': True,  # 转换为口语化
+            'templates': [
+                '{content}' if case_fields.get('family_history') else '我们家族没有类似疾病史。'
+            ]
+        }
+    }
+    
+    pattern_config = responses.get(pattern_type)
+    if not pattern_config:
+        return None
+    
+    # 寻找相关内容
+    relevant_content = None
+    direct_return = pattern_config.get('direct_return', False)
+    convert_to_speech = pattern_config.get('convert_to_speech', False)
+    
+    for field in pattern_config['fields']:
+        field_content = case_fields.get(field, '')
+        if field_content and field_content.strip():
+            # 如果标记为直接返回，直接使用字段内容
+            if direct_return:
+                relevant_content = field_content.strip()
+            else:
+                # 否则提取相关句子
+                relevant_content = extract_relevant_sentence(field_content, question)
+            
+            # 转换为患者口语化表达
+            if relevant_content and convert_to_speech:
+                relevant_content = convert_to_patient_speech(relevant_content, pattern_type)
+            
+            if relevant_content:
+                break
+    
+    if not relevant_content:
+        # 如果没有找到相关内容，返回默认回答
+        if pattern_type == '既往史' and not case_fields.get('past_history'):
+            return '我以前没有类似的病史。'
+        elif pattern_type == '家族史' and not case_fields.get('family_history'):
+            return '我们家族没有类似疾病的病史。'
+        else:
+            return None
+    
+    # 随机选择一个回答模板
+    import random
+    template = random.choice(pattern_config['templates'])
+    
+    # 格式化回答
+    if '{content}' in template:
+        return template.format(content=relevant_content)
+    else:
+        return template
+
+
+def extract_relevant_sentence(text, question):
+    """
+    从文本中提取与问题最相关的句子或片段
+    """
+    if not text or not text.strip():
+        return None
+    
+    # 简单的句子分割（可以进一步优化）
+    sentences = []
+    for sep in ['。', '！', '？', '\n']:
+        text = text.replace(sep, '|SPLIT|')
+    
+    potential_sentences = text.split('|SPLIT|')
+    
+    question_words = normalize_text(question).split()
+    best_sentence = None
+    highest_score = 0
+    
+    for sentence in potential_sentences:
+        sentence = sentence.strip()
+        if len(sentence) < 3:  # 忽略太短的句子
+            continue
+            
+        sentence_words = normalize_text(sentence).split()
+        score = calculate_keyword_confidence(sentence_words, question_words)
+        
+        if score > highest_score:
+            highest_score = score
+            best_sentence = sentence
+    
+    # 如果没有找到匹配度高的句子，返回第一句非空句子
+    if not best_sentence or highest_score < 0.1:
+        for sentence in potential_sentences:
+            sentence = sentence.strip()
+            if len(sentence) > 3:
+                best_sentence = sentence
+                break
+    
+    return best_sentence[:100] if best_sentence else None  # 限制长度
+
+
+def get_default_patient_response(stage):
+    """
+    获取默认的患者回答（当没有匹配到合适回答时使用）
+    """
+    default_responses = {
+        'history': [
+            '对不起，我没太理解您的问题，您能换个方式问吗？',
+            '我想想...这个问题我需要仔细回忆一下。',
+            '您问的这个问题，我觉得可能与我的症状有关，但我不太确定怎么表达。',
+            '医生，您能具体一点吗？我想更准确地回答您的问题。'
+        ],
+        'examination': [
+            '医生，我会配合检查的。',
+            '好的，请您给我做检查。',
+            '我理解需要做这些检查，请您安排。',
+            '医生，您觉得需要做什么检查？'
+        ]
+    }
+    
+    import random
+    responses = default_responses.get(stage, ['我明白了，请您继续。'])
+    return random.choice(responses)
+
+
+@login_required
+@user_passes_test(is_student, login_url='login')
+@require_POST
+def update_session_stage(request, case_id):
+    """
+    更新学习会话的当前阶段
+    """
+    try:
+        data = json.loads(request.body)
+        new_stage = data.get('stage', '').strip()
+        
+        # 有效的阶段值（前后端已统一命名）
+        valid_stages = [
+            'case_presentation',
+            'examination_selection',
+            'examination_results',
+            'diagnosis_reasoning',
+            'treatment_selection',
+            'learning_feedback',
+            'completed'
+        ]
+        
+        # 验证阶段值
+        if new_stage not in valid_stages:
+            return JsonResponse({
+                'success': False,
+                'error': f'无效的阶段值: {new_stage}。有效值为: {valid_stages}'
+            })
+        
+        # 前后端已统一命名，直接使用
+        actual_stage = new_stage
+        
+        # 获取临床病例和会话
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id)
+        session, created = StudentClinicalSession.objects.get_or_create(
+            student=request.user,
+            clinical_case=clinical_case,
+            defaults={'session_status': actual_stage}
+        )
+
+        # 若用户重新回到病史采集（case_presentation），通常表示开始新一轮学习。
+        # 为避免继承上一轮计时导致“总用时/阶段用时爆炸”，这里重置本轮计时相关字段。
+        # 触发条件：
+        # - 明确完成态（learning_feedback/completed 或 completed_at 不为空）后回到病史采集
+        # - 或者：当前阶段已是病史采集，但 session_data 里存在后续阶段的旧计时痕迹（常见于刷新/返回第一阶段）
+        # - 或者：前端显式传入 restart/reset_timing=true
+        try:
+            if not session.session_data:
+                session.session_data = {}
+            old_status = getattr(session, 'session_status', None)
+            is_completed_like = (old_status in ('learning_feedback', 'completed')) or (getattr(session, 'completed_at', None) is not None)
+
+            restart_flag = False
+            try:
+                restart_flag = bool(data.get('restart') or data.get('reset_timing'))
+            except Exception:
+                restart_flag = False
+
+            # 检测“已回到第一阶段但计时仍残留”的情况：
+            # - session_status 已是 case_presentation（前端/刷新可能把视图带回第一阶段）
+            # - 但 stage_start_times/stage_times 中已经记录过后续阶段（说明不是第一次进入）
+            has_progress_markers = False
+            try:
+                sst = session.session_data.get('stage_start_times')
+                st = session.session_data.get('stage_times')
+                if isinstance(sst, dict):
+                    has_progress_markers = any(k and str(k) != 'case_presentation' for k in sst.keys())
+                if not has_progress_markers and isinstance(st, dict):
+                    has_progress_markers = bool(st)
+            except Exception:
+                has_progress_markers = False
+
+            is_restart_to_case = (actual_stage == 'case_presentation') and (
+                restart_flag or is_completed_like or (old_status == 'case_presentation' and has_progress_markers)
+            )
+
+            if is_restart_to_case:
+                now_iso = timezone.now().isoformat()
+
+                archives = session.session_data.get('timing_archives')
+                if not isinstance(archives, list):
+                    archives = []
+                archives.append({
+                    'archived_at': now_iso,
+                    'run_started_at': session.session_data.get('run_started_at'),
+                    'stage_start_times': session.session_data.get('stage_start_times'),
+                    'stage_times': session.session_data.get('stage_times'),
+                    'session_status_before': old_status,
+                    'completed_at_before': getattr(session, 'completed_at', None).isoformat() if getattr(session, 'completed_at', None) else None,
+                })
+
+                session.session_data['timing_archives'] = archives
+                session.session_data['run_started_at'] = now_iso
+                session.session_data['stage_start_times'] = {}
+                session.session_data['stage_times'] = {}
+                # 清理完成标记，让新一轮有正确的 end_time 口径
+                if getattr(session, 'completed_at', None) is not None:
+                    session.completed_at = None
+        except Exception:
+            pass
+
+        # 初始化本轮开始时间（用于前端/复盘计时对齐）
+        if not session.session_data:
+            session.session_data = {}
+        changed_meta = False
+        now_iso = timezone.now().isoformat()
+        if not session.session_data.get('run_started_at'):
+            # 旧会话首次补齐 run_started_at：为避免历史 stage_times/stage_start_times 污染本轮，先归档再清空
+            try:
+                existing_stage_times = session.session_data.get('stage_times')
+                existing_stage_start_times = session.session_data.get('stage_start_times')
+                if (isinstance(existing_stage_times, dict) and existing_stage_times) or (isinstance(existing_stage_start_times, dict) and existing_stage_start_times):
+                    archives = session.session_data.get('timing_archives')
+                    if not isinstance(archives, list):
+                        archives = []
+                    archives.append({
+                        'archived_at': now_iso,
+                        'run_started_at': session.session_data.get('run_started_at'),
+                        'stage_start_times': existing_stage_start_times,
+                        'stage_times': existing_stage_times,
+                        'session_status_before': getattr(session, 'session_status', None),
+                        'completed_at_before': getattr(session, 'completed_at', None).isoformat() if getattr(session, 'completed_at', None) else None,
+                        'reason': 'init_run_started_at_reset_timing',
+                    })
+                    session.session_data['timing_archives'] = archives
+                    session.session_data['stage_start_times'] = {}
+                    session.session_data['stage_times'] = {}
+            except Exception:
+                pass
+            session.session_data['run_started_at'] = now_iso
+            changed_meta = True
+
+        # 记录“每个阶段首次进入时间”（即使没有发生 stage 切换，也要写入，避免前端显示（未记录））
+        stage_start_times = session.session_data.get('stage_start_times')
+        if not isinstance(stage_start_times, dict):
+            stage_start_times = {}
+        if not stage_start_times.get(actual_stage):
+            stage_start_times[actual_stage] = now_iso
+            session.session_data['stage_start_times'] = stage_start_times
+            changed_meta = True
+        
+        # 记录阶段切换时间
+        if session.session_status != actual_stage:
+            old_stage = session.session_status
+            session.session_status = actual_stage
+            
+            # 更新时间记录
+            stage_times = session.session_data.get('stage_times', {})
+            stage_times[f'{old_stage}_to_{new_stage}'] = now_iso
+            session.session_data['stage_times'] = stage_times
+            
+            # 如果进入检查阶段，重置检查相关的错误计数
+            if actual_stage == 'examination_selection':
+                session.session_data.pop('examination_current_attempt_count', None)
+                session.session_data.pop('examination_selection_errors', None)
+            
+            session.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'已切换到{new_stage}阶段',
+                'data': {
+                    'old_stage': old_stage,
+                    'new_stage': new_stage,
+                    'actual_stage': actual_stage,
+                    'timestamp': timezone.now().isoformat()
+                }
+            })
+        else:
+            # 阶段未切换，但如果补齐了 run_started_at / stage_start_times，也需要落库
+            if changed_meta:
+                session.save()
+            return JsonResponse({
+                'success': True,
+                'message': f'已在{new_stage}阶段',
+                'data': {
+                    'current_stage': new_stage,
+                    'actual_stage': actual_stage
+                }
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': '无效的JSON数据'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'更新阶段失败: {str(e)}'
+        })
+
+
+@require_POST 
+def save_history_summary(request, case_id):
+    """
+    保存病史汇总信息
+    """
+    try:
+        data = json.loads(request.body)
+        
+        # 获取临床病例和会话
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id)
+        session, created = StudentClinicalSession.objects.get_or_create(
+            student=request.user,
+            clinical_case=clinical_case,
+            defaults={'session_status': 'case_presentation'}
+        )
+        
+        # 保存病史汇总信息
+        if not session.session_data:
+            session.session_data = {}
+        
+        history_summary = session.session_data.get('history_summary', {})
+        
+        # 更新各项病史信息
+        if 'chief_complaint' in data:
+            history_summary['chief_complaint'] = data['chief_complaint']
+        if 'duration' in data:
+            history_summary['duration'] = data['duration']
+        if 'symptom_nature' in data:
+            history_summary['symptom_nature'] = data['symptom_nature']
+        if 'severity' in data:
+            history_summary['severity'] = data['severity']
+        if 'trigger_factors' in data:
+            history_summary['trigger_factors'] = data['trigger_factors']
+        if 'past_history' in data:
+            history_summary['past_history'] = data['past_history']
+        if 'family_history' in data:
+            history_summary['family_history'] = data['family_history']
+            
+        session.session_data['history_summary'] = history_summary
+        session.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': '病史汇总已保存',
+            'data': {
+                'history_summary': history_summary
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': '无效的JSON数据'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'保存病史汇总失败: {str(e)}'
+        })
+
+
+def get_history_summary(request, case_id):
+    """
+    获取病史汇总信息
+    """
+    try:
+        # 阶段反向映射：模型值 -> 前端值
+        reverse_stage_mapping = {
+            'case_presentation': 'history',
+            'examination_selection': 'examination',
+            'examination_results': 'examination',
+            'diagnosis_reasoning': 'diagnosis',
+            'treatment_selection': 'treatment',
+            'learning_feedback': 'feedback',
+            'completed': 'completed'
+        }
+        
+        # 获取临床病例和会话
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id)
+        session = get_object_or_404(
+            StudentClinicalSession,
+            student=request.user,
+            clinical_case=clinical_case
+        )
+        
+        history_summary = {}
+        if session.session_data:
+            history_summary = session.session_data.get('history_summary', {})
+        
+        # 将数据库中的阶段值映射回前端使用的值
+        frontend_stage = reverse_stage_mapping.get(session.session_status, 'history')
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'history_summary': history_summary,
+                'current_stage': frontend_stage
+            }
+        })
+        
+    except StudentClinicalSession.DoesNotExist:
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'history_summary': {},
+                'current_stage': 'history'
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'获取病史汇总失败: {str(e)}'
+        })
+
+
+@require_http_methods(["GET"])
+def get_physical_exam(request, case_id):
+    """
+    获取体格检查结果
+    """
+    try:
+        # 获取临床病例
+        clinical_case = get_object_or_404(ClinicalCase, case_id=case_id)
+        
+        # 构建体格检查结果
+        physical_exam_data = {
+            'visual_acuity': clinical_case.visual_acuity or '未记录',
+            'intraocular_pressure': clinical_case.intraocular_pressure or '未记录',
+            'external_eye': clinical_case.external_eye_exam or '未记录',
+            'pupil': clinical_case.pupil_exam or '未记录',
+            'conjunctiva': clinical_case.conjunctiva_exam or '未记录',
+            'cornea': clinical_case.cornea_exam or '未记录'
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'data': physical_exam_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'获取体格检查信息失败: {str(e)}'
+        })

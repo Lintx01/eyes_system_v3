@@ -1,5 +1,7 @@
 from django.urls import path
 from . import views
+from . import diagnosis_views
+from . import treatment_views
 
 urlpatterns = [
     # 基础页面
@@ -19,6 +21,7 @@ urlpatterns = [
     
     # 教师端
     path('teacher/', views.teacher_dashboard, name='teacher_dashboard'),
+    path('teacher/sessions/<int:session_id>/review/', views.teacher_session_review, name='teacher_session_review'),
     
     # 测试页面
     path('test-delete/', views.test_delete_view, name='test_delete'),
@@ -36,6 +39,7 @@ urlpatterns = [
     path('teacher/clinical-cases/<str:case_id>/edit/', views.teacher_clinical_case_edit, name='teacher_clinical_case_edit'),
     path('teacher/clinical-cases/<str:case_id>/delete/', views.teacher_clinical_case_delete, name='teacher_clinical_case_delete'),
     path('teacher/clinical-cases/<str:case_id>/preview/', views.teacher_clinical_case_preview, name='teacher_clinical_case_preview'),
+    path('teacher/clinical-cases/<str:case_id>/scores/', views.teacher_clinical_case_scores, name='teacher_clinical_case_scores'),
     
     # 教师端 - 检查选项管理
     path('teacher/clinical-cases/<str:case_id>/examinations/', views.teacher_examination_options, name='teacher_examination_options'),
@@ -83,4 +87,21 @@ urlpatterns = [
     # 学生端临床推理页面
     path('student/clinical/<str:case_id>/', views.student_clinical_view, name='student_clinical_view'),
     path('clinical-debug/', views.clinical_debug_view, name='clinical_debug'),
+    
+    # 聊天API
+    path('api/clinical/case/<str:case_id>/chat/', views.chat_api, name='chat_api'),
+    
+    # 会话管理API
+    path('api/clinical/case/<str:case_id>/update-stage/', views.update_session_stage, name='update_session_stage'),
+    path('api/clinical/case/<str:case_id>/save-history/', views.save_history_summary, name='save_history_summary'),
+    path('api/clinical/case/<str:case_id>/get-history/', views.get_history_summary, name='get_history_summary'),
+    path('api/clinical/case/<str:case_id>/physical-exam/', views.get_physical_exam, name='get_physical_exam'),
+    
+    # 诊断推理API
+    path('api/clinical/case/<str:case_id>/diagnosis-options/', diagnosis_views.get_diagnosis_options, name='get_diagnosis_options'),
+    path('api/clinical/case/<str:case_id>/submit-diagnosis/', diagnosis_views.submit_diagnosis, name='submit_diagnosis'),
+    
+    # 治疗方案API
+    path('api/clinical/case/<str:case_id>/treatment-options/', treatment_views.get_treatment_options, name='get_treatment_options'),
+    path('api/clinical/case/<str:case_id>/submit-treatment/', treatment_views.submit_treatment, name='submit_treatment'),
 ]

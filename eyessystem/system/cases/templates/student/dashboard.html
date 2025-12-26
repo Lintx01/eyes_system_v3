@@ -11,7 +11,7 @@
     <div class="card-body">
         <div class="stats-grid">
             <div class="stat-card" role="status" aria-label="总体学习进度">
-                <div class="stat-number">{{ progress.progress_percentage|floatformat:1|default:0 }}%</div>
+                <div class="stat-number" id="progress-percentage">{{ progress.progress_percentage|floatformat:1|default:0 }}%</div>
                 <div class="stat-label">总体进度</div>
             </div>
             <div class="stat-card" role="status" aria-label="已完成病例数量">
@@ -19,11 +19,11 @@
                 <div class="stat-label">已完成病例</div>
             </div>
             <div class="stat-card" role="status" aria-label="总病例数量">
-                <div class="stat-number">{{ total_clinical_cases }}</div>
+                <div class="stat-number" id="total-clinical-cases">{{ total_clinical_cases }}</div>
                 <div class="stat-label">总病例数</div>
             </div>
             <div class="stat-card" role="status" aria-label="总学习时长">
-                <div class="stat-number">{{ progress.formatted_study_time|default:"0min" }}</div>
+                <div class="stat-number" id="formatted-study-time">{{ progress.formatted_study_time|default:"0min" }}</div>
                 <div class="stat-label">学习时长</div>
             </div>
         </div>
@@ -39,6 +39,50 @@
             <a href="{% url 'clinical_case_list' %}" class="btn" style="background: #007bff; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none;">
                 <i class="fas fa-stethoscope"></i> 开始临床推理学习
             </a>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> 临床推理统计</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 class="text-primary" id="completed-cases">-</h4>
+                        <small>已完成案例</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success" id="average-score">-</h4>
+                        <small>平均得分</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="progress-stats">
+                    <div class="d-flex justify-content-between">
+                        <span>初级案例</span>
+                        <span id="beginner-progress">0/0</span>
+                    </div>
+                    <div class="progress mb-2">
+                        <div class="progress-bar bg-success" id="beginner-bar" style="width: 0%"></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <span>中级案例</span>
+                        <span id="intermediate-progress">0/0</span>
+                    </div>
+                    <div class="progress mb-2">
+                        <div class="progress-bar bg-warning" id="intermediate-bar" style="width: 0%"></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <span>高级案例</span>
+                        <span id="advanced-progress">0/0</span>
+                    </div>
+                    <div class="progress mb-2">
+                        <div class="progress-bar bg-danger" id="advanced-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -141,6 +185,19 @@ document.addEventListener('DOMContentLoaded', function() {
             card.style.transform = 'translateY(0)';
         }, 100 + index * 100);
     });
+});
+</script>
+
+<script src="{% static 'clinical_user_stats.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.loadClinicalUserStats) {
+        window.loadClinicalUserStats(function(err) {
+            if (err) {
+                console.error('加载统计数据失败:', err);
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

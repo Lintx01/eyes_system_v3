@@ -156,10 +156,17 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'clinical_user_stats.js' %}"></script>
 <script>
 $(document).ready(function() {
     loadClinicalCases();
-    loadUserStats();
+    if (window.loadClinicalUserStats) {
+        window.loadClinicalUserStats(function(err) {
+            if (err) {
+                console.error('加载统计数据失败:', err);
+            }
+        });
+    }
 });
 
 function loadClinicalCases(difficulty = 'all') {
@@ -285,36 +292,6 @@ function filterCases(difficulty) {
         $('.clinical-case-card').hide();
         $(`.clinical-case-card[data-difficulty="${difficulty}"]`).show();
     }
-}
-
-function loadUserStats() {
-    $.ajax({
-        url: '/api/clinical/user-stats/',
-        method: 'GET',
-        success: function(response) {
-            if (response.success) {
-                updateStatsDisplay(response.data);
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('加载统计数据失败:', error);
-        }
-    });
-}
-
-function updateStatsDisplay(stats) {
-    $('#completed-cases').text(stats.completed_cases || 0);
-    $('#average-score').text(stats.average_score ? stats.average_score.toFixed(1) + '%' : '-');
-    
-    // 更新各难度进度
-    ['beginner', 'intermediate', 'advanced'].forEach(function(level) {
-        const progress = stats.difficulty_progress[level];
-        if (progress) {
-            $(`#${level}-progress`).text(`${progress.completed}/${progress.total}`);
-            const percentage = progress.total > 0 ? (progress.completed / progress.total) * 100 : 0;
-            $(`#${level}-bar`).css('width', percentage + '%');
-        }
-    });
 }
 
 function startClinicalReasoning(caseId) {

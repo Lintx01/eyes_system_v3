@@ -126,6 +126,21 @@
         color: #6c757d;
         margin-top: 0.25rem;
     }
+
+    a.case-score-link,
+    a.case-score-link:visited {
+        color: #667eea;
+        text-decoration: none;
+        display: block;
+        cursor: pointer;
+        border-radius: 6px;
+        padding: 2px 4px;
+    }
+
+    a.case-score-link:hover {
+        text-decoration: underline;
+        background: rgba(102, 126, 234, 0.12);
+    }
     
     .difficulty-badge {
         padding: 0.25rem 0.75rem;
@@ -451,8 +466,16 @@
                             <div class="stat-label">完成率</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-value">{{ case.avg_score }}</div>
-                            <div class="stat-label">平均分</div>
+                            <a class="case-score-link" href="{% url 'teacher_clinical_case_scores' case.case_id %}">
+                                <div class="stat-value">
+                                    {% if case.student_sessions_count|default:0|add:0 > 0 and case.avg_score|default:0 > 0 %}
+                                        {{ case.avg_score|floatformat:1 }}
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                </div>
+                                <div class="stat-label">平均分</div>
+                            </a>
                         </div>
                     </div>
                 </div>

@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block title %}学习反馈复盘 - 教师端{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>学习反馈复盘</h2>
+        <p style="margin: 0;">学生：{{ session.student.get_full_name|default:session.student.username }} ｜ 病例：{{ session.clinical_case.title }}</p>
+    </div>
+    <div class="card-body">
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>病例信息（教师核对）</h3>
+            </div>
+            <div class="card-body">
+                <p><strong>病例编号：</strong>{{ session.clinical_case.case_id }}</p>
+                <p><strong>病例标题：</strong>{{ session.clinical_case.title }}</p>
+                <p>
+                    <strong>患者信息：</strong>
+                    {% if session.clinical_case.patient_age %}{{ session.clinical_case.patient_age }}岁{% else %}-{% endif %}
+                    ｜
+                    {{ session.clinical_case.get_patient_gender_display|default:"-" }}
+                </p>
+
+                <hr>
+
+                <p><strong>主诉：</strong></p>
+                <div style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px;">{% if session.clinical_case.chief_complaint %}{{ session.clinical_case.chief_complaint }}{% else %}-{% endif %}</div>
+
+                <p style="margin-top: 12px;"><strong>现病史：</strong></p>
+                <div style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px;">{% if session.clinical_case.present_illness %}{{ session.clinical_case.present_illness }}{% else %}-{% endif %}</div>
+
+                <p style="margin-top: 12px;"><strong>既往史：</strong></p>
+                <div style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px;">{% if session.clinical_case.past_history %}{{ session.clinical_case.past_history }}{% else %}-{% endif %}</div>
+
+                <p style="margin-top: 12px;"><strong>家族史：</strong></p>
+                <div style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px;">{% if session.clinical_case.family_history %}{{ session.clinical_case.family_history }}{% else %}-{% endif %}</div>
+
+                {% if session.clinical_case.learning_objectives %}
+                    <p style="margin-top: 12px;"><strong>学习目标：</strong></p>
+                    <div style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px;">{{ session.clinical_case.learning_objectives }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="stat-card">
+                <div class="stat-number">{{ session.get_session_status_display|default:session.session_status }}</div>
+                <div class="stat-label">学习状态</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{% if session.overall_score %}{{ session.overall_score|floatformat:1 }}分{% else %}-{% endif %}</div>
+                <div class="stat-label">总分</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ total_study_time }}</div>
+                <div class="stat-label">单案例学习时长</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ session.started_at|date:"m-d H:i" }}</div>
+                <div class="stat-label">开始时间</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+                <h3>阶段用时（后端口径）</h3>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>阶段</th>
+                            <th>用时</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>病例呈现</td><td>{% if stage_minutes.case_presentation != None %}{{ stage_minutes.case_presentation }}min{% else %}-{% endif %}</td></tr>
+                        <tr><td>检查选择</td><td>{% if stage_minutes.examination_selection != None %}{{ stage_minutes.examination_selection }}min{% else %}-{% endif %}</td></tr>
+                        <tr><td>诊断推理</td><td>{% if stage_minutes.diagnosis_reasoning != None %}{{ stage_minutes.diagnosis_reasoning }}min{% else %}-{% endif %}</td></tr>
+                        <tr><td>治疗选择</td><td>{% if stage_minutes.treatment_selection != None %}{{ stage_minutes.treatment_selection }}min{% else %}-{% endif %}</td></tr>
+                        <tr><td>学习反馈</td><td>{% if stage_minutes.learning_feedback != None %}{{ stage_minutes.learning_feedback }}min{% else %}-{% endif %}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+                <h3>检查选择</h3>
+            </div>
+            <div class="card-body">
+                {% if review.selected_examinations %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width: 18%;">检查名称</th>
+                                <th style="width: 12%;">类型</th>
+                                <th style="width: 20%;">检查描述</th>
+                                <th style="width: 20%;">实际结果</th>
+                                <th>结果图片</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for x in review.selected_examinations %}
+                                <tr>
+                                    <td>{{ x.name }}</td>
+                                    <td>{{ x.type_display|default:x.type|default:"-" }}</td>
+                                    <td style="white-space: pre-wrap;">{{ x.description|default:"-" }}</td>
+                                    <td style="white-space: pre-wrap;">{{ x.actual_result|default:"-" }}</td>
+                                    <td>
+                                        {% if x.images %}
+                                            {% for img in x.images %}
+                                                {% if img.url %}
+                                                    <div style="margin-bottom: 10px;">
+                                                        <div style="font-size: 12px; color: #666;">{{ img.description|default:"图片" }}</div>
+                                                        <a href="{{ img.url }}" target="_blank" rel="noopener">
+                                                            <img src="{{ img.url }}" alt="{{ img.description|default:'图片' }}" style="max-width: 220px; max-height: 160px; border: 1px solid #e5e5e5; border-radius: 4px;" />
+                                                        </a>
+                                                    </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p style="color: #666;">-</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+                <h3>诊断提交</h3>
+            </div>
+            <div class="card-body">
+                {% if review.diagnosis %}
+                    <p><strong>诊断ID：</strong>
+                        {% if review.diagnosis.diagnosis_ids %}
+                            {{ review.diagnosis.diagnosis_ids|join:"、" }}
+                        {% else %}-{% endif %}
+                    </p>
+                    <p><strong>诊断名称：</strong>
+                        {% if review.diagnosis.diagnosis_names %}
+                            {{ review.diagnosis.diagnosis_names|join:"、" }}
+                        {% else %}-{% endif %}
+                    </p>
+                    <p><strong>诊断依据：</strong></p>
+                    <div style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px;">{% if review.diagnosis.diagnosis_rationale %}{{ review.diagnosis.diagnosis_rationale }}{% else %}-{% endif %}</div>
+                {% else %}
+                    <p style="color: #666;">-</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+                <h3>治疗提交</h3>
+            </div>
+            <div class="card-body">
+                {% if review.treatment %}
+                    <p><strong>治疗ID：</strong>
+                        {% if review.treatment.treatment_ids %}
+                            {{ review.treatment.treatment_ids|join:"、" }}
+                        {% else %}-{% endif %}
+                    </p>
+                    <p><strong>治疗名称：</strong>
+                        {% if review.treatment.treatment_names %}
+                            {{ review.treatment.treatment_names|join:"、" }}
+                        {% else %}-{% endif %}
+                    </p>
+                    <p><strong>治疗依据：</strong></p>
+                    <div style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px;">{% if review.treatment.treatment_rationale %}{{ review.treatment.treatment_rationale }}{% else %}-{% endif %}</div>
+                {% else %}
+                    {% if review.selected_treatments %}
+                        <ul>
+                            {% for t in review.selected_treatments %}
+                                <li>{{ t.name }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p style="color: #666;">-</p>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <a href="{% url 'teacher_dashboard' %}" class="btn secondary">返回教师仪表板</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

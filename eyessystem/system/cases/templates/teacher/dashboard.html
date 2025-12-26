@@ -50,6 +50,13 @@
         <h3>最近的学习活动</h3>
     </div>
     <div class="card-body">
+        <style>
+            a.student-review-link,
+            a.student-review-link:visited {
+                color: #007bff;
+                text-decoration: none;
+            }
+        </style>
         <table class="table">
             <thead>
                 <tr>
@@ -58,6 +65,7 @@
                     <th>学习状态</th>
                     <th>总分</th>
                     <th>总学习时间</th>
+                    <th>单案例学习时长</th>
                     <th>开始时间</th>
                     <th>最后活动</th>
                 </tr>
@@ -65,7 +73,11 @@
             <tbody>
                 {% for item in recent_sessions %}
                 <tr>
-                    <td>{{ item.session.student.get_full_name|default:item.session.student.username }}</td>
+                    <td>
+                        <a class="student-review-link" href="{% url 'teacher_session_review' item.session.id %}">
+                            {{ item.session.student.get_full_name|default:item.session.student.username }}
+                        </a>
+                    </td>
                     <td>{{ item.session.clinical_case.title }}</td>
                     <td>{{ item.session.get_session_status_display|default:item.session.session_status }}</td>
                     <td>
@@ -76,6 +88,7 @@
                         {% endif %}
                     </td>
                     <td><strong style="color: #007bff;">{{ item.total_study_time }}</strong></td>
+                    <td>{{ item.case_study_time }}</td>
                     <td>{{ item.session.started_at|date:"m-d H:i" }}</td>
                     <td>{{ item.session.last_activity|date:"m-d H:i"|default:"-" }}</td>
                 </tr>

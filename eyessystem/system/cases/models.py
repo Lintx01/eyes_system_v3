@@ -349,6 +349,14 @@ class ClinicalCase(models.Model):
     past_history = models.TextField(blank=True, verbose_name="既往史")
     family_history = models.TextField(blank=True, verbose_name="家族史")
     
+    # 体格检查
+    visual_acuity = models.TextField(blank=True, verbose_name="视力", help_text="如：右眼0.3，左眼0.5")
+    intraocular_pressure = models.TextField(blank=True, verbose_name="眼压", help_text="如：右眼15mmHg，左眼16mmHg")
+    external_eye_exam = models.TextField(blank=True, verbose_name="眼外观检查", help_text="眼睑、眼球位置、运动等")
+    pupil_exam = models.TextField(blank=True, verbose_name="瞳孔检查", help_text="瞳孔大小、形状、对光反应等")
+    conjunctiva_exam = models.TextField(blank=True, verbose_name="结膜检查", help_text="结膜充血、水肿等")
+    cornea_exam = models.TextField(blank=True, verbose_name="角膜检查", help_text="角膜透明度、表面等")
+    
     # 教学相关
     learning_objectives = models.JSONField(verbose_name="学习目标", help_text="JSON格式存储多个学习目标")
     difficulty_level = models.CharField(
@@ -545,6 +553,20 @@ class DiagnosisOption(models.Model):
         verbose_name="诊断概率分数"
     )
     
+    # 诊断依据评分字段
+    diagnosis_description = models.TextField(blank=True, verbose_name="诊断描述", 
+                                           help_text="诊断的详细描述")
+    correct_rationale = models.TextField(blank=True, verbose_name="标准诊断依据",
+                                        help_text="用于与学生输入的诊断依据进行文本匹配的标准答案")
+    key_points = models.TextField(blank=True, verbose_name="关键点",
+                                 help_text="用逗号或分号分隔的关键词列表，用于评估学生诊断依据是否涵盖重要知识点")
+    difficulty_level = models.CharField(
+        max_length=20,
+        choices=[('easy', '容易'), ('medium', '中等'), ('hard', '困难')],
+        default='medium',
+        verbose_name="难度级别"
+    )
+    
     display_order = models.IntegerField(default=0, verbose_name="显示顺序")
     
     class Meta:
@@ -608,6 +630,20 @@ class TreatmentOption(models.Model):
     
     # 教学反馈
     selection_feedback = models.TextField(verbose_name="选择该治疗时的反馈")
+    
+    # 治疗依据评分字段（用于文本匹配评分）
+    correct_rationale = models.TextField(blank=True, default='', verbose_name="正确的治疗依据")
+    key_points = models.TextField(blank=True, default='', verbose_name="关键要点（每行一个）")
+    difficulty_level = models.CharField(
+        max_length=20,
+        choices=[
+            ('easy', '简单'),
+            ('medium', '中等'),
+            ('hard', '困难')
+        ],
+        default='medium',
+        verbose_name="难度等级"
+    )
     
     display_order = models.IntegerField(default=0, verbose_name="显示顺序")
     
@@ -763,3 +799,126 @@ class TeachingFeedback(models.Model):
     
     def __str__(self):
         return f"{self.student_session.student.username} - {self.feedback_stage} - {self.feedback_type}"
+
+
+# ================== 问诊聊天系统模型 ==================
+
+class ChatMessage(models.Model):
+    """问诊聊天消息模型 - 支持交互式病史采集"""
+    
+    MESSAGE_TYPES = [
+        ('student_question', '学生提问'),
+        ('patient_response', '病人回答'),
+        ('system_hint', '系统提示'),
+    ]
+    
+    STAGE_CHOICES = [
+        ('history', '病史采集'),
+        ('examination', '体格检查'),
+        ('diagnosis', '诊断推理'),
+        ('treatment', '治疗选择'),
+        ('feedback', '学习反馈'),
+    ]
+    
+    # 关联信息
+    session = models.ForeignKey('StudentClinicalSession', on_delete=models.CASCADE, 
+                               related_name='chat_messages', verbose_name='学习会话')
+    
+    # 消息内容
+    message_type = models.CharField('消息类型', max_length=20, choices=MESSAGE_TYPES)
+    content = models.TextField('消息内容')
+    
+    # 阶段控制
+    stage = models.CharField('所属阶段', max_length=20, choices=STAGE_CHOICES)
+    
+    # 关键词匹配信息（用于病人回答生成）
+    matched_keywords = models.JSONField('匹配的关键词', default=list, blank=True, 
+                                      help_text='触发此回答的关键词列表')
+    confidence_score = models.FloatField('匹配置信度', default=0.0, 
+                                       validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+                                       help_text='关键词匹配的置信度分数')
+    
+    # 元数据
+    timestamp = models.DateTimeField('时间戳', auto_now_add=True)
+    is_important = models.BooleanField('重要信息', default=False, 
+                                     help_text='标记是否为诊断关键信息')
+    
+    class Meta:
+        verbose_name = '聊天消息'
+        verbose_name_plural = '聊天消息'
+        ordering = ['timestamp']
+    
+    def __str__(self):
+        return f"{self.get_message_type_display()} - {self.content[:50]}..."
+
+
+class PatientResponseTemplate(models.Model):
+    """病人回答模板 - 支持关键词匹配的固定回答库"""
+    
+    # 关联病例
+    case = models.ForeignKey(ClinicalCase, on_delete=models.CASCADE, 
+                            related_name='response_templates', verbose_name='临床病例')
+    
+    # 关键词配置
+    keywords = models.JSONField('关键词列表', default=list, 
+                               help_text='触发此回答的关键词，支持同义词')
+    response_text = models.TextField('病人回答内容')
+    
+    # 匹配优先级
+    priority = models.IntegerField('优先级', default=0, 
+                                 help_text='数值越大优先级越高，同时匹配多个模板时使用')
+    
+    # 信息分类
+    information_category = models.CharField('信息类别', max_length=50, 
+                                          choices=[
+                                              ('chief_complaint', '主诉相关'),
+                                              ('present_illness', '现病史'),
+                                              ('past_history', '既往史'),
+                                              ('family_history', '家族史'),
+                                              ('personal_history', '个人史'),
+                                              ('physical_exam', '体格检查'),
+                                              ('general', '一般信息'),
+                                          ], default='present_illness')
+    
+    # 诊断价值
+    diagnostic_importance = models.CharField('诊断重要性', max_length=20,
+                                           choices=[
+                                               ('critical', '关键信息'),
+                                               ('important', '重要信息'),
+                                               ('supportive', '支持性信息'),
+                                               ('irrelevant', '无关信息'),
+                                           ], default='supportive')
+    
+    # 控制设置
+    is_active = models.BooleanField('启用状态', default=True)
+    max_triggers = models.IntegerField('最大触发次数', default=0, 
+                                     help_text='0表示无限制，>0表示最多触发次数')
+    trigger_count = models.IntegerField('已触发次数', default=0)
+    
+    # 元数据
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+    
+    class Meta:
+        verbose_name = '病人回答模板'
+        verbose_name_plural = '病人回答模板'
+        ordering = ['-priority', 'information_category']
+    
+    def __str__(self):
+        return f"{self.case.title} - {self.get_information_category_display()}"
+    
+    def can_trigger(self):
+        """检查是否还能触发此模板"""
+        if not self.is_active:
+            return False
+        if self.max_triggers == 0:
+            return True
+        return self.trigger_count < self.max_triggers
+    
+    def trigger(self):
+        """触发此模板，增加计数"""
+        if self.can_trigger():
+            self.trigger_count += 1
+            self.save(update_fields=['trigger_count'])
+            return True
+        return False
